@@ -38,9 +38,11 @@ import { loadStripe } from '@stripe/stripe-js';
 
 const API_BASE_URL = process.env.REACT_BACKEND_URL || 'http://localhost:5001';
 
-if (process.env.NODE_ENV === 'development') {
-  console.log('📡 Frontend API URL:', API_BASE_URL);
-}
+// Toujours afficher pour debug
+console.log('📡 Frontend API URL:', API_BASE_URL);
+console.log('📡 NODE_ENV:', process.env.NODE_ENV);
+console.log('📡 VITE_BACKEND_URL env var:', process.env.REACT_BACKEND_URL);
+
 
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.timeout = 30000;
