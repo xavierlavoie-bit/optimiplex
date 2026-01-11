@@ -1,0 +1,33 @@
+{
+  "name": "plexoptimizer-backend",
+  "version": "1.0.0",
+  "description": "PlexOptimizer AI - Backend API",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "real-estate",
+    "ai",
+    "saas"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "firebase-admin": "^12.7.0",
+    "node-cache": "^5.1.2",
+    "stripe": "^20.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "type": "commonjs"
+}
