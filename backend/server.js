@@ -883,6 +883,286 @@ Réponds uniquement avec un JSON valide et complet.
   }
 });
 
+// ====================================================================
+// 🏠 ENDPOINT : ESTIMATEUR DE VALEUR IMMOBILIÈRE
+// ====================================================================
+
+app.post('/api/property/valuation-estimator', checkQuota, async (req, res) => {
+  try {
+    const {
+      userId,
+      proprietyType, // 'unifamilial', 'jumelee', 'duplex', 'triplex', '4plex', etc
+      ville,
+      quartier,
+      addresseComplete,
+      prixAchat,
+      anneeAchat,
+      anneeConstruction,
+      surfaceHabitee, // en pi²
+      surfaceLot, // en pi²
+      nombreChambres,
+      nombreSallesBain,
+      garage, // 0, 1, 2, 3+
+      sous_sol, // 'none', 'partial', 'finished', 'full'
+      etatGeneral, // 'excellent', 'bon', 'moyen', 'renovation'
+      renobations, // ex: ['toiture', 'fenetre', 'systeme chauffage'] - vide = aucune
+      piscine,
+      terrain_detail, // ex: 'coin tranquille', 'vue eau', 'boisé'
+      notes_additionnelles
+    } = req.body;
+
+    if (!proprietyType || !ville || !prixAchat || !anneeAchat || !anneeConstruction) {
+      return res.status(400).json({ 
+        error: 'Paramètres obligatoires manquants',
+        required: ['proprietyType', 'ville', 'prixAchat', 'anneeAchat', 'anneeConstruction']
+      });
+    }
+
+    console.log(`🏠 Évaluation: ${proprietyType} à ${ville}, acheté ${prixAchat}$ en ${anneeAchat}`);
+
+    // Calcul des années écoulées
+    const anneeActuelle = new Date().getFullYear();
+    const ansAchatEcoules = anneeActuelle - anneeAchat;
+    const ageConstruction = anneeActuelle - anneeConstruction;
+
+    // Prompt détaillé pour Claude
+    const valuationPrompt = `
+Vous êtes un évaluateur immobilier expert du marché québécois.
+Estimez la valeur marchande actuelle de cette propriété basée sur les données réelles du marché.
+
+INFORMATIONS DE LA PROPRIÉTÉ:
+- Type: ${proprietyType}
+- Localisation: ${ville}${quartier ? `, ${quartier}` : ''}
+- Adresse: ${addresseComplete || 'Non spécifiée'}
+- Prix d'achat: $${prixAchat}
+- Année d'achat: ${anneeAchat} (il y a ${ansAchatEcoules} ans)
+- Année de construction: ${anneeConstruction} (${ageConstruction} ans)
+- Surface habitable: ${surfaceHabitee || '?'} pi²
+- Surface du lot: ${surfaceLot || '?'} pi²
+- Chambres: ${nombreChambres || '?'}
+- Salles de bain: ${nombreSallesBain || '?'}
+- Garage: ${garage ? garage + ' stationnement(s)' : 'Aucun'}
+- Sous-sol: ${sous_sol || 'Non spécifié'}
+- État général: ${etatGeneral}
+- Rénovations effectuées: ${renobations && renobations.length > 0 ? renobations.join(', ') : 'Aucune'}
+- Piscine: ${piscine ? 'Oui' : 'Non'}
+- Particularités du terrain: ${terrain_detail || 'Aucune'}
+- Notes additionnelles: ${notes_additionnelles || 'Aucune'}
+
+TÂCHES:
+1. Analyser les données du marché immobilier québécois pour ce TYPE de propriété dans CETTE région
+2. Calculer une estimation de valeur marchande actuelle
+3. Comparer au prix d'achat et analyser l'appréciation
+4. Identifier les facteurs qui augmentent ou diminuent la valeur
+5. Fournir des recommandations pour maximiser la valeur
+
+REPONSE EN JSON STRICT:
+{
+  "estimationActuelle": {
+    "valeurBasse": [nombre],
+    "valeurMoyenne": [nombre],
+    "valeurHaute": [nombre],
+    "fourchette": [numero, numero]
+  },
+  "analyse": {
+    "appreciationTotale": [nombre en $],
+    "appreciationAnnuelle": [nombre en $],
+    "pourcentageGain": [nombre sans %],
+    "yearsToBreakEven": [nombre ans, peut être négatif si déjà positif],
+    "marketTrend": "haussier | baissier | stable",
+    "quartierAnalysis": "description court du marché local"
+  },
+  "facteursPrix": {
+    "augmentent": ["liste des facteurs positifs"],
+    "diminuent": ["liste des facteurs négatifs"],
+    "neutre": ["liste des facteurs stables"]
+  },
+  "recommendations": {
+    "ameliorationsValeur": ["rénovations recommandées pour augmenter valeur"],
+    "strategie": "courte description stratégie",
+    "venteMeilleuresChances": "description de meilleur timing/saison"
+  },
+  "comparable": {
+    "proprietesSimilaires": [nombre estimation],
+    "prixParPiCarre": [nombre $],
+    "evaluationQualite": "description qualité comparables"
+  }
+}
+`;
+
+    // Appel Claude avec contexte immobilier
+    const response = await claude.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 3000,
+      temperature: 0.3,
+      system: `Vous êtes un évaluateur immobilier expert du marché québécois avec 15+ ans d'expérience. 
+               Vous connaissez parfaitement les données Centris/MLS.
+               Vous répondez TOUJOURS avec du JSON valide et complet.
+               Jamais de texte avant ou après le JSON.`,
+      messages: [{ role: 'user', content: valuationPrompt }]
+    });
+
+    const valuationResult = parseClaudeJSON(response.content[0].text);
+
+    // Sauvegarder l'évaluation en Firestore
+    const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
+      proprietyType,
+      ville,
+      quartier,
+      addresseComplete,
+      prixAchat,
+      anneeAchat,
+      anneeConstruction,
+      result: valuationResult,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Mise à jour du quota
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    await db.collection('users').doc(userId).update({
+      'quotaTracking.count': admin.firestore.FieldValue.increment(1),
+      'quotaTracking.month': currentMonth,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({
+      id: evaluationRef.id,
+      ...valuationResult
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur Valuation:', error);
+    res.status(500).json({ 
+      error: "Échec de l'évaluation",
+      details: error.message 
+    });
+  }
+});
+
+// GET QUOTA INFO
+app.get('/api/property/quota/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const now = new Date();
+    
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userData = userDoc.data();
+    const userPlan = userData?.plan || 'essai';
+
+    // Déterminer le mois courant
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // Récupérer le quota tracking
+    const quotaTracking = userData?.quotaTracking || { month: null, count: 0 };
+    let monthlyCount = 0;
+
+    // SI NOUVEAU MOIS => RESET LE QUOTA
+    if (quotaTracking.month !== currentMonth) {
+      console.log(`✅ NOUVEAU MOIS DÉTECTÉ! ${quotaTracking.month} → ${currentMonth}`);
+      monthlyCount = 0;
+      
+      // 🔴 IMPORTANT: Sauvegarder le RESET en Firestore
+      await db.collection('users').doc(userId).update({
+        quotaTracking: {
+          month: currentMonth,
+          count: 0,
+          resetAt: admin.firestore.FieldValue.serverTimestamp()
+        }
+      }, { merge: true });
+      
+      console.log(`💾 Quota réinitialisé en Firestore pour ${userId}`);
+    } else {
+      monthlyCount = quotaTracking.count || 0;
+      console.log(`📌 Même mois (${currentMonth}), quota actuel: ${monthlyCount}`);
+    }
+
+    // Vérifier les limites
+    const PLAN_LIMITS = {
+      essai: 1,
+      pro: 5,
+      growth: 999,
+      entreprise: 999
+    };
+
+    const limit = PLAN_LIMITS[userPlan] || 1;
+    const remaining = Math.max(0, limit - monthlyCount);
+    const isUnlimited = userPlan === 'growth' || userPlan === 'entreprise';
+
+    console.log(`📊 Quota: Plan=${userPlan}, Limit=${limit}, Current=${monthlyCount}, Remaining=${remaining}, Unlimited=${isUnlimited}`);
+
+    res.json({
+      remaining: isUnlimited ? 999 : remaining,
+      limit,
+      current: monthlyCount,
+      plan: userPlan,
+      resetDate: monthEnd.toISOString(),
+      isUnlimited
+    });
+  } catch (error) {
+    console.error('❌ Erreur quota:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+// ====================================================================
+// 📊 GET : RÉCUPÉRER LES ÉVALUATIONS SAUVEGARDÉES
+// ====================================================================
+
+app.get('/api/property/evaluations/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const snapshot = await db
+      .collection('users')
+      .doc(userId)
+      .collection('evaluations')
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    const evaluations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(evaluations);
+  } catch (error) {
+    console.error('❌ Erreur GET evaluations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ====================================================================
+// 🗑️ DELETE : SUPPRIMER UNE ÉVALUATION
+// ====================================================================
+
+app.delete('/api/property/evaluations/:userId/:evaluationId', async (req, res) => {
+  try {
+    const { userId, evaluationId } = req.params;
+    
+    await db
+      .collection('users')
+      .doc(userId)
+      .collection('evaluations')
+      .doc(evaluationId)
+      .delete();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur DELETE evaluation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 
 // ====================================================================

@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Menu, ChevronRight,Trash2 } from 'lucide-react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -32,7 +32,8 @@ import {
   updateDoc, 
   onSnapshot,
   getDoc,
-  where 
+  where,
+  increment
 } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
 
@@ -209,6 +210,7 @@ function DashboardLayout() {
           {[
             { id: 'overview', icon: '📊', label: 'Vue d\'ensemble' },
             { id: 'optimization', icon: '🎯', label: 'Optimiseur' },
+            { id: "valuation", icon: "🏠", label: "Évaluation" },
             { id: 'profile', icon: '👤', label: 'Mon Profil' }
           ].map(item => (
             <button
@@ -291,7 +293,8 @@ function DashboardLayout() {
         {/* Tabs Content */}
         <div className="px-8 py-6 pb-20">
           {activeTab === 'overview' && (
-            <OverviewTab userPlan={userPlan} user={user} setActiveTab={setActiveTab} />
+  <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />
+
           )}
 
           {activeTab === 'optimization' && (
@@ -303,6 +306,17 @@ function DashboardLayout() {
               setShowUpgradeModal={setShowUpgradeModal}
             />
           )}
+
+          {activeTab === 'valuation' && (
+              <PropertyValuationTab
+                user={user}
+                userPlan={userPlan}
+                setUserPlan={setUserPlan}
+                showUpgradeModal={showUpgradeModal}
+                setShowUpgradeModal={setShowUpgradeModal}
+              />
+            )}
+
 
           {activeTab === 'profile' && (
             <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />
@@ -907,22 +921,25 @@ function BillingTab({ user, userPlan, billingHistory, loadingBilling,
 // ============================================
 // 📊 OVERVIEW TAB (Code existant inchangé)
 // ============================================
-function OverviewTab({ userPlan, user, setActiveTab }) {
+function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [analyses, setAnalyses] = useState([]);
   const [stats, setStats] = useState({
-    totalAnalyses: 0,
-    gainTotal: 0,
-    gainMoyen: 0,
-    loyerMoyen: 0,
-    proprieteOptimisee: 0
+    totalProperties: 0,
+    totalValuation: 0,
+    totalGainsPotential: 0,
+    evaluations: 0,
+    optimizations: 0
   });
   const [loading, setLoading] = useState(true);
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
+  // ============================================
+  // CHARGER LES ANALYSES
+  // ============================================
   useEffect(() => {
     const fetchAnalyses = async () => {
-      if (!user) return;
+      if (!user?.uid) return;
       try {
         const db = getFirestore();
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
@@ -932,40 +949,40 @@ function OverviewTab({ userPlan, user, setActiveTab }) {
         const data = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        })).sort((a, b) => new Date(b.createdAt?.toDate?.() || b.timestamp) - new Date(a.createdAt?.toDate?.() || a.timestamp));
+        })).sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(a.timestamp);
+          const dateB = b.createdAt?.toDate?.() || new Date(b.timestamp);
+          return dateB - dateA;
+        });
 
         setAnalyses(data);
 
+        // Calculer les stats
         if (data.length > 0) {
-          // ✅ CALCULS CORRECTS
-          const gainTotal = data.reduce((sum, a) => {
-            const gain = a.result?.recommandation?.gainannuel || 0;
-            return sum + gain;
-          }, 0);
+          let totalVal = 0;
+          let totalGains = 0;
+          let evaluationCount = 0;
+          let optimizationCount = 0;
 
-          const loyerMoyen = data.reduce((sum, a) => {
-            const loyer = a.proprietetype === 'residential' 
-              ? (a.loyeractuel || 0)
-              : (a.prixactuelpiedcarre * a.surfacepiedcarre || 0);
-            return sum + loyer;
-          }, 0) / data.length;
-
-          const gainMoyen = gainTotal / data.length;
-
-          const proprieteOptimisee = data.filter(a => {
-            const optimal = a.result?.recommandation?.loyeroptimal || 0;
-            const actuel = a.proprietetype === 'residential'
-              ? a.loyeractuel
-              : a.prixactuelpiedcarre;
-            return optimal > actuel;
-          }).length;
+          data.forEach(analyse => {
+            // Compte les types
+            if (analyse.result?.estimationActuelle) {
+              evaluationCount++;
+              totalVal += analyse.result.estimationActuelle.valeurMoyenne || 0;
+            }
+            
+            if (analyse.result?.recommandation) {
+              optimizationCount++;
+              totalGains += analyse.result.recommandation.gainannuel || 0;
+            }
+          });
 
           setStats({
-            totalAnalyses: data.length,
-            gainTotal: Math.round(gainTotal),
-            gainMoyen: Math.round(gainMoyen),
-            loyerMoyen: Math.round(loyerMoyen),
-            proprieteOptimisee
+            totalProperties: data.length,
+            totalValuation: Math.round(totalVal),
+            totalGainsPotential: Math.round(totalGains),
+            evaluations: evaluationCount,
+            optimizations: optimizationCount
           });
         }
       } catch (err) {
@@ -976,8 +993,11 @@ function OverviewTab({ userPlan, user, setActiveTab }) {
     };
 
     fetchAnalyses();
-  }, [user]);
+  }, [user?.uid]);
 
+  // ============================================
+  // SUPPRIMER UNE ANALYSE
+  // ============================================
   const handleDelete = async (analysisId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette analyse?')) return;
 
@@ -988,375 +1008,537 @@ function OverviewTab({ userPlan, user, setActiveTab }) {
       setAnalyses(analyses.filter(a => a.id !== analysisId));
     } catch (err) {
       console.error('Erreur suppression:', err);
+      alert('Erreur lors de la suppression');
     } finally {
       setDeletingId(null);
     }
   };
 
+  // ============================================
+  // FORMAT CURRENCY
+  // ============================================
+  const formatCurrency = (value) => {
+    if (!value || isNaN(value)) return '0';
+    return Math.round(value).toLocaleString('fr-CA');
+  };
+
+  // ============================================
+  // DÉTERMINER LE TYPE D'ANALYSE
+  // ============================================
+  const getAnalysisType = (analyse) => {
+    if (analyse.result?.estimationActuelle?.valeurMoyenne) return 'valuation';
+    if (analyse.result?.recommandation?.loyeroptimal) return 'optimization';
+    return 'unknown';
+  };
+
+  // ============================================
+  // GET PROPERTY TYPE ICON
+  // ============================================
+  const getPropertyIcon = (type) => {
+    const icons = {
+      unifamilial: '🏠',
+      jumelee: '🏘️',
+      duplex: '🏢',
+      triplex: '🏢',
+      condo: '🏙️',
+      immeuble_revenus: '🏗️',
+      residential: '🏠',
+      commercial: '🏪'
+    };
+    return icons[type] || '🏠';
+  };
+
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin text-4xl mb-4">🔄</div>
-        <p className="text-slate-400">Chargement des données...</p>
+      <div className="flex items-center justify-center min-h-[500px]">
+        <div className="text-center">
+          <div className="animate-spin text-5xl mb-4">🔄</div>
+          <p className="text-gray-600 text-lg">Chargement de vos analyses...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: 'Analyses totales', value: stats.totalAnalyses, icon: '📊', color: 'indigo' },
-          { label: 'Gain annuel total', value: `$${stats.gainTotal}`, icon: '💰', color: 'emerald' },
-          { label: 'Gain moyen', value: `$${stats.gainMoyen}`, icon: '📈', color: 'blue' },
-          { label: 'Loyer moyen', value: `$${stats.loyerMoyen}`, icon: '🏠', color: 'gray' },
-          { label: 'Propriétés optimisées', value: stats.proprieteOptimisee, icon: '✅', color: 'purple' }
-        ].map((kpi, i) => (
-          <div key={i} className={`p-6 bg-gradient-to-br from-${kpi.color}-100 to-${kpi.color}-200 rounded-xl border border-${kpi.color}-300 hover:border-${kpi.color}-400 transition-all shadow-sm`}>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className={`text-${kpi.color}-700 text-sm font-semibold mb-1`}>{kpi.label}</p>
-                <h3 className="text-3xl font-black text-gray-900">{kpi.value}</h3>
-              </div>
-              <span className="text-3xl">{kpi.icon}</span>
-            </div>
-          </div>
-        ))}
+      {/* ==================== HEADER ==================== */}
+      <div>
+        <h1 className="text-4xl font-black text-gray-900 mb-2">📊 Vue d'ensemble</h1>
+        <p className="text-gray-600 text-lg">Résumé de vos évaluations et optimisations immobilières</p>
       </div>
 
-      {/* Historique détaillé */}
-      {analyses.length > 0 ? (
-        <div className="space-y-4">
-          <h3 className="text-2xl font-black text-gray-900">📋 Vos analyses</h3>
+      {/* ==================== STATS CARDS ==================== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {/* CARD 1: Total Propriétés */}
+        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-gray-600 text-sm font-semibold mb-2">Propriétés analysées</p>
+              <p className="text-4xl font-black text-indigo-600">{stats.totalProperties}</p>
+            </div>
+            <span className="text-4xl">🏠</span>
+          </div>
+          <p className="text-xs text-gray-500">
+            {stats.evaluations} éval. + {stats.optimizations} opt.
+          </p>
+        </div>
 
-          <div className="space-y-3">
+        {/* CARD 2: Valeur totale */}
+        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-gray-600 text-sm font-semibold mb-2">Valeur totale estimée</p>
+              <p className="text-3xl font-black text-purple-600">
+                ${formatCurrency(stats.totalValuation)}
+              </p>
+            </div>
+            <span className="text-4xl">💎</span>
+          </div>
+          <p className="text-xs text-gray-500">{stats.evaluations} propriétés évaluées</p>
+        </div>
+
+        {/* CARD 3: Gains potentiels */}
+        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-gray-600 text-sm font-semibold mb-2">Gains annuels potentiels</p>
+              <p className="text-3xl font-black text-emerald-600">
+                +${formatCurrency(stats.totalGainsPotential)}
+              </p>
+            </div>
+            <span className="text-4xl">📈</span>
+          </div>
+          <p className="text-xs text-gray-500">{stats.optimizations} propriétés optimisées</p>
+        </div>
+
+        {/* CARD 4: Évaluations */}
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-gray-600 text-sm font-semibold mb-2">Évaluations</p>
+              <p className="text-4xl font-black text-blue-600">{stats.evaluations}</p>
+            </div>
+            <span className="text-4xl">📋</span>
+          </div>
+          <button
+            onClick={() => setActiveTab('valuation')}
+            className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 mt-2"
+          >
+            Voir détails <ChevronRight size={14} />
+          </button>
+        </div>
+
+        {/* CARD 5: Optimisations */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-gray-600 text-sm font-semibold mb-2">Optimisations</p>
+              <p className="text-4xl font-black text-amber-600">{stats.optimizations}</p>
+            </div>
+            <span className="text-4xl">💰</span>
+          </div>
+          <button
+            onClick={() => setActiveTab('optimization')}
+            className="text-xs text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1 mt-2"
+          >
+            Voir détails <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* ==================== QUICK START ==================== */}
+      {stats.totalProperties === 0 && (
+        <div className="bg-gradient-to-r from-indigo-100 via-blue-100 to-cyan-100 rounded-3xl p-8 border-2 border-indigo-300 text-center">
+          <h2 className="text-3xl font-black text-indigo-900 mb-3">🚀 Commencez dès maintenant!</h2>
+          <p className="text-indigo-800 text-lg mb-8 max-w-2xl mx-auto">
+            Analysez votre première propriété pour découvrir sa valeur réelle et optimiser vos revenus locatifs.
+          </p>
+          <div className="flex gap-4 justify-center flex-wrap">
+            <button
+              onClick={() => setActiveTab('valuation')}
+              className="px-8 py-4 bg-indigo-600 text-white font-black rounded-lg hover:bg-indigo-700 transition-all transform hover:-translate-y-1 shadow-lg"
+            >
+              📊 Faire une évaluation
+            </button>
+            <button
+              onClick={() => setActiveTab('optimization')}
+              className="px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 font-black rounded-lg hover:bg-indigo-50 transition-all transform hover:-translate-y-1"
+            >
+              💰 Optimiser mes loyers
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ANALYSES LIST ==================== */}
+      {stats.totalProperties > 0 && (
+        <div>
+          <h2 className="text-2xl font-black text-gray-900 mb-6">📋 Vos analyses récentes</h2>
+
+          <div className="space-y-4">
             {analyses.map((analyse) => {
-              // ✅ CALCULS PAR TYPE
-              const isCommercial = analyse.proprietetype === 'commercial';
-              const loyerActuel = isCommercial
-                ? analyse.prixactuelpiedcarre * analyse.surfacepiedcarre
-                : analyse.loyeractuel;
-
-              const loyerOptimal = isCommercial
-                ? (analyse.result?.recommandation?.loyeroptimal || analyse.prixactuelpiedcarre) * analyse.surfacepiedcarre
-                : analyse.result?.recommandation?.loyeroptimal || analyse.loyeractuel;
-
-              const gainAnnuel = analyse.result?.recommandation?.gainannuel || Math.round((loyerOptimal - loyerActuel) * (isCommercial ? 1 : 12));
-              const gainMensuel = isCommercial ? Math.round(gainAnnuel / 12) : Math.round((loyerOptimal - loyerActuel));
+              const analysisType = getAnalysisType(analyse);
+              const isValuation = analysisType === 'valuation';
+              const isOptimization = analysisType === 'optimization';
 
               return (
                 <div
                   key={analyse.id}
-                  className="p-6 bg-gray-50 rounded-xl border border-gray-200 hover:border-indigo-400 transition-all cursor-pointer group"
-                  onClick={() => setSelectedAnalysis(analyse)}
+                  className={`rounded-2xl p-6 border-2 transition-all hover:shadow-lg hover:-translate-y-1 ${
+                    isValuation
+                      ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400'
+                      : isOptimization
+                      ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 hover:border-emerald-400'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
-                    {/* Titre */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">📝 Propriété</p>
-                      <h4 className="font-black text-gray-900 text-lg group-hover:text-indigo-600 transition-colors">
-                        {analyse.titre || (isCommercial ? analyse.typecommercial : analyse.typeappart)}
-                      </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    {/* TYPE BADGE + TITLE */}
+                    <div className="md:col-span-3">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-2xl">{getPropertyIcon(analyse.proprietetype)}</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-black ${
+                          isValuation
+                            ? 'bg-blue-200 text-blue-800'
+                            : isOptimization
+                            ? 'bg-emerald-200 text-emerald-800'
+                            : 'bg-gray-200 text-gray-800'
+                        }`}>
+                          {isValuation ? '📊 Évaluation' : isOptimization ? '💰 Optimisation' : 'Analyse'}
+                        </span>
+                      </div>
+                      <h3 className="font-black text-gray-900 text-lg">
+                        {analyse.titre || (analyse.proprietetype === 'residential' 
+                          ? analyse.typeappart 
+                          : analyse.typecommercial)}
+                      </h3>
                       <p className="text-xs text-gray-600 mt-1">
-                        {analyse.ville} {analyse.quartier && `• ${analyse.quartier}`}
+                        📍 {analyse.ville} {analyse.quartier && `• ${analyse.quartier}`}
                       </p>
                     </div>
 
-                    {/* Loyer actuel */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">💵 Loyer actuel</p>
-                      <p className="font-black text-gray-900 text-lg">
-                        ${isNaN(loyerActuel) ? 0 : Math.round(loyerActuel)}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {isCommercial ? '/an' : '/mois'}
-                      </p>
-                    </div>
+                    {/* ÉVALUATION - Valeur estimée */}
+                    {isValuation && (
+                      <>
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Valeur estimée</p>
+                          <p className="text-2xl font-black text-blue-600">
+                            ${formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Plage: ${formatCurrency(analyse.result?.estimationActuelle?.valeurBasse)} - ${formatCurrency(analyse.result?.estimationActuelle?.valeurHaute)}
+                          </p>
+                        </div>
 
-                    {/* Optimal */}
-                    <div className="p-4 bg-emerald-100 rounded-lg border border-emerald-300">
-                      <p className="text-xs text-emerald-700 mb-1 font-semibold">💹 Optimal</p>
-                      <p className="font-black text-emerald-700 text-lg">
-                        ${isNaN(loyerOptimal) ? 0 : Math.round(loyerOptimal)}
-                      </p>
-                      <p className="text-xs text-emerald-600 mt-1">
-                        +${isNaN(gainMensuel) ? 0 : Math.round(gainMensuel)}
-                      </p>
-                    </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Appréciation</p>
+                          <p className="text-2xl font-black text-blue-600">
+                            +{analyse.result?.analyse?.pourcentageGain || 0}%
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">Depuis achat</p>
+                        </div>
 
-                    {/* Gain annuel */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">💰 Gain/an</p>
-                      <p className="font-black text-gray-900 text-lg">
-                        ${isNaN(gainAnnuel) ? 0 : Math.round(gainAnnuel)}
-                      </p>
-                    </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Confiance IA</p>
+                          <p className="text-2xl font-black text-blue-600">
+                            {analyse.result?.recommandation?.confiance || 85}%
+                          </p>
+                        </div>
+                      </>
+                    )}
 
-                    {/* Confiance */}
-                    <div className="text-center p-3 bg-blue-100 rounded-lg border border-blue-300">
-                      <p className="text-xs text-blue-700 mb-1 font-semibold">🤖 IA</p>
-                      <p className="font-black text-blue-700 text-lg">
-                        {analyse.result?.recommandation?.confiance || 85}%
-                      </p>
-                    </div>
+                    {/* OPTIMISATION - Loyer optimal */}
+                    {isOptimization && (
+                      <>
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Loyer optimal</p>
+                          <p className="text-2xl font-black text-emerald-600">
+                            ${formatCurrency(analyse.result?.recommandation?.loyeroptimal)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">/mois</p>
+                        </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-end gap-2">
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Gain mensuel</p>
+                          <p className="text-2xl font-black text-emerald-600">
+                            +${formatCurrency(analyse.result?.recommandation?.gainmensuel)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">vs actuel</p>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <p className="text-xs text-gray-600 font-semibold mb-1">Gain annuel</p>
+                          <p className="text-2xl font-black text-emerald-600">
+                            +${formatCurrency(analyse.result?.recommandation?.gainannuel)}
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* ACTIONS */}
+                    <div className="md:col-span-1 flex items-center justify-end gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAnalysis(analyse);
-                        }}
-                        className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                        onClick={() => setSelectedAnalysis(analyse)}
+                        className={`p-2 rounded-lg transition-all ${
+                          isValuation
+                            ? 'text-blue-600 hover:bg-blue-100'
+                            : 'text-emerald-600 hover:bg-emerald-100'
+                        }`}
                         title="Voir détails"
                       >
-                        👁️
+                        <Eye size={20} />
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(analyse.id);
-                        }}
+                        onClick={() => handleDelete(analyse.id)}
                         disabled={deletingId === analyse.id}
                         className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all disabled:opacity-50"
                         title="Supprimer"
                       >
-                        🗑️
+                        <Trash2 size={20} />
                       </button>
                     </div>
                   </div>
 
-                  {/* Tags */}
-                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
-                    {analyse.meuble && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Meublé</span>}
-                    {analyse.balcon && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Balcon</span>}
-                    {analyse.garage && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Garage</span>}
-                    {analyse.climatise && <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold">Climatisé</span>}
-                    {analyse.parking && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Parking</span>}
-                    {analyse.ascenseur && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Ascenseur</span>}
-                    {analyse.amenages && <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">Aménagé</span>}
-                    <span className="text-xs text-gray-600 ml-auto">
-                      {analyse.timestamp ? new Date(analyse.timestamp).toLocaleDateString('fr-CA') : 'N/A'} • {analyse.plan}
-                    </span>
+                  {/* DATE */}
+                  <div className="mt-4 pt-4 border-t border-gray-300/40">
+                    <p className="text-xs text-gray-500">
+                      📅 {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp).toLocaleDateString('fr-CA')}
+                    </p>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-      ) : (
-        <div className="p-12 bg-gray-100 rounded-2xl border-2 border-dashed border-gray-300 text-center">
-          <div className="text-6xl mb-4">🎯</div>
-          <h3 className="text-2xl font-black text-gray-900 mb-2">Aucune analyse encore</h3>
-          <p className="text-gray-600 mb-6">Commencez par analyser une de vos propriétés</p>
-          <button
-            onClick={() => setActiveTab('optimization')}
-            className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors"
-          >
-            🚀 Lancer une analyse
-          </button>
+      )}
+
+      {/* ==================== INFO CARDS ==================== */}
+      {stats.totalProperties > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+          {/* ABOUT VALUATIONS */}
+          <div className="bg-white rounded-2xl p-6 border-2 border-blue-200 shadow-md hover:shadow-lg transition-all">
+            <h3 className="text-xl font-black text-gray-900 mb-3 flex items-center gap-2">
+              <span>📊</span> À propos des Évaluations
+            </h3>
+            <p className="text-gray-700 leading-relaxed mb-4 text-sm">
+              Découvrez la vraie valeur marchande de vos propriétés basée sur les données Centris, les comparables locaux et les tendances du marché.
+            </p>
+            <ul className="space-y-2 text-xs text-gray-600">
+              <li>✓ Analyse comparative de marché</li>
+              <li>✓ Évaluation par approche revenus</li>
+              <li>✓ Rapport professionnel détaillé</li>
+              <li>✓ Appréciation et historique</li>
+            </ul>
+          </div>
+
+          {/* ABOUT OPTIMIZATION */}
+          <div className="bg-white rounded-2xl p-6 border-2 border-emerald-200 shadow-md hover:shadow-lg transition-all">
+            <h3 className="text-xl font-black text-gray-900 mb-3 flex items-center gap-2">
+              <span>💰</span> À propos de l'Optimisation
+            </h3>
+            <p className="text-gray-700 leading-relaxed mb-4 text-sm">
+              Trouvez le loyer optimal pour vos propriétés résidentielles et commerciales pour maximiser vos revenus.
+            </p>
+            <ul className="space-y-2 text-xs text-gray-600">
+              <li>✓ Analyse loyers comparables</li>
+              <li>✓ Support résidentiel & commercial</li>
+              <li>✓ Stratégies de positionnement</li>
+              <li>✓ Gains potentiels calculés</li>
+            </ul>
+          </div>
         </div>
       )}
 
-      {/* MODAL DÉTAILS - VERSION COMPLÈTE */}
+      {/* ==================== MODAL DÉTAILS ==================== */}
       {selectedAnalysis && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto p-8 border border-gray-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-black text-gray-900">📋 Détails de l'analyse</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-3xl">
+              <h3 className="text-2xl font-black text-gray-900">
+                {getAnalysisType(selectedAnalysis) === 'valuation' ? '📊 Détails Évaluation' : '💰 Détails Optimisation'}
+              </h3>
               <button
                 onClick={() => setSelectedAnalysis(null)}
-                className="text-3xl text-gray-400 hover:text-gray-600"
+                className="text-3xl text-gray-400 hover:text-gray-600 font-bold"
               >
                 ✕
               </button>
             </div>
 
-            {/* Info propriété */}
-            <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 mb-6">
-              <h4 className="font-black text-gray-900 text-lg mb-4">🏠 Propriété</h4>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="lg:col-span-2">
-                  <p className="text-xs text-gray-600 mb-2">Titre</p>
-                  <input
-                    type="text"
-                    defaultValue={selectedAnalysis.titre || ''}
-                    onBlur={(e) => {
-                      if (e.target.value !== (selectedAnalysis.titre || '')) {
-                        const db = getFirestore();
-                        updateDoc(doc(db, 'users', user.uid, 'analyses', selectedAnalysis.id), {
-                          titre: e.target.value
-                        }).catch(err => console.error('Erreur update:', err));
-                        selectedAnalysis.titre = e.target.value;
-                      }
-                    }}
-                    className="w-full p-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                  />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Localisation</p>
-                  <p className="text-gray-900 font-bold">{selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Type</p>
-                  <p className="text-gray-900 font-bold">
-                    {selectedAnalysis.proprietetype === 'residential' 
-                      ? selectedAnalysis.typeappart 
-                      : selectedAnalysis.typecommercial}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Plan</p>
-                  <p className="text-gray-900 font-bold capitalize">{selectedAnalysis.plan}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Type propriété</p>
-                  <p className="text-gray-900 font-bold capitalize">{selectedAnalysis.proprietetype}</p>
+            <div className="p-8 space-y-6">
+              {/* PROPRIÉTÉ INFO */}
+              <div className={`rounded-2xl p-6 border-2 ${
+                getAnalysisType(selectedAnalysis) === 'valuation'
+                  ? 'bg-blue-50 border-blue-200'
+                  : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
+                  <span>{getPropertyIcon(selectedAnalysis.proprietetype)}</span> Propriété
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-600 font-semibold mb-1">Localisation</p>
+                    <p className="text-gray-900 font-bold">{selectedAnalysis.ville}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-semibold mb-1">Quartier</p>
+                    <p className="text-gray-900 font-bold">{selectedAnalysis.quartier || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-semibold mb-1">Type</p>
+                    <p className="text-gray-900 font-bold">
+                      {selectedAnalysis.proprietetype === 'residential'
+                        ? selectedAnalysis.typeappart
+                        : selectedAnalysis.typecommercial}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-semibold mb-1">Date analyse</p>
+                    <p className="text-gray-900 font-bold">
+                      {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* ÉVALUATION DETAILS */}
+              {getAnalysisType(selectedAnalysis) === 'valuation' && (
+                <>
+                  <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300">
+                    <h4 className="font-black text-blue-900 text-lg mb-4">💎 Estimation de valeur</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur moyenne</p>
+                        <p className="text-2xl font-black text-blue-700">
+                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurMoyenne)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur basse</p>
+                        <p className="text-2xl font-black text-blue-700">
+                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurBasse)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur haute</p>
+                        <p className="text-2xl font-black text-blue-700">
+                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurHaute)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-700 font-semibold mb-2">Appréciation</p>
+                        <p className="text-2xl font-black text-blue-700">
+                          +{selectedAnalysis.result?.analyse?.pourcentageGain || 0}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedAnalysis.result?.analyse?.quartierAnalysis && (
+                    <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
+                      <h4 className="font-black text-indigo-900 text-lg mb-3">📍 Analyse du quartier</h4>
+                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.analyse.quartierAnalysis}</p>
+                    </div>
+                  )}
+
+                  {selectedAnalysis.result?.comparable?.evaluationQualite && (
+                    <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
+                      <h4 className="font-black text-purple-900 text-lg mb-3">🏘️ Comparables</h4>
+                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.comparable.evaluationQualite}</p>
+                    </div>
+                  )}
+
+                  {selectedAnalysis.result?.recommendations?.strategie && (
+                    <div className="bg-green-50 rounded-2xl p-6 border-2 border-green-200">
+                      <h4 className="font-black text-green-900 text-lg mb-3">🎯 Stratégie d'investissement</h4>
+                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommendations.strategie}</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* OPTIMISATION DETAILS */}
+              {getAnalysisType(selectedAnalysis) === 'optimization' && (
+                <>
+                  <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
+                    <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Recommandation d'optimisation</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer optimal</p>
+                        <p className="text-2xl font-black text-emerald-700">
+                          ${formatCurrency(selectedAnalysis.result?.recommandation?.loyeroptimal)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-700 font-semibold mb-2">Gain mensuel</p>
+                        <p className="text-2xl font-black text-emerald-700">
+                          +${formatCurrency(selectedAnalysis.result?.recommandation?.gainmensuel)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-700 font-semibold mb-2">Gain annuel</p>
+                        <p className="text-2xl font-black text-emerald-700">
+                          +${formatCurrency(selectedAnalysis.result?.recommandation?.gainannuel)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
+                        <p className="text-2xl font-black text-emerald-700">
+                          {selectedAnalysis.result?.recommandation?.confiance || 85}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedAnalysis.result?.recommandation?.raisonnement && (
+                    <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
+                      <h4 className="font-black text-blue-900 text-lg mb-3">🤖 Raisonnement IA</h4>
+                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommandation.raisonnement}</p>
+                    </div>
+                  )}
+
+                  {selectedAnalysis.result?.marketingkit?.titreannonce && (
+                    <div className="bg-pink-50 rounded-2xl p-6 border-2 border-pink-200">
+                      <h4 className="font-black text-pink-900 text-lg mb-4">📢 Marketing Kit</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-pink-700 font-semibold mb-1">Titre annonce</p>
+                          <p className="text-gray-800 font-bold">{selectedAnalysis.result.marketingkit.titreannonce}</p>
+                        </div>
+                        {selectedAnalysis.result.marketingkit.descriptionaccroche && (
+                          <div>
+                            <p className="text-xs text-pink-700 font-semibold mb-1">Description</p>
+                            <p className="text-gray-800">{selectedAnalysis.result.marketingkit.descriptionaccroche}</p>
+                          </div>
+                        )}
+                        {selectedAnalysis.result.marketingkit.profillocataire && (
+                          <div>
+                            <p className="text-xs text-pink-700 font-semibold mb-1">Profil locataire idéal</p>
+                            <p className="text-gray-800">{selectedAnalysis.result.marketingkit.profillocataire}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* Recommandation principale */}
-            <div className="p-6 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-xl border border-emerald-300 mb-6">
-              <h4 className="font-black text-emerald-900 text-lg mb-4">💡 Recommandation</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-emerald-700">Loyer optimal</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    ${selectedAnalysis.result?.recommandation?.loyeroptimal 
-                      ? Math.round(selectedAnalysis.result.recommandation.loyeroptimal) 
-                      : (selectedAnalysis.proprietetype === 'residential' 
-                        ? selectedAnalysis.loyeractuel 
-                        : selectedAnalysis.prixactuelpiedcarre)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700">Gain mensuel</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    +${selectedAnalysis.result?.recommandation?.gainmensuel 
-                      ? Math.round(selectedAnalysis.result.recommandation.gainmensuel)
-                      : 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700">Gain annuel</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    ${selectedAnalysis.result?.recommandation?.gainannuel 
-                      ? Math.round(selectedAnalysis.result.recommandation.gainannuel)
-                      : 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700">Confiance IA</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    {selectedAnalysis.result?.recommandation?.confiance || 85}%
-                  </p>
-                </div>
-              </div>
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex gap-3">
+              <button
+                onClick={() => setSelectedAnalysis(null)}
+                className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-bold hover:bg-gray-300 transition-all"
+              >
+                Fermer
+              </button>
+              <button
+                onClick={() => handleDelete(selectedAnalysis.id)}
+                disabled={deletingId === selectedAnalysis.id}
+                className="py-3 px-6 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-all disabled:opacity-50"
+              >
+                🗑️ Supprimer
+              </button>
             </div>
-
-            {/* Justification */}
-            {selectedAnalysis.result?.recommandation?.justification && selectedAnalysis.result.recommandation.justification.length > 0 && (
-              <div className="p-6 bg-blue-100 rounded-xl border border-blue-300 mb-6">
-                <h4 className="font-black text-blue-900 text-lg mb-4">✓ Justification</h4>
-                <ul className="space-y-2">
-                  {selectedAnalysis.result.recommandation.justification.map((item, i) => (
-                    <li key={i} className="text-sm text-gray-800 flex gap-3">
-                      <span className="text-blue-600 font-bold">✓</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Points clés */}
-            {selectedAnalysis.result?.recommandation?.pointscles && selectedAnalysis.result.recommandation.pointscles.length > 0 && (
-              <div className="p-6 bg-purple-100 rounded-xl border border-purple-300 mb-6">
-                <h4 className="font-black text-purple-900 text-lg mb-4">• Points clés</h4>
-                <ul className="space-y-2">
-                  {selectedAnalysis.result.recommandation.pointscles.map((item, i) => (
-                    <li key={i} className="text-sm text-gray-800 flex gap-3">
-                      <span className="text-purple-600 font-bold">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Considérations */}
-            {selectedAnalysis.result?.recommandation?.considerations && selectedAnalysis.result.recommandation.considerations.length > 0 && (
-              <div className="p-6 bg-amber-100 rounded-xl border border-amber-300 mb-6">
-                <h4 className="font-black text-amber-900 text-lg mb-4">⚠️ Considérations</h4>
-                <ul className="space-y-2">
-                  {selectedAnalysis.result.recommandation.considerations.map((item, i) => (
-                    <li key={i} className="text-sm text-gray-800 flex gap-3">
-                      <span className="text-amber-600 font-bold">⚠️</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Prochaines étapes */}
-            {selectedAnalysis.result?.recommandation?.prochainesetapes && selectedAnalysis.result.recommandation.prochainesetapes.length > 0 && (
-              <div className="p-6 bg-green-100 rounded-xl border border-green-300 mb-6">
-                <h4 className="font-black text-green-900 text-lg mb-4">🎯 Prochaines étapes</h4>
-                <ol className="space-y-2">
-                  {selectedAnalysis.result.recommandation.prochainesetapes.map((item, i) => (
-                    <li key={i} className="text-sm text-gray-800 flex gap-3">
-                      <span className="text-green-600 font-bold">{i + 1}.</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-
-            {/* Marketing Kit */}
-            {selectedAnalysis.result?.marketingkit && (
-              <div className="p-6 bg-pink-100 rounded-xl border border-pink-300 mb-6">
-                <h4 className="font-black text-pink-900 text-lg mb-4">📢 Marketing Kit</h4>
-                <div className="space-y-4">
-                  {selectedAnalysis.result.marketingkit.titreannonce && (
-                    <div>
-                      <h5 className="font-bold text-pink-800 mb-2">📝 Titre annonce</h5>
-                      <p className="text-gray-800 bg-white p-3 rounded-lg border border-pink-200 font-semibold">{selectedAnalysis.result.marketingkit.titreannonce}</p>
-                    </div>
-                  )}
-                  {selectedAnalysis.result.marketingkit.descriptionaccroche && (
-                    <div>
-                      <h5 className="font-bold text-pink-800 mb-2">💬 Description accroche</h5>
-                      <p className="text-gray-800 bg-white p-3 rounded-lg border border-pink-200">{selectedAnalysis.result.marketingkit.descriptionaccroche}</p>
-                    </div>
-                  )}
-                  {selectedAnalysis.result.marketingkit.profillocataire && (
-                    <div>
-                      <h5 className="font-bold text-pink-800 mb-2">👥 Profil locataire idéal</h5>
-                      <p className="text-gray-800 bg-white p-3 rounded-lg border border-pink-200">{selectedAnalysis.result.marketingkit.profillocataire}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Raisonnement IA */}
-            {selectedAnalysis.result?.recommandation?.raisonnement && (
-              <div className="p-6 bg-indigo-100 rounded-xl border border-indigo-300 mb-6">
-                <h4 className="font-black text-indigo-900 text-lg mb-4">🤖 Raisonnement IA</h4>
-                <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommandation.raisonnement}</p>
-              </div>
-            )}
-
-            <button
-              onClick={() => setSelectedAnalysis(null)}
-              className="w-full mt-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-bold hover:bg-gray-300 transition-all"
-            >
-              Fermer
-            </button>
           </div>
         </div>
       )}
@@ -1415,7 +1597,14 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
 // ============================================
 function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [loading, setLoading] = useState(false);
-  const [quotaInfo, setQuotaInfo] = useState(null);
+  const [quotaInfo, setQuotaInfo] = useState({
+    remaining: 0,
+    limit: 1,
+    current: 0,
+    plan: 'essai',
+    resetDate: new Date(),
+    isUnlimited: false
+  });
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -1429,10 +1618,18 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
+  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN
+  const PLAN_LIMITS = {
+    essai: 1,
+    pro: 5,
+    growth: 999,
+    entreprise: 999
+  };
+
   const [formData, setFormData] = useState({
     titre: '',
-    ville: 'Montréal',
-    quartier: 'Plateau-Mont-Royal',
+    ville: '',
+    quartier: '',
     typeappart: '312',
     etat: 'renove',
     loyeractuel: 1400,
@@ -1454,9 +1651,10 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 
   const appartOptions = [
     { value: '112', label: '1 1/2 (Studio)' },
-    { value: '312', label: '3 1/2 (2 chambres)' },
-    { value: '412', label: '4 1/2 (3 chambres)' },
-    { value: '512', label: '5 1/2 (4+ chambres)' }
+    { value: '312', label: '3 1/2' },
+    { value: '412', label: '4 1/2' },
+    { value: '512', label: '5 1/2' },
+    { value: '612', label: '6 1/2' }
   ];
 
   const getApartmentLabel = (typeValue) => {
@@ -1476,74 +1674,107 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     { value: 'arenover', label: '🔨 À rénover' }
   ];
 
-  // ✅ CHARGER QUOTA AU DÉMARRAGE
+  // ✅ CHARGER LE QUOTA DEPUIS FIRESTORE
   useEffect(() => {
-    const fetchQuota = async () => {
-      if (!user) return;
-
+    const loadQuota = async () => {
       try {
+        if (!user?.uid) {
+          console.log('❌ Pas d\'utilisateur connecté');
+          return;
+        }
+
+        // 🔥 Récupérer les données depuis Firestore directement
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.data();
-        const userPlanNow = userData?.plan || 'essai';
-
-        let planStartDate = new Date();
-        if (userData?.planStartDate) {
-          if (userData.planStartDate.toDate) {
-            planStartDate = userData.planStartDate.toDate();
-          } else {
-            planStartDate = new Date(userData.planStartDate);
-          }
+        
+        if (!userDoc.exists()) {
+          console.log('❌ Utilisateur non trouvé dans Firestore');
+          return;
         }
 
-        const monthStart = new Date(planStartDate);
-        const monthEnd = new Date(planStartDate);
-        monthEnd.setMonth(monthEnd.getMonth() + 1);
+        const userData = userDoc.data();
+        console.log('📊 Données utilisateur Firestore:', userData);
 
-        console.log(`📅 Cycle: ${monthStart.toLocaleDateString('fr-CA')} → ${monthEnd.toLocaleDateString('fr-CA')}`);
+        // 📋 Récupérer le plan et les limites
+        const userPlanNow = userData.plan || 'essai';
+        const planLimit = PLAN_LIMITS[userPlanNow] || PLAN_LIMITS['essai'];
 
-        const analysesRef = collection(db, 'users', user.uid, 'analyses');
-        const q = query(
-          analysesRef,
-          where('createdAt', '>=', monthStart),
-          where('createdAt', '<', monthEnd)
-        );
+        // 📅 Vérifier si le mois a changé et réinitialiser si nécessaire
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        
+        let quotaCount = 0;
+        let resetDate = new Date();
 
-        const snapshot = await getDocs(q);
+        if (userData.quotaTracking) {
+          const trackingMonth = userData.quotaTracking.month || '';
+          
+          if (trackingMonth === currentMonth) {
+            // Même mois - utiliser le count actuel
+            quotaCount = userData.quotaTracking.count || 0;
+            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
+          } else {
+            // Mois différent - réinitialiser
+            console.log('🔄 Réinitialisation du quota (nouveau mois)');
+            quotaCount = 0;
+            
+            // Calculer la date de réinitialisation (même jour du mois prochain)
+            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            
+            // Mettre à jour Firestore
+            await updateDoc(doc(db, 'users', user.uid), {
+              'quotaTracking.count': 0,
+              'quotaTracking.month': currentMonth,
+              'quotaTracking.resetAt': resetDate
+            });
+          }
+        } else {
+          // Pas de tracking existant - initialiser
+          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          await updateDoc(doc(db, 'users', user.uid), {
+            'quotaTracking.count': 0,
+            'quotaTracking.month': currentMonth,
+            'quotaTracking.resetAt': resetDate
+          });
+        }
 
-        const residentialAnalyses = snapshot.docs.filter(doc =>
-          doc.data().proprietetype === 'residential'
-        );
-        const monthlyCount = residentialAnalyses.length;
-
-        const limits = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
-        const limit = limits[userPlanNow] || 1;
+        // 📊 Calculer remaining et updated
+        const remaining = Math.max(0, planLimit - quotaCount);
 
         setQuotaInfo({
-          current: monthlyCount,
-          limit,
-          remaining: limit - monthlyCount,
+          remaining: remaining,
+          limit: planLimit,
+          current: quotaCount,
           plan: userPlanNow,
-          resetDate: monthEnd
+          resetDate: resetDate,
+          isUnlimited: planLimit >= 999
         });
 
-        if (monthlyCount === 0 && userPlanNow !== 'essai') {
-          console.log(`🎉 Nouveau plan ${userPlanNow} activé! Quota frais: ${limit} analyses`);
-        }
-      } catch (err) {
-        console.error('❌ Erreur quota:', err);
+        console.log('✅ Quota chargé:', {
+          plan: userPlanNow,
+          current: quotaCount,
+          limit: planLimit,
+          remaining: remaining,
+          resetDate: resetDate.toLocaleDateString('fr-CA')
+        });
+
+      } catch (error) {
+        console.error('❌ Erreur chargement quota:', error);
         setQuotaInfo({
-          current: 0,
-          limit: 1,
           remaining: 1,
-          plan: userPlan,
-          resetDate: new Date()
+          limit: 1,
+          current: 0,
+          plan: 'essai',
+          resetDate: new Date(),
+          isUnlimited: false
         });
       }
     };
 
-    fetchQuota();
-  }, [user, userPlan]);
+    if (user?.uid) {
+      loadQuota();
+    }
+  }, [user?.uid]);
 
   const handleSubmit = async () => {
     const apartmentLabel = getApartmentLabel(formData.typeappart);
@@ -1551,13 +1782,13 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       ? customVille.trim()
       : formData.ville;
 
-    if (quotaInfo && quotaInfo.remaining <= 0) {
-      setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint! Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`);
+    if (!villeFinale || !formData.loyeractuel || formData.loyeractuel < 1) {
+      setError('🚨 Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (!villeFinale || !formData.loyeractuel || formData.loyeractuel < 1) {
-      setError('Veuillez remplir tous les champs correctement');
+    if (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
+      setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint! Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`);
       return;
     }
 
@@ -1581,8 +1812,20 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         { userId: user.uid, ...analysisData }
       );
 
+      console.log('🎉 Réponse API complète:', response.data);
+
+      // 📝 Mettre à jour le quota dans Firestore
+      const db = getFirestore();
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        'quotaTracking.count': increment(1),
+        'quotaTracking.month': currentMonth
+      });
+
+      // Sauvegarder l'analyse
       if (user) {
-        const db = getFirestore();
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
         await addDoc(analysesRef, {
           ...analysisData,
@@ -1594,26 +1837,26 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         });
       }
 
-      if (quotaInfo) {
-        setQuotaInfo(prev => ({
-          ...prev,
-          current: prev.current + 1,
-          remaining: prev.remaining - 1
-        }));
-      }
+      // ✅ Mettre à jour le quota localement
+      setQuotaInfo(prev => ({
+        ...prev,
+        current: prev.current + 1,
+        remaining: Math.max(0, prev.remaining - 1)
+      }));
 
       setResult(response.data);
     } catch (err) {
+      console.error('❌ Erreur complète:', err);
       if (err.response?.status === 429) {
         setQuotaError(`🔒 ${err.response.data.error}`);
-        if (quotaInfo) {
-          setQuotaInfo({
-            current: err.response.data.current,
-            limit: err.response.data.limit,
-            remaining: 0,
-            resetDate: new Date(err.response.data.resetDate)
-          });
-        }
+        setQuotaInfo({
+          current: err.response.data.current,
+          limit: err.response.data.limit,
+          remaining: 0,
+          plan: quotaInfo.plan,
+          resetDate: new Date(err.response.data.resetDate),
+          isUnlimited: false
+        });
       } else {
         setError('Erreur: ' + (err.response?.data?.error || err.message));
       }
@@ -1622,16 +1865,11 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     }
   };
 
-  useEffect(() => {
-    console.log('📊 QuotaInfo:', quotaInfo);
-    console.log('👤 User:', user?.uid);
-    console.log('📋 Plan:', userPlan);
-  }, [quotaInfo, user, userPlan]);
-
   return (
     <div className="space-y-8">
       <LoadingSpinner isLoading={loading} messages={loadingMessages} />
 
+      {/* ✅ QUOTA INFO CARD - AVEC LOGS DE DEBUG */}
       {quotaInfo && (
         <div className={`p-6 rounded-xl border-2 ${
           quotaInfo.remaining > 0
@@ -1639,10 +1877,13 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             : 'bg-red-50 border-red-300'
         }`}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-lg">
-              {quotaInfo.remaining > 0 ? '📊 Analyses restantes' : '❌ Quota atteint'}
-            </h3>
-            <span className="text-2xl font-black">
+            <div>
+              <h3 className="font-bold text-lg">
+                {quotaInfo.remaining > 0 ? '📊 Analyses restantes' : '❌ Quota atteint'}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
+            </div>
+            <span className="text-3xl font-black">
               {quotaInfo.remaining}/{quotaInfo.limit}
             </span>
           </div>
@@ -1652,7 +1893,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               className={`h-3 rounded-full transition-all ${
                 quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
               }`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.remaining) / quotaInfo.limit) * 100 : 100}%` }}
+              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
             />
           </div>
 
@@ -1694,21 +1935,15 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Ville</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">🏙️ Ville</label>
           {!showCustomVille ? (
-            <select
+            <input
+              type="text"
               value={formData.ville}
-              onChange={(e) => {
-                if (e.target.value === 'Autre') {
-                  setShowCustomVille(true);
-                } else {
-                  setFormData({ ...formData, ville: e.target.value });
-                }
-              }}
+              onChange={(e) => setFormData({ ...formData, ville: e.target.value })}
+              placeholder="Ex: Montréal, Québec, Lévis..."
               className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              {villeOptions.map(v => <option key={v}>{v}</option>)}
-            </select>
+            />
           ) : (
             <div className="flex gap-2">
               <input
@@ -1718,7 +1953,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
                 className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               />
               <button
-                onClick={() => { setShowCustomVille(false); setCustomVille(''); }}
+                onClick={() => { setShowCustomVille(false); setCustomVille(''); setFormData({ ...formData, ville: '' }); }}
                 className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 font-semibold text-gray-900"
               >
                 ✕
@@ -1728,7 +1963,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Quartier (optionnel)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">📍 Quartier (optionnel)</label>
           <input
             value={formData.quartier}
             onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
@@ -1738,16 +1973,10 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Type</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">🏠 Type</label>
           <select
             value={formData.typeappart}
-            onChange={(e) => {
-              console.log('✅ Select changé:', e.target.value);
-              setFormData({
-                ...formData,
-                typeappart: e.target.value
-              });
-            }}
+            onChange={(e) => setFormData({ ...formData, typeappart: e.target.value })}
             className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             {appartOptions.map((opt) => (
@@ -1759,7 +1988,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Loyer actuel ($)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">💰 Loyer actuel ($)</label>
           <input
             type="number"
             value={formData.loyeractuel || ''}
@@ -1771,7 +2000,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">État du bien</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">🏡 État du bien</label>
           <select
             value={formData.etat}
             onChange={(e) => setFormData({ ...formData, etat: e.target.value })}
@@ -1836,14 +2065,14 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       <div className="text-center">
         <button
           onClick={handleSubmit}
-          disabled={loading || (quotaInfo && quotaInfo.remaining <= 0)}
+          disabled={loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
           className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto
-            ${loading || (quotaInfo && quotaInfo.remaining <= 0)
+            ${loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
         >
-          {loading ? '🔄 Analyse en cours...' : quotaInfo?.remaining <= 0 ? '❌ Quota atteint' : '🚀 Analyser'}
+          {loading ? '🔄 Analyse en cours...' : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited ? '❌ Quota atteint' : '🚀 Analyser'}
         </button>
       </div>
 
@@ -1852,7 +2081,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           {/* Header résumé */}
           <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center">
             <h3 className="text-4xl font-black text-emerald-900 mb-2">
-              ${result.recommandation?.loyeroptimal || 'N/A'}
+              ${Math.round(result.recommandation?.loyeroptimal || 0)}
             </h3>
             <p className="text-emerald-800 text-lg mb-6">Loyer optimal recommandé</p>
 
@@ -1881,7 +2110,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           </div>
 
           {/* Justification */}
-          {result.recommandation?.justification && result.recommandation.justification.length > 0 && (
+          {result.recommandation?.justification && Array.isArray(result.recommandation.justification) && result.recommandation.justification.length > 0 && (
             <div className="p-6 bg-blue-100 rounded-xl border border-blue-300">
               <h4 className="font-black text-blue-900 text-lg mb-4">✓ Justification</h4>
               <ul className="space-y-2">
@@ -1896,7 +2125,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Points clés */}
-          {result.recommandation?.pointscles && result.recommandation.pointscles.length > 0 && (
+          {result.recommandation?.pointscles && Array.isArray(result.recommandation.pointscles) && result.recommandation.pointscles.length > 0 && (
             <div className="p-6 bg-purple-100 rounded-xl border border-purple-300">
               <h4 className="font-black text-purple-900 text-lg mb-4">• Points clés</h4>
               <ul className="space-y-2">
@@ -1911,7 +2140,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Considérations */}
-          {result.recommandation?.considerations && result.recommandation.considerations.length > 0 && (
+          {result.recommandation?.considerations && Array.isArray(result.recommandation.considerations) && result.recommandation.considerations.length > 0 && (
             <div className="p-6 bg-amber-100 rounded-xl border border-amber-300">
               <h4 className="font-black text-amber-900 text-lg mb-4">⚠️ Considérations</h4>
               <ul className="space-y-2">
@@ -1926,7 +2155,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Prochaines étapes */}
-          {result.recommandation?.prochainesetapes && result.recommandation.prochainesetapes.length > 0 && (
+          {result.recommandation?.prochainesetapes && Array.isArray(result.recommandation.prochainesetapes) && result.recommandation.prochainesetapes.length > 0 && (
             <div className="p-6 bg-green-100 rounded-xl border border-green-300">
               <h4 className="font-black text-green-900 text-lg mb-4">🎯 Prochaines étapes</h4>
               <ol className="space-y-2">
@@ -1974,6 +2203,16 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               <p className="text-gray-800 leading-relaxed">{result.recommandation.raisonnement}</p>
             </div>
           )}
+
+          {/* Bouton réinitialiser */}
+          <div className="text-center">
+            <button
+              onClick={() => setResult(null)}
+              className="px-8 py-3 bg-gray-500 text-white font-bold rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              ← Nouvelle analyse
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -1981,12 +2220,20 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 }
 
 
+
 // ============================================
 // 🏢 COMMERCIAL OPTIMIZER (Code existant inchangé)
 // ============================================
 function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [loading, setLoading] = useState(false);
-  const [quotaInfo, setQuotaInfo] = useState(null);
+  const [quotaInfo, setQuotaInfo] = useState({
+    remaining: 0,
+    limit: 0,
+    current: 0,
+    plan: 'essai',
+    resetDate: new Date(),
+    isUnlimited: false
+  });
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -2000,9 +2247,17 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
+  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN
+  const PLAN_LIMITS = {
+    essai: 0,
+    pro: 0,
+    growth: 999,
+    entreprise: 999
+  };
+
   const [formData, setFormData] = useState({
     titre: '',
-    ville: 'Montréal',
+    ville: '',
     quartier: '',
     typecommercial: 'office',
     surfacepiedcarre: 2000,
@@ -2028,67 +2283,128 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     { value: 'retail', label: '🛍️ Retail' }
   ];
 
-  const [customVille, setCustomVille] = useState('');
-  const [showCustomVille, setShowCustomVille] = useState(false);
-  const villeOptions = ['Montréal', 'Québec', 'Lévis', 'Laval', 'Longueuil', 'Gatineau', 'Sherbrooke', 'Autre'];
-
   const isCommercialBlocked = userPlan === 'essai' || userPlan === 'pro';
 
-  // ✅ CHARGER QUOTA AU DÉMARRAGE
+  // ✅ CHARGER LE QUOTA DEPUIS FIRESTORE
   useEffect(() => {
-    const fetchQuota = async () => {
+    const loadQuota = async () => {
       try {
+        if (!user?.uid) {
+          console.log('❌ Pas d\'utilisateur connecté');
+          return;
+        }
+
+        // 🔥 Récupérer les données depuis Firestore directement
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
+        
+        if (!userDoc.exists()) {
+          console.log('❌ Utilisateur non trouvé dans Firestore');
+          return;
+        }
+
         const userData = userDoc.data();
-        const userPlanNow = userData?.plan || 'essai';
+        console.log('📊 Données utilisateur Firestore:', userData);
 
+        // 📋 Récupérer le plan et les limites
+        const userPlanNow = userData.plan || 'essai';
+        const planLimit = PLAN_LIMITS[userPlanNow] || PLAN_LIMITS['essai'];
+
+        // 📅 Vérifier si le mois a changé et réinitialiser si nécessaire
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        
+        let quotaCount = 0;
+        let resetDate = new Date();
 
-        const analysesRef = collection(db, 'users', user.uid, 'analyses');
-        const q = query(
-          analysesRef,
-          where('createdAt', '>=', monthStart),
-          where('proprietetype', '==', 'commercial')
-        );
+        if (userData.quotaTracking) {
+          const trackingMonth = userData.quotaTracking.month || '';
+          
+          if (trackingMonth === currentMonth) {
+            // Même mois - utiliser le count actuel
+            quotaCount = userData.quotaTracking.count || 0;
+            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
+          } else {
+            // Mois différent - réinitialiser
+            console.log('🔄 Réinitialisation du quota (nouveau mois)');
+            quotaCount = 0;
+            
+            // Calculer la date de réinitialisation (même jour du mois prochain)
+            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            
+            // Mettre à jour Firestore
+            await updateDoc(doc(db, 'users', user.uid), {
+              'quotaTracking.count': 0,
+              'quotaTracking.month': currentMonth,
+              'quotaTracking.resetAt': resetDate
+            });
+          }
+        } else {
+          // Pas de tracking existant - initialiser
+          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          await updateDoc(doc(db, 'users', user.uid), {
+            'quotaTracking.count': 0,
+            'quotaTracking.month': currentMonth,
+            'quotaTracking.resetAt': resetDate
+          });
+        }
 
-        const snapshot = await getDocs(q);
-        const monthlyCount = snapshot.size;
-
-        const limits = { essai: 0, pro: 0, growth: 999, entreprise: 999 };
-        const limit = limits[userPlanNow] || 0;
+        // 📊 Calculer remaining et updated
+        const remaining = Math.max(0, planLimit - quotaCount);
 
         setQuotaInfo({
-          current: monthlyCount,
-          limit,
-          remaining: limit - monthlyCount,
+          remaining: remaining,
+          limit: planLimit,
+          current: quotaCount,
           plan: userPlanNow,
-          resetDate: new Date(now.getFullYear(), now.getMonth() + 1, 1)
+          resetDate: resetDate,
+          isUnlimited: planLimit >= 999
         });
-      } catch (err) {
-        console.error('Erreur quota:', err);
+
+        console.log('✅ Quota chargé:', {
+          plan: userPlanNow,
+          current: quotaCount,
+          limit: planLimit,
+          remaining: remaining,
+          resetDate: resetDate.toLocaleDateString('fr-CA')
+        });
+
+      } catch (error) {
+        console.error('❌ Erreur chargement quota:', error);
+        setQuotaInfo({
+          remaining: 0,
+          limit: 0,
+          current: 0,
+          plan: 'essai',
+          resetDate: new Date(),
+          isUnlimited: false
+        });
       }
     };
 
-    if (user && !isCommercialBlocked) fetchQuota();
-  }, [user, isCommercialBlocked]);
+    if (user?.uid && !isCommercialBlocked) {
+      loadQuota();
+    }
+  }, [user?.uid, isCommercialBlocked]);
 
   const handleSubmit = async () => {
-    const villeFinale = showCustomVille ? customVille : formData.ville;
-
     if (isCommercialBlocked) {
       setError('🔒 Commercial disponible à partir du plan Growth. Upgrader maintenant.');
       setShowUpgradeModal(true);
       return;
     }
 
-    if (quotaInfo && quotaInfo.remaining <= 0) {
+    if (!formData.ville) {
+      setError('🚨 Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
       setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint! Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`);
       return;
     }
 
-    if (!villeFinale || formData.surfacepiedcarre < 100 || formData.prixactuelpiedcarre < 5) {
+    if (formData.surfacepiedcarre < 100 || formData.prixactuelpiedcarre < 5) {
       setError('Veuillez remplir tous les champs correctement');
       return;
     }
@@ -2101,8 +2417,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       const analysisData = {
         ...formData,
         proprietetype: 'commercial',
-        titre: formData.titre || `${formData.typecommercial} - ${villeFinale}`,
-        ville: villeFinale,
+        titre: formData.titre || `${formData.typecommercial} - ${formData.ville}`,
         surfacepiedcarre: parseInt(formData.surfacepiedcarre),
         prixactuelpiedcarre: parseFloat(formData.prixactuelpiedcarre),
         termebailans: parseInt(formData.termebailans)
@@ -2113,8 +2428,20 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         { userId: user.uid, ...analysisData }
       );
 
+      console.log('🎉 Réponse API complète:', response.data);
+
+      // 📝 Mettre à jour le quota dans Firestore
+      const db = getFirestore();
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        'quotaTracking.count': increment(1),
+        'quotaTracking.month': currentMonth
+      });
+
+      // Sauvegarder l'analyse
       if (user) {
-        const db = getFirestore();
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
         await addDoc(analysesRef, {
           ...analysisData,
@@ -2126,21 +2453,25 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         });
       }
 
+      // ✅ Mettre à jour le quota localement
       setQuotaInfo(prev => ({
         ...prev,
         current: prev.current + 1,
-        remaining: prev.remaining - 1
+        remaining: Math.max(0, prev.remaining - 1)
       }));
 
       setResult(response.data);
     } catch (err) {
+      console.error('❌ Erreur complète:', err);
       if (err.response?.status === 429) {
         setQuotaError(`🔒 ${err.response.data.error}`);
         setQuotaInfo({
           current: err.response.data.current,
           limit: err.response.data.limit,
           remaining: 0,
-          resetDate: new Date(err.response.data.resetDate)
+          plan: quotaInfo.plan,
+          resetDate: new Date(err.response.data.resetDate),
+          isUnlimited: false
         });
       } else {
         setError('Erreur: ' + (err.response?.data?.error || err.message));
@@ -2154,6 +2485,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     <div className="space-y-8">
       <LoadingSpinner isLoading={loading} messages={loadingMessages} />
 
+      {/* ✅ QUOTA INFO CARD - AVEC LOGS DE DEBUG */}
       {!isCommercialBlocked && quotaInfo && (
         <div className={`p-6 rounded-xl border-2 ${
           quotaInfo.remaining > 0
@@ -2161,10 +2493,13 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             : 'bg-red-50 border-red-300'
         }`}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-lg">
-              {quotaInfo.remaining > 0 ? '📊 Analyses commerciales restantes' : '❌ Quota atteint'}
-            </h3>
-            <span className="text-2xl font-black">
+            <div>
+              <h3 className="font-bold text-lg">
+                {quotaInfo.remaining > 0 ? '📊 Analyses restantes' : '❌ Quota atteint'}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
+            </div>
+            <span className="text-3xl font-black">
               {quotaInfo.remaining}/{quotaInfo.limit}
             </span>
           </div>
@@ -2174,7 +2509,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               className={`h-3 rounded-full transition-all ${
                 quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
               }`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.remaining) / quotaInfo.limit) * 100 : 100}%` }}
+              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
             />
           </div>
 
@@ -2184,6 +2519,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
             }
           </p>
+         
         </div>
       )}
 
@@ -2194,11 +2530,17 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       )}
 
       {isCommercialBlocked && (
-        <div className="p-6 bg-red-100 border-2 border-red-400 rounded-xl">
-          <p className="text-red-900 font-bold text-base">
-            🔒 Plan non disponible pour Commercial<br />
-            <span className="text-red-800 text-sm">Accès à partir de Growth ($69/mois)</span>
+        <div className="p-6 bg-gradient-to-r from-red-100 to-red-50 rounded-xl border-2 border-red-400">
+          <p className="text-red-900 font-bold text-base mb-2">
+            🔒 Plan non disponible pour Commercial
           </p>
+          <p className="text-red-800 text-sm mb-4">Accès à partir de Growth ($69/mois)</p>
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold rounded-lg hover:shadow-lg transition-all"
+          >
+            💎 Upgrader maintenant
+          </button>
         </div>
       )}
 
@@ -2240,35 +2582,15 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Ville</label>
-          {!showCustomVille ? (
-            <select
-              value={formData.ville}
-              onChange={(e) => {
-                if (e.target.value === 'Autre') setShowCustomVille(true);
-                else setFormData({ ...formData, ville: e.target.value });
-              }}
-              disabled={isCommercialBlocked}
-              className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
-            >
-              {villeOptions.map(v => <option key={v}>{v}</option>)}
-            </select>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                value={customVille}
-                onChange={(e) => setCustomVille(e.target.value)}
-                placeholder="Entrez la ville..."
-                className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-              <button
-                onClick={() => { setShowCustomVille(false); setCustomVille(''); }}
-                className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 font-semibold text-gray-900"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+          <label className="block text-sm font-semibold text-gray-700 mb-3">🏙️ Ville</label>
+          <input
+            type="text"
+            value={formData.ville}
+            onChange={(e) => setFormData({ ...formData, ville: e.target.value })}
+            placeholder="Ex: Montréal, Québec, Lévis..."
+            disabled={isCommercialBlocked}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+          />
         </div>
 
         <div>
@@ -2364,23 +2686,24 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       <div className="text-center">
         <button
           onClick={handleSubmit}
-          disabled={loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0)}
+          disabled={loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
           className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto
-            ${loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0)
+            ${loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
         >
-          {loading ? '🔄 Analyse en cours...' : isCommercialBlocked ? '🔒 Commercial (Growth+)' : quotaInfo?.remaining <= 0 ? '❌ Quota atteint' : '🏢 Analyser Commercial'}
+          {loading ? '🔄 Analyse en cours...' : isCommercialBlocked ? '🔒 Commercial (Growth+)' : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited ? '❌ Quota atteint' : '🏢 Analyser Commercial'}
         </button>
       </div>
 
       {result && (
         <div className="space-y-8 mt-8">
+          
           {/* Header résumé */}
           <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center">
             <h3 className="text-4xl font-black text-emerald-900 mb-2">
-              ${result.recommandation?.loyeroptimal || 'N/A'}/pi²/an
+              ${(result.recommandation?.loyeroptimal || 0).toFixed(2)}/pi²/an
             </h3>
             <p className="text-emerald-800 text-lg mb-6">Loyer optimal recommandé</p>
 
@@ -2409,7 +2732,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           </div>
 
           {/* Justification */}
-          {result.recommandation?.justification && result.recommandation.justification.length > 0 && (
+          {result.recommandation?.justification && Array.isArray(result.recommandation.justification) && result.recommandation.justification.length > 0 && (
             <div className="p-6 bg-blue-100 rounded-xl border border-blue-300">
               <h4 className="font-black text-blue-900 text-lg mb-4">✓ Justification</h4>
               <ul className="space-y-2">
@@ -2424,7 +2747,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Points clés */}
-          {result.recommandation?.pointscles && result.recommandation.pointscles.length > 0 && (
+          {result.recommandation?.pointscles && Array.isArray(result.recommandation.pointscles) && result.recommandation.pointscles.length > 0 && (
             <div className="p-6 bg-purple-100 rounded-xl border border-purple-300">
               <h4 className="font-black text-purple-900 text-lg mb-4">• Points clés</h4>
               <ul className="space-y-2">
@@ -2439,7 +2762,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Considérations */}
-          {result.recommandation?.considerations && result.recommandation.considerations.length > 0 && (
+          {result.recommandation?.considerations && Array.isArray(result.recommandation.considerations) && result.recommandation.considerations.length > 0 && (
             <div className="p-6 bg-amber-100 rounded-xl border border-amber-300">
               <h4 className="font-black text-amber-900 text-lg mb-4">⚠️ Considérations</h4>
               <ul className="space-y-2">
@@ -2454,7 +2777,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           )}
 
           {/* Prochaines étapes */}
-          {result.recommandation?.prochainesetapes && result.recommandation.prochainesetapes.length > 0 && (
+          {result.recommandation?.prochainesetapes && Array.isArray(result.recommandation.prochainesetapes) && result.recommandation.prochainesetapes.length > 0 && (
             <div className="p-6 bg-green-100 rounded-xl border border-green-300">
               <h4 className="font-black text-green-900 text-lg mb-4">🎯 Prochaines étapes</h4>
               <ol className="space-y-2">
@@ -2502,12 +2825,1384 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               <p className="text-gray-800 leading-relaxed">{result.recommandation.raisonnement}</p>
             </div>
           )}
+
+          {/* Bouton réinitialiser */}
+          <div className="text-center">
+            <button
+              onClick={() => setResult(null)}
+              className="px-8 py-3 bg-gray-500 text-white font-bold rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              ← Nouvelle analyse
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+
+// ====================================================================
+// 🏠 COMPOSANT : ESTIMATEUR DE VALEUR IMMOBILIÈRE
+// ====================================================================
+
+function PropertyValuationTab({ 
+  user, 
+  userPlan, 
+  setUserPlan,
+  showUpgradeModal, 
+  setShowUpgradeModal 
+}) {
+  // ============================================
+  // STATE - GESTION DES ÉTATS
+  // ============================================
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slideProgress, setSlideProgress] = useState(0);
+  
+  const [quotaInfo, setQuotaInfo] = useState({
+    remaining: 0,
+    limit: 1,
+    current: 0,
+    plan: 'essai',
+    resetDate: new Date(),
+    isUnlimited: false
+  });
+  
+  const [error, setError] = useState('');
+  const [quotaError, setQuotaError] = useState('');
+  const [slideErrors, setSlideErrors] = useState({});
+  
+  const resultRef = React.useRef(null);
+
+  // ============================================
+  // MESSAGES DE CHARGEMENT
+  // ============================================
+  const loadingMessages = [
+    '🔍 Analyse de la propriété...',
+    '📊 Récupération des données du marché...',
+    '🤖 IA prédit la valeur actuelle...',
+    '📈 Calcul de l\'appréciation...',
+    '💰 Génération du rapport...',
+    '✅ Finalisation de l\'évaluation...'
+  ];
+
+  // ============================================
+  // LIMITES DE QUOTA PAR PLAN
+  // ============================================
+  const PLAN_LIMITS = {
+    essai: 1,
+    pro: 5,
+    growth: 999,
+    entreprise: 999
+  };
+
+  // ============================================
+  // DONNÉES DU FORMULAIRE
+  // ============================================
+  const [formData, setFormData] = useState({
+    titre: '',
+    proprietyType: 'unifamilial',
+    ville: '',
+    quartier: '',
+    addresseComplete: '',
+    prixAchat: '',
+    anneeAchat: new Date().getFullYear() - 5,
+    anneeConstruction: 1990,
+    surfaceHabitee: '',
+    surfaceLot: '',
+    nombreChambres: 3,
+    nombreSallesBain: 2,
+    stationnements: 0,
+    sous_sol: 'finished',
+    etatGeneral: 'bon',
+    renovations: [],
+    piscine: false,
+    terrasse: false,
+    chauffageRadiant: false,
+    climatisation: false,
+    fireplace: false,
+    sauna: false,
+    cinema: false,
+    salleSport: false,
+    nombreLogements: 4,
+    terrain_detail: '',
+    notes_additionnelles: ''
+  });
+
+  // ============================================
+  // CONFIGURATION DES SLIDES
+  // ============================================
+  const slides = [
+    {
+      id: 'location',
+      title: 'Localisation',
+      description: 'Où se situe votre propriété?',
+      icon: '📍',
+      required: ['ville'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete']
+    },
+    {
+      id: 'acquisition',
+      title: 'Acquisition',
+      description: 'Informations d\'achat',
+      icon: '💰',
+      required: ['prixAchat', 'anneeAchat'],
+      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction']
+    },
+    {
+      id: 'dimensions',
+      title: 'Dimensions',
+      description: 'Taille et surface',
+      icon: '📏',
+      required: [],
+      fields: ['surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'stationnements']
+    },
+    {
+      id: 'condition',
+      title: 'État et condition',
+      description: 'Caractéristiques de la propriété',
+      icon: '🏗️',
+      required: [],
+      fields: ['sous_sol', 'etatGeneral']
+    },
+    {
+      id: 'amenities',
+      title: 'Aménagements premium',
+      description: 'Équipements spéciaux',
+      icon: '✨',
+      required: [],
+      fields: ['amenities']
+    },
+    {
+      id: 'details',
+      title: 'Détails additionnels',
+      description: 'Informations complémentaires',
+      icon: '📝',
+      required: [],
+      fields: ['terrain_detail', 'notes_additionnelles']
+    }
+  ];
+
+  // ============================================
+  // AMÉNAGEMENTS DISPONIBLES
+  // ============================================
+  const amenagements = [
+    { key: 'piscine', label: 'Piscine', icon: '🏊' },
+    { key: 'terrasse', label: 'Terrasse', icon: '🏡' },
+    { key: 'chauffageRadiant', label: 'Chauffage radiant', icon: '🌡️' },
+    { key: 'climatisation', label: 'Climatisation', icon: '❄️' },
+    { key: 'fireplace', label: 'Foyer', icon: '🔥' },
+    { key: 'sauna', label: 'Sauna', icon: '🧖' },
+    { key: 'cinema', label: 'Salle cinéma', icon: '🎬' },
+    { key: 'salleSport', label: 'Salle sport', icon: '💪' }
+  ];
+
+  // ============================================
+  // TYPES DE PROPRIÉTÉS
+  // ============================================
+  const propertyTypes = [
+    { value: 'unifamilial', label: 'Unifamilial', icon: '🏠' },
+    { value: 'jumelee', label: 'Jumelée', icon: '🏘️' },
+    { value: 'duplex', label: 'Duplex', icon: '🏢' },
+    { value: 'triplex', label: 'Triplex', icon: '🏢' },
+    { value: 'immeuble_revenus', label: 'Immeuble à revenus', icon: '🏗️' },
+    { value: 'condo', label: 'Condo', icon: '🏙️' }
+  ];
+
+  // ============================================
+  // ÉTATS DE CONDITIONS
+  // ============================================
+  const etatsGeneraux = [
+    { value: 'excellent', label: 'Excellent', icon: '⭐', color: 'emerald' },
+    { value: 'bon', label: 'Bon', icon: '👍', color: 'green' },
+    { value: 'moyen', label: 'Moyen', icon: '➖', color: 'yellow' },
+    { value: 'faible', label: 'Faible', icon: '⚠️', color: 'orange' },
+    { value: 'necessite_renovation', label: 'Nécessite rénovation', icon: '🔨', color: 'red' }
+  ];
+
+  // ============================================
+  // TYPES DE SOUS-SOL
+  // ============================================
+  const typesUnderground = [
+    { value: 'none', label: 'Aucun', icon: '❌' },
+    { value: 'unfinished', label: 'Non aménagé', icon: '🪨' },
+    { value: 'partial', label: 'Partiellement aménagé', icon: '🔨' },
+    { value: 'finished', label: 'Complètement aménagé', icon: '✅' }
+  ];
+
+  // ============================================
+  // HELPER: Format property type label
+  // ============================================
+  const formatPropertyType = (type) => {
+    if (!type) return 'Unknown';
+    const typeObj = propertyTypes.find(p => p.value === type);
+    return typeObj ? typeObj.label : type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  // ============================================
+  // HELPER: Safe format currency
+  // ============================================
+  const formatCurrency = (value) => {
+    if (!value && value !== 0) return 'N/A';
+    return Number(value).toLocaleString('fr-CA');
+  };
+
+  // ============================================
+  // HELPER: Check if Pro Plan
+  // ============================================
+  const isProPlan = quotaInfo.plan === 'pro' || quotaInfo.plan === 'premium' || quotaInfo.plan === 'growth' || quotaInfo.plan === 'entreprise';
+
+  // ============================================
+  // EFFECT: Charger les données au démarrage
+  // ============================================
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        if (!user?.uid) {
+          console.log('❌ Pas d\'utilisateur connecté');
+          return;
+        }
+
+        const db = getFirestore();
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        
+        if (!userDoc.exists()) {
+          console.log('❌ Utilisateur non trouvé dans Firestore');
+          return;
+        }
+
+        const userData = userDoc.data();
+        console.log('📊 Données utilisateur Firestore:', userData);
+
+        const userPlan = userData.plan || 'essai';
+        const planLimit = PLAN_LIMITS[userPlan] || PLAN_LIMITS['essai'];
+
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        
+        let quotaCount = 0;
+        let resetDate = new Date();
+
+        if (userData.quotaTracking) {
+          const trackingMonth = userData.quotaTracking.month || '';
+          
+          if (trackingMonth === currentMonth) {
+            quotaCount = userData.quotaTracking.count || 0;
+            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
+          } else {
+            console.log('🔄 Réinitialisation du quota (nouveau mois)');
+            quotaCount = 0;
+            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            
+            await updateDoc(doc(db, 'users', user.uid), {
+              'quotaTracking.count': 0,
+              'quotaTracking.month': currentMonth,
+              'quotaTracking.resetAt': resetDate
+            });
+          }
+        } else {
+          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          await updateDoc(doc(db, 'users', user.uid), {
+            'quotaTracking.count': 0,
+            'quotaTracking.month': currentMonth,
+            'quotaTracking.resetAt': resetDate
+          });
+        }
+
+        const remaining = Math.max(0, planLimit - quotaCount);
+
+        setQuotaInfo({
+          remaining: remaining,
+          limit: planLimit,
+          current: quotaCount,
+          plan: userPlan,
+          resetDate: resetDate,
+          isUnlimited: planLimit >= 999
+        });
+
+        console.log('✅ Quota chargé:', {
+          plan: userPlan,
+          current: quotaCount,
+          limit: planLimit,
+          remaining: remaining,
+          resetDate: resetDate.toLocaleDateString('fr-CA')
+        });
+
+        const analysesRef = collection(db, 'users', user.uid, 'analyses');
+        const snapshot = await getDocs(analysesRef);
+        const evaluations = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setProperties(evaluations);
+
+      } catch (error) {
+        console.error('❌ Erreur chargement données:', error);
+        setQuotaInfo({
+          remaining: 0,
+          limit: 1,
+          current: 0,
+          plan: 'essai',
+          resetDate: new Date(),
+          isUnlimited: false
+        });
+      }
+    };
+
+    if (user?.uid) {
+      loadData();
+    }
+  }, [user?.uid]);
+
+  // ============================================
+  // EFFET: Mettre à jour la barre de progression
+  // ============================================
+  useEffect(() => {
+    const progress = ((currentSlide + 1) / slides.length) * 100;
+    setSlideProgress(progress);
+  }, [currentSlide, slides.length]);
+
+  // ============================================
+  // FONCTION: Valider le slide actuel
+  // ============================================
+  const validateCurrentSlide = () => {
+    const slide = slides[currentSlide];
+    const newErrors = {};
+
+    slide.required.forEach(field => {
+      if (!formData[field] || formData[field] === '') {
+        newErrors[field] = 'Ce champ est obligatoire';
+      }
+    });
+
+    setSlideErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ============================================
+  // FONCTION: Aller au slide suivant
+  // ============================================
+  const goToNextSlide = () => {
+    if (validateCurrentSlide()) {
+      if (currentSlide < slides.length - 1) {
+        setCurrentSlide(currentSlide + 1);
+        setSlideErrors({});
+      }
+    }
+  };
+
+  // ============================================
+  // FONCTION: Aller au slide précédent
+  // ============================================
+  const goToPrevSlide = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide(currentSlide - 1);
+      setSlideErrors({});
+    }
+  };
+
+  // ============================================
+  // FONCTION: Soumettre l'évaluation
+  // ============================================
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
+
+    if (!validateCurrentSlide()) {
+      return;
+    }
+
+    if (!formData.prixAchat || !formData.anneeAchat || !formData.ville) {
+      setError('🚨 Remplissez tous les champs obligatoires');
+      return;
+    }
+
+    if (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
+      setError(`❌ Limite d'évaluations atteinte pour le plan ${quotaInfo.plan}`);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setQuotaError('');
+    setSelectedProperty(null);
+
+    try {
+      const response = await axios.post('/api/property/valuation-estimator', {
+        userId: user.uid,
+        titre: formData.titre,
+        proprietyType: formData.proprietyType,
+        ville: formData.ville,
+        quartier: formData.quartier,
+        addresseComplete: formData.addresseComplete,
+        prixAchat: parseInt(formData.prixAchat),
+        anneeAchat: formData.anneeAchat,
+        anneeConstruction: formData.anneeConstruction,
+        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
+        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
+        nombreChambres: parseInt(formData.nombreChambres),
+        nombreSallesBain: parseInt(formData.nombreSallesBain),
+        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
+        sous_sol: formData.sous_sol,
+        etatGeneral: formData.etatGeneral,
+        renovations: formData.renovations,
+        piscine: formData.piscine,
+        terrasse: formData.terrasse,
+        chauffageRadiant: formData.chauffageRadiant,
+        climatisation: formData.climatisation,
+        fireplace: formData.fireplace,
+        sauna: formData.sauna,
+        cinema: formData.cinema,
+        salleSport: formData.salleSport,
+        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
+        terrain_detail: formData.terrain_detail,
+        notes_additionnelles: formData.notes_additionnelles
+      });
+
+      console.log('🎉 Réponse API complète:', response.data);
+
+      const db = getFirestore();
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      const analysesRef = collection(db, 'users', user.uid, 'analyses');
+      const docRef = await addDoc(analysesRef, {
+        titre: formData.titre,
+        proprietyType: formData.proprietyType,
+        ville: formData.ville,
+        quartier: formData.quartier,
+        addresseComplete: formData.addresseComplete,
+        prixAchat: parseInt(formData.prixAchat),
+        anneeAchat: formData.anneeAchat,
+        anneeConstruction: formData.anneeConstruction,
+        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
+        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
+        nombreChambres: parseInt(formData.nombreChambres),
+        nombreSallesBain: parseInt(formData.nombreSallesBain),
+        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
+        sous_sol: formData.sous_sol,
+        etatGeneral: formData.etatGeneral,
+        renovations: formData.renovations,
+        piscine: formData.piscine,
+        terrasse: formData.terrasse,
+        chauffageRadiant: formData.chauffageRadiant,
+        climatisation: formData.climatisation,
+        fireplace: formData.fireplace,
+        sauna: formData.sauna,
+        cinema: formData.cinema,
+        salleSport: formData.salleSport,
+        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
+        terrain_detail: formData.terrain_detail,
+        notes_additionnelles: formData.notes_additionnelles,
+        result: response.data,
+        createdAt: now
+      });
+
+      await updateDoc(doc(db, 'users', user.uid), {
+        'quotaTracking.count': increment(1),
+        'quotaTracking.month': currentMonth
+      });
+
+      const newProperty = {
+        id: docRef.id,
+        titre: formData.titre,
+        proprietyType: formData.proprietyType,
+        ville: formData.ville,
+        quartier: formData.quartier,
+        addresseComplete: formData.addresseComplete,
+        prixAchat: parseInt(formData.prixAchat),
+        anneeAchat: formData.anneeAchat,
+        anneeConstruction: formData.anneeConstruction,
+        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
+        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
+        nombreChambres: parseInt(formData.nombreChambres),
+        nombreSallesBain: parseInt(formData.nombreSallesBain),
+        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
+        sous_sol: formData.sous_sol,
+        etatGeneral: formData.etatGeneral,
+        renovations: formData.renovations,
+        piscine: formData.piscine,
+        terrasse: formData.terrasse,
+        chauffageRadiant: formData.chauffageRadiant,
+        climatisation: formData.climatisation,
+        fireplace: formData.fireplace,
+        sauna: formData.sauna,
+        cinema: formData.cinema,
+        salleSport: formData.salleSport,
+        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
+        terrain_detail: formData.terrain_detail,
+        notes_additionnelles: formData.notes_additionnelles,
+        result: response.data,
+        createdAt: now
+      };
+
+      setProperties([newProperty, ...properties]);
+      
+      setQuotaInfo(prev => ({
+        ...prev,
+        current: prev.current + 1,
+        remaining: Math.max(0, prev.remaining - 1)
+      }));
+
+      setSelectedProperty(newProperty);
+      setShowForm(false);
+      setCurrentSlide(0);
+
+      setFormData({
+        titre: '',
+        proprietyType: 'unifamilial',
+        ville: '',
+        quartier: '',
+        addresseComplete: '',
+        prixAchat: '',
+        anneeAchat: new Date().getFullYear() - 5,
+        anneeConstruction: 1990,
+        surfaceHabitee: '',
+        surfaceLot: '',
+        nombreChambres: 3,
+        nombreSallesBain: 2,
+        stationnements: 0,
+        sous_sol: 'finished',
+        etatGeneral: 'bon',
+        renovations: [],
+        piscine: false,
+        terrasse: false,
+        chauffageRadiant: false,
+        climatisation: false,
+        fireplace: false,
+        sauna: false,
+        cinema: false,
+        salleSport: false,
+        nombreLogements: 4,
+        terrain_detail: '',
+        notes_additionnelles: ''
+      });
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+
+    } catch (error) {
+      console.error('❌ Erreur complète:', error);
+      if (error.response?.status === 429) {
+        setQuotaError(error.response.data.error || 'Quota atteint');
+      } else {
+        setError(error.response?.data?.error || 'Erreur lors de l\'évaluation');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ============================================
+  // FONCTION: Supprimer une évaluation
+  // ============================================
+  const deleteProperty = async (propertyId) => {
+    if (!window.confirm('Confirmer la suppression?')) return;
+    try {
+      const db = getFirestore();
+      
+      await deleteDoc(doc(db, 'users', user.uid, 'analyses', propertyId));
+      
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        'quotaTracking.count': increment(-1),
+        'quotaTracking.month': currentMonth
+      });
+
+      setProperties(properties.filter(p => p.id !== propertyId));
+      setSelectedProperty(null);
+      
+      setQuotaInfo(prev => ({
+        ...prev,
+        current: Math.max(0, prev.current - 1),
+        remaining: prev.remaining + 1
+      }));
+      
+      alert('✅ Évaluation supprimée');
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('❌ Erreur lors de la suppression');
+    }
+  };
+
+  // ============================================
+  // 🔒 PLAN ESSAI - BLOQUÉ
+  // ============================================
+  if (!isProPlan) {
+    return (
+      <div className="space-y-6 p-8">
+        <LoadingSpinner 
+          isLoading={loading} 
+          messages={loadingMessages} 
+        />
+
+        <div className="p-8 bg-gradient-to-r from-indigo-100 to-indigo-50 rounded-2xl border-2 border-indigo-300 text-center">
+          <h2 className="text-3xl font-black text-indigo-900 mb-3">🔒 Plan Pro Requis</h2>
+          <p className="text-indigo-800 text-lg mb-6">
+            L'évaluation immobilière est disponible à partir du plan <span className="font-bold">Pro ($29/mois)</span>
+          </p>
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-12 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-black text-lg rounded-xl hover:shadow-lg transform hover:-translate-y-1 transition-all"
+          >
+            💎 Upgrader maintenant
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================
+  // RENDU PRINCIPAL
+  // ============================================
+  return (
+    <div className="space-y-8">
+      <LoadingSpinner 
+        isLoading={loading} 
+        messages={loadingMessages} 
+      />
+
+      {/* QUOTA INFO CARD */}
+      {quotaInfo && !selectedProperty && (
+        <div className={`p-6 rounded-xl border-2 transition-all ${
+          quotaInfo.remaining > 0
+            ? 'bg-emerald-50 border-emerald-300'
+            : 'bg-red-50 border-red-300'
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-bold text-lg">
+                {quotaInfo.remaining > 0 ? '📊 Évaluations restantes' : '❌ Quota atteint'}
+              </h3>
+              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
+            </div>
+            <span className="text-3xl font-black">
+              {quotaInfo.remaining}/{quotaInfo.limit}
+            </span>
+          </div>
+
+          <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
+            <div
+              className={`h-3 rounded-full transition-all ${
+                quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
+            />
+          </div>
+
+          <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+            {quotaInfo.remaining > 0
+              ? `${quotaInfo.remaining} évaluation${quotaInfo.remaining > 1 ? 's' : ''} restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
+              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
+            }
+          </p>
+        </div>
+      )}
+
+      {/* BOUTON NOUVELLE ÉVALUATION */}
+      {!selectedProperty && !showForm && (
+        <div className="text-center">
+          <button
+            onClick={() => {
+              setShowForm(true);
+              setCurrentSlide(0);
+              setSlideErrors({});
+            }}
+            className="px-12 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400"
+          >
+            ➕ Nouvelle évaluation
+          </button>
+        </div>
+      )}
+
+      {/* FORMULAIRE AVEC SLIDES */}
+      {showForm && !selectedProperty && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            
+            {/* HEADER DU FORMULAIRE */}
+            <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-8 py-6 text-white">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-2xl font-black">{slides[currentSlide].icon} {slides[currentSlide].title}</h2>
+                  <p className="text-indigo-100 text-sm mt-1">{slides[currentSlide].description}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowForm(false);
+                    setCurrentSlide(0);
+                    setSlideErrors({});
+                  }}
+                  className="text-indigo-200 hover:text-white text-2xl font-bold transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* BARRE DE PROGRESSION */}
+              <div className="w-full bg-indigo-500/30 rounded-full h-2">
+                <div
+                  className="h-2 bg-white rounded-full transition-all duration-300"
+                  style={{ width: `${slideProgress}%` }}
+                />
+              </div>
+              <p className="text-indigo-100 text-xs mt-2">{currentSlide + 1} / {slides.length}</p>
+            </div>
+
+            {/* CONTENU DES SLIDES */}
+            <div className="overflow-y-auto flex-1">
+              <div className="px-8 py-8">
+                
+                {/* SLIDE 0: LOCALISATION */}
+                {currentSlide === 0 && (
+                  <div className="space-y-6">
+                    {/* CHAMP TITRE */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Titre de la propriété <span className="text-gray-400 text-xs">(optionnel)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.titre}
+                        onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
+                        placeholder="Ex: Belle maison au Plateau, Condo Griffintown, Triplex Vanier..."
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Type de propriété <span className="text-red-500">*</span></label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {propertyTypes.map(type => (
+                          <button
+                            key={type.value}
+                            onClick={() => {
+                              setFormData({ 
+                                ...formData, 
+                                proprietyType: type.value,
+                                nombreLogements: type.value === 'immeuble_revenus' ? 4 : formData.nombreLogements
+                              });
+                              setSlideErrors({...slideErrors, proprietyType: ''});
+                            }}
+                            className={`p-4 rounded-xl border-2 font-semibold transition-all text-center ${
+                              formData.proprietyType === type.value
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            <span className="text-2xl block mb-1">{type.icon}</span>
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {formData.proprietyType === 'immeuble_revenus' && (
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Nombre de logements <span className="text-red-500">*</span></label>
+                        <input
+                          type="number"
+                          value={formData.nombreLogements}
+                          onChange={(e) => setFormData({ ...formData, nombreLogements: parseInt(e.target.value) || 4 })}
+                          min="4"
+                          max="200"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Ville <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.ville}
+                        onChange={(e) => {
+                          setFormData({ ...formData, ville: e.target.value });
+                          setSlideErrors({...slideErrors, ville: ''});
+                        }}
+                        placeholder="Ex: Montréal, Québec, Lévis..."
+                        className={`w-full p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                          slideErrors.ville ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {slideErrors.ville && <p className="text-red-500 text-xs mt-1">{slideErrors.ville}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Quartier <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <input
+                        type="text"
+                        value={formData.quartier}
+                        onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
+                        placeholder="Ex: Plateau, Griffintown, Outremont..."
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Adresse complète <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <input
+                        type="text"
+                        value={formData.addresseComplete}
+                        onChange={(e) => setFormData({ ...formData, addresseComplete: e.target.value })}
+                        placeholder="123 rue Example, Montréal..."
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 1: ACQUISITION */}
+                {currentSlide === 1 && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Prix d'achat <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={formData.prixAchat}
+                          onChange={(e) => {
+                            setFormData({ ...formData, prixAchat: e.target.value });
+                            setSlideErrors({...slideErrors, prixAchat: ''});
+                          }}
+                          placeholder="500000"
+                          className={`flex-1 p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                            slideErrors.prixAchat ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        />
+                        <div className="flex items-center px-6 bg-indigo-50 border-2 border-indigo-300 rounded-lg text-indigo-700 font-black text-xl">
+                          $
+                        </div>
+                      </div>
+                      {slideErrors.prixAchat && <p className="text-red-500 text-xs mt-1">{slideErrors.prixAchat}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        Année d'achat <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.anneeAchat}
+                        onChange={(e) => {
+                          setFormData({ ...formData, anneeAchat: parseInt(e.target.value) });
+                          setSlideErrors({...slideErrors, anneeAchat: ''});
+                        }}
+                        min="1950"
+                        max={new Date().getFullYear()}
+                        className={`w-full p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
+                          slideErrors.anneeAchat ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {slideErrors.anneeAchat && <p className="text-red-500 text-xs mt-1">{slideErrors.anneeAchat}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Année de construction <span className="text-red-500">*</span></label>
+                      <input
+                        type="number"
+                        value={formData.anneeConstruction}
+                        onChange={(e) => setFormData({ ...formData, anneeConstruction: parseInt(e.target.value) })}
+                        min="1850"
+                        max={new Date().getFullYear()}
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 2: DIMENSIONS */}
+                {currentSlide === 2 && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Surface habitée (pi²) <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                        <input
+                          type="number"
+                          value={formData.surfaceHabitee}
+                          onChange={(e) => setFormData({ ...formData, surfaceHabitee: e.target.value })}
+                          placeholder="2000"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Surface du lot (pi²) <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                        <input
+                          type="number"
+                          value={formData.surfaceLot}
+                          onChange={(e) => setFormData({ ...formData, surfaceLot: e.target.value })}
+                          placeholder="8000"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Chambres <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                        <input
+                          type="number"
+                          value={formData.nombreChambres}
+                          onChange={(e) => setFormData({ ...formData, nombreChambres: parseInt(e.target.value) })}
+                          min="1"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Salles de bain <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                        <input
+                          type="number"
+                          value={formData.nombreSallesBain}
+                          onChange={(e) => setFormData({ ...formData, nombreSallesBain: parseInt(e.target.value) })}
+                          min="1"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">Stationnements <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                        <input
+                          type="number"
+                          value={formData.stationnements}
+                          onChange={(e) => setFormData({ ...formData, stationnements: parseInt(e.target.value) || 0 })}
+                          min="0"
+                          max="10"
+                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 3: CONDITION */}
+                {currentSlide === 3 && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">État du sous-sol <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {typesUnderground.map(type => (
+                          <button
+                            key={type.value}
+                            onClick={() => setFormData({ ...formData, sous_sol: type.value })}
+                            className={`p-4 rounded-xl border-2 font-semibold transition-all text-center ${
+                              formData.sous_sol === type.value
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            <span className="text-2xl block mb-1">{type.icon}</span>
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">État général de la propriété <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <div className="space-y-2">
+                        {etatsGeneraux.map(etat => (
+                          <button
+                            key={etat.value}
+                            onClick={() => setFormData({ ...formData, etatGeneral: etat.value })}
+                            className={`w-full p-4 rounded-xl border-2 font-semibold transition-all text-left flex items-center gap-3 ${
+                              formData.etatGeneral === etat.value
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            <span className="text-2xl">{etat.icon}</span>
+                            {etat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 4: AMÉNAGEMENTS */}
+                {currentSlide === 4 && (
+                  <div className="space-y-6">
+                    <p className="text-gray-600 text-sm">Sélectionnez les aménagements premium de votre propriété <span className="text-gray-400 text-xs">(optionnel)</span></p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {amenagements.map(item => (
+                        <button
+                          key={item.key}
+                          onClick={() => setFormData({ ...formData, [item.key]: !formData[item.key] })}
+                          className={`p-4 rounded-xl border-2 font-semibold transition-all text-center flex flex-col items-center gap-2 ${
+                            formData[item.key]
+                              ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                              : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
+                          }`}
+                        >
+                          <span className="text-2xl">{item.icon}</span>
+                          <span className="text-xs">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SLIDE 5: DÉTAILS ADDITIONNELS */}
+                {currentSlide === 5 && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Détails du terrain <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <textarea
+                        value={formData.terrain_detail}
+                        onChange={(e) => setFormData({ ...formData, terrain_detail: e.target.value })}
+                        placeholder="Terrain arrière, accès à l'eau, vue panoramique, dépendances..."
+                        rows="4"
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">Notes additionnelles <span className="text-gray-400 text-xs">(optionnel)</span></label>
+                      <textarea
+                        value={formData.notes_additionnelles}
+                        onChange={(e) => setFormData({ ...formData, notes_additionnelles: e.target.value })}
+                        placeholder="Rénovations récentes, améliorations futures envisagées, problèmes connus..."
+                        rows="4"
+                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
+                      />
+                    </div>
+
+                    <div className="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-300">
+                      <p className="text-sm text-indigo-800">
+                        <span className="font-bold">💡 Conseil:</span> Plus d'informations = meilleure évaluation!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ERREUR D'API */}
+                {error && (
+                  <div className="p-4 bg-red-100 border-2 border-red-300 rounded-lg text-red-700 font-semibold">
+                    {error}
+                  </div>
+                )}
+
+                {quotaError && (
+                  <div className="p-4 bg-red-100 border-2 border-red-300 rounded-lg text-red-700 font-semibold">
+                    {quotaError}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* FOOTER: BOUTONS DE NAVIGATION */}
+            <div className="bg-gray-50 px-8 py-6 border-t-2 border-gray-200 flex gap-3 justify-between">
+              <button
+                onClick={goToPrevSlide}
+                disabled={currentSlide === 0}
+                className={`px-8 py-3 font-bold rounded-lg transition-all ${
+                  currentSlide === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                }`}
+              >
+                ← Précédent
+              </button>
+
+              <div className="flex gap-2">
+                {slides.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`h-2 rounded-full transition-all ${
+                      idx === currentSlide ? 'bg-indigo-600 w-8' : 'bg-gray-300 w-2'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {currentSlide < slides.length - 1 ? (
+                <button
+                  onClick={goToNextSlide}
+                  className="px-8 py-3 font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+                >
+                  Suivant →
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || quotaInfo.remaining <= 0}
+                  className={`px-8 py-3 font-bold rounded-lg transition-all ${
+                    loading || quotaInfo.remaining <= 0
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {loading ? '🔄 Évaluation...' : '✅ Évaluer'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RÉSULTATS DE L'ÉVALUATION */}
+      {selectedProperty && selectedProperty.result && (
+        <div ref={resultRef} className="space-y-6">
+          {/* HERO SECTION AVEC TITRE */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                {selectedProperty?.titre && (
+                  <h2 className="text-3xl font-black text-indigo-600 mb-2">{selectedProperty.titre}</h2>
+                )}
+                <h3 className="text-4xl font-black text-gray-900 mb-2">✅ Évaluation complète</h3>
+                <p className="text-gray-600 text-lg">Analyse détaillée par l'IA pour {selectedProperty?.ville}</p>
+              </div>
+              <button
+                onClick={() => setSelectedProperty(null)}
+                className="text-2xl font-bold text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* PROPRIÉTÉ INFO */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Type</p>
+                <p className="text-lg font-black text-gray-900 mt-2">
+                  {formatPropertyType(selectedProperty?.proprietyType)}
+                </p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Ville</p>
+                <p className="text-lg font-black text-gray-900 mt-2">{selectedProperty?.ville || 'N/A'}</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Prix d'achat</p>
+                <p className="text-lg font-black text-green-600 mt-2">${formatCurrency(selectedProperty?.prixAchat)}</p>
+              </div>
+              <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Année d'achat</p>
+                <p className="text-lg font-black text-gray-900 mt-2">{selectedProperty?.anneeAchat || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* VALEUR ESTIMÉE */}
+          <div className="bg-emerald-500 rounded-2xl p-8 text-white shadow-lg">
+            <p className="text-emerald-100 text-sm font-semibold uppercase tracking-widest">💰 Valeur estimée actuelle</p>
+            <p className="text-5xl font-black mt-3 mb-6">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurMoyenne)}</p>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-white/20 rounded-xl p-4">
+                <p className="text-emerald-100 text-sm font-semibold">Valeur basse</p>
+                <p className="font-black text-xl mt-2">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurBasse)}</p>
+              </div>
+              <div className="bg-white/20 rounded-xl p-4">
+                <p className="text-emerald-100 text-sm font-semibold">Valeur haute</p>
+                <p className="font-black text-xl mt-2">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurHaute)}</p>
+              </div>
+              <div className="bg-white/20 rounded-xl p-4">
+                <p className="text-emerald-100 text-sm font-semibold">Gain potentiel</p>
+                <p className="font-black text-xl mt-2">{selectedProperty?.result?.analyse?.pourcentageGain || 'N/A'}%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ANALYSE DU QUARTIER */}
+          {selectedProperty?.result?.analyse?.quartierAnalysis && (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+              <h4 className="font-black text-2xl text-gray-900 mb-4">📍 Analyse du quartier</h4>
+              <p className="text-gray-700 leading-relaxed text-base">{selectedProperty.result.analyse.quartierAnalysis}</p>
+            </div>
+          )}
+
+          {/* ÉVALUATION COMPARABLE */}
+          {selectedProperty?.result?.comparable?.evaluationQualite && (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+              <h4 className="font-black text-2xl text-gray-900 mb-4">📊 Comparables du marché</h4>
+              <p className="text-gray-700 leading-relaxed text-base">{selectedProperty.result.comparable.evaluationQualite}</p>
+            </div>
+          )}
+
+          {/* RECOMMANDATIONS */}
+          {selectedProperty?.result?.recommendations && (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+              <h4 className="font-black text-2xl text-gray-900 mb-6">💡 Recommandations</h4>
+              <div className="space-y-4">
+                {selectedProperty.result.recommendations.strategie && (
+                  <div className="bg-blue-50 rounded-xl p-6 border-l-4 border-blue-500">
+                    <p className="font-black text-blue-900 mb-2">🎯 Stratégie d'investissement</p>
+                    <p className="text-gray-700 leading-relaxed">{selectedProperty.result.recommendations.strategie}</p>
+                  </div>
+                )}
+                {selectedProperty.result.recommendations.venteMeilleuresChances && (
+                  <div className="bg-green-50 rounded-xl p-6 border-l-4 border-green-500">
+                    <p className="font-black text-green-900 mb-2">📅 Meilleures chances de vente</p>
+                    <p className="text-gray-700 leading-relaxed">{selectedProperty.result.recommendations.venteMeilleuresChances}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* DÉTAILS SUPPLÉMENTAIRES */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {selectedProperty?.surfaceHabitee && (
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">📐 Surface habitée</p>
+                <p className="text-3xl font-black text-gray-900 mt-3">{formatCurrency(selectedProperty.surfaceHabitee)}</p>
+                <p className="text-gray-500 text-xs mt-1">pi²</p>
+              </div>
+            )}
+            {selectedProperty?.nombreChambres && (
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🛏️ Chambres</p>
+                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.nombreChambres}</p>
+              </div>
+            )}
+            {selectedProperty?.nombreSallesBain && (
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🚿 Salles de bain</p>
+                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.nombreSallesBain}</p>
+              </div>
+            )}
+            {selectedProperty?.stationnements !== undefined && selectedProperty?.stationnements >= 0 && (
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
+                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🅿️ Stationnements</p>
+                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.stationnements}</p>
+              </div>
+            )}
+          </div>
+
+          {/* AMÉNAGEMENTS SÉLECTIONNÉS */}
+          {(selectedProperty?.piscine || selectedProperty?.terrasse || selectedProperty?.chauffageRadiant || 
+            selectedProperty?.climatisation || selectedProperty?.fireplace || selectedProperty?.sauna || 
+            selectedProperty?.cinema || selectedProperty?.salleSport) && (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+              <h4 className="font-black text-2xl text-gray-900 mb-6">✨ Aménagements premium</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {selectedProperty?.piscine && (
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 text-center">
+                    <span className="text-3xl block mb-2">🏊</span><span className="font-semibold text-gray-700">Piscine</span>
+                  </div>
+                )}
+                {selectedProperty?.terrasse && (
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200 text-center">
+                    <span className="text-3xl block mb-2">🏡</span><span className="font-semibold text-gray-700">Terrasse</span>
+                  </div>
+                )}
+                {selectedProperty?.chauffageRadiant && (
+                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 text-center">
+                    <span className="text-3xl block mb-2">🌡️</span><span className="font-semibold text-gray-700">Chauffage radiant</span>
+                  </div>
+                )}
+                {selectedProperty?.climatisation && (
+                  <div className="bg-cyan-50 rounded-lg p-4 border border-cyan-200 text-center">
+                    <span className="text-3xl block mb-2">❄️</span><span className="font-semibold text-gray-700">Climatisation</span>
+                  </div>
+                )}
+                {selectedProperty?.fireplace && (
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-200 text-center">
+                    <span className="text-3xl block mb-2">🔥</span><span className="font-semibold text-gray-700">Foyer</span>
+                  </div>
+                )}
+                {selectedProperty?.sauna && (
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 text-center">
+                    <span className="text-3xl block mb-2">🧖</span><span className="font-semibold text-gray-700">Sauna</span>
+                  </div>
+                )}
+                {selectedProperty?.cinema && (
+                  <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 text-center">
+                    <span className="text-3xl block mb-2">🎬</span><span className="font-semibold text-gray-700">Salle cinéma</span>
+                  </div>
+                )}
+                {selectedProperty?.salleSport && (
+                  <div className="bg-pink-50 rounded-lg p-4 border border-pink-200 text-center">
+                    <span className="text-3xl block mb-2">💪</span><span className="font-semibold text-gray-700">Salle sport</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* DELETE BUTTON */}
+          <div className="text-center pb-8">
+            <button
+              onClick={() => deleteProperty(selectedProperty.id)}
+              className="px-8 py-3 bg-red-600 text-white font-black rounded-lg hover:bg-red-700 transition-all"
+            >
+              🗑️ Supprimer cette évaluation
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* LISTE DES ÉVALUATIONS PRÉCÉDENTES */}
+      {!selectedProperty && properties.length > 0 && !showForm && (
+        <div className="space-y-6">
+          <h3 className="text-3xl font-black text-gray-900">📋 Mes évaluations</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {properties.map((property) => (
+              <div
+                key={property.id}
+                onClick={() => setSelectedProperty(property)}
+                className="rounded-2xl border-2 border-gray-300 bg-white hover:border-indigo-500 cursor-pointer transition-all transform hover:scale-105 hover:shadow-lg p-6"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    {property?.titre && (
+                      <p className="text-indigo-600 font-black text-sm mb-1">{property.titre}</p>
+                    )}
+                    <h4 className="font-black text-lg text-gray-900">
+                      {formatPropertyType(property?.proprietyType)}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-1">{property?.ville || 'N/A'}</p>
+                  </div>
+                  <span className="text-4xl">🏠</span>
+                </div>
+
+                <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
+                  <p className="text-xs text-gray-500">Prix d'achat</p>
+                  <div className="text-lg font-black text-green-600">${formatCurrency(property?.prixAchat)}</div>
+                </div>
+
+                {property?.result?.estimationActuelle?.valeurMoyenne && (
+                  <div className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-200">
+                    <p className="text-xs text-gray-500">Valeur estimée:</p>
+                    <p className="font-black text-blue-600">${formatCurrency(property.result.estimationActuelle.valeurMoyenne)}</p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 mt-3">
+                  📅 {property?.createdAt ? new Date(property.createdAt).toLocaleDateString('fr-CA') : 'N/A'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE VIDE */}
+      {!selectedProperty && properties.length === 0 && !showForm && (
+        <div className="p-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 text-center">
+          <p className="text-gray-600 text-xl font-bold">Aucune évaluation pour le moment.</p>
+          <p className="text-gray-500 text-sm mt-3">Commencez par créer votre première évaluation! 🚀</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 // ============================================
@@ -2866,22 +4561,22 @@ function HomePage() {
           <div className="relative z-10 inline-flex items-center gap-2 px-4 py-2 bg-indigo-100/60 border border-indigo-200 rounded-full mb-6 backdrop-blur-md w-fit mx-auto">
             <span className="text-xl">🚀</span>
             <span className="text-sm font-semibold text-indigo-700">
-              IA Immobilière révolutionnaire
+              Évaluation + Optimisation Immobilière par IA
             </span>
           </div>
 
           {/* Main Headline */}
           <h1 className="relative z-10 text-5xl sm:text-7xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
-            Augmentez vos revenus locatifs
+            Évaluez. Optimisez.
             <br />
             <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              intelligemment
+              Augmentez vos revenus
             </span>
           </h1>
 
           {/* Subheadline */}
           <p className="relative z-10 text-xl sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-4 font-light">
-            Analyse IA en temps réel. Recommandations basées sur données réelles Centris.
+            Plateforme IA complète pour immobilier résidentiel et commercial. Évaluations précises + recommandations d'optimisation de loyers.
             <span className="block mt-2 font-bold text-gray-900">
               +18% de revenus en moyenne.
             </span>
@@ -2894,22 +4589,28 @@ function HomePage() {
               <span>Données Centris en direct</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">🔒</span>
-              <span>100% sécurisé & confidentiel</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">⚡</span>
               <span>Résultats en moins d'1 minute</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
+              <span className="text-2xl">🔒</span>
+              <span>100% sécurisé</span>
             </div>
           </div>
 
           {/* CTA Button */}
-          <div className="relative z-10 mb-12">
+          <div className="relative z-10 mb-12 flex gap-4 justify-center flex-wrap">
             <Link
               to="/register"
               className="inline-block px-8 sm:px-10 py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white rounded-xl font-bold text-lg shadow-[0_18px_45px_rgba(79,70,229,0.35)] hover:shadow-[0_20px_60px_rgba(56,189,248,0.5)] transform hover:-translate-y-1 transition-all card-hover"
             >
-              🎯 Commencer gratuitement
+              📊 Évaluer ma propriété
+            </Link>
+            <Link
+              to="/register"
+              className="inline-block px-8 sm:px-10 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-xl font-bold text-lg hover:bg-indigo-50 transform hover:-translate-y-1 transition-all card-hover"
+            >
+              💰 Optimiser mes revenus
             </Link>
           </div>
 
@@ -2917,26 +4618,23 @@ function HomePage() {
           <div className="relative z-10 mt-16">
             <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-200/50 via-sky-200/40 to-emerald-200/40 rounded-3xl opacity-80 blur-xl" />
             <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-8 shadow-2xl shadow-gray-200/70 card-hover">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Card 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Card 1: Évaluation */}
                 <div className="p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover">
                   <div className="text-4xl mb-3">📊</div>
-                  <p className="text-sm text-gray-600 mb-2">Loyer actuel</p>
-                  <p className="text-3xl font-black text-gray-900">$1,400</p>
-                  <p className="text-xs text-gray-500 mt-2">/mois</p>
+                  <h3 className="font-black text-gray-900 mb-2">Évaluation complète</h3>
+                  <p className="text-sm text-gray-600 mb-3">Valeur marchande de votre propriété</p>
+                  <p className="text-3xl font-black text-indigo-600 mb-2">$585,000</p>
+                  <p className="text-xs text-gray-500">+15% depuis achat</p>
                 </div>
 
-                {/* Arrow */}
-                <div className="flex items-center justify-center">
-                  <div className="text-4xl text-gray-400 animate-pulse">→</div>
-                </div>
-
-                {/* Card 2 */}
+                {/* Card 2: Optimisation */}
                 <div className="p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
                   <div className="text-4xl mb-3">💰</div>
-                  <p className="text-sm text-emerald-700 font-semibold mb-2">Potentiel optimal</p>
-                  <p className="text-3xl font-black text-emerald-700">$1,750</p>
-                  <p className="text-xs text-emerald-600 mt-2 font-semibold">+$350/mois</p>
+                  <h3 className="font-black text-emerald-900 mb-2">Revenu optimal</h3>
+                  <p className="text-sm text-emerald-700 font-semibold mb-3">Loyer réaliste et compétitif</p>
+                  <p className="text-3xl font-black text-emerald-700 mb-2">$1,750/mois</p>
+                  <p className="text-xs text-emerald-600 font-semibold">+$350/mois (+25%)</p>
                 </div>
               </div>
             </div>
@@ -2950,42 +4648,42 @@ function HomePage() {
               Pourquoi choisir OptimiPlex?
             </h2>
             <p className="text-gray-600">
-              Une plateforme pensée pour les propriétaires et investisseurs qui veulent des décisions
-              vraiment basées sur les données, pas sur l'intuition.
+              Une plateforme complète pour évaluer vos propriétés ET optimiser vos revenus locatifs, 
+              qu'elles soient résidentielles ou commerciales.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                icon: '🤖',
-                title: 'IA Propriétaire Immobilier',
-                description: 'Algorithme spécialisé en optimisation de revenus résidentiels et commerciaux'
+                icon: '📊',
+                title: 'Évaluation Immobilière IA',
+                description: 'Analyse complète de la valeur de vos propriétés basée sur données Centris vérifiées et comparables locaux'
+              },
+              {
+                icon: '💰',
+                title: 'Optimisation de Loyers',
+                description: 'Découvrez le loyer optimal pour vos propriétés résidentielles et commerciales basé sur le marché'
+              },
+              {
+                icon: '🏠',
+                title: 'Résidentiel & Commercial',
+                description: 'Analyse complète pour immeubles multi-logements, maisons, condos, bureaux, retail et entrepôts'
               },
               {
                 icon: '📈',
-                title: 'Analyse Marché en Temps Réel',
-                description: 'Données Centris actualisées quotidiennement pour recommandations précises'
+                title: 'Analyses Comparables',
+                description: 'Justification détaillée avec propriétés similaires réellement vendues/louées sur Centris'
               },
               {
                 icon: '⚡',
                 title: 'Ultra Rapide',
-                description: 'Analyse complète en moins d\'une minute. Pas d\'appels, pas d\'attente.'
-              },
-              {
-                icon: '📊',
-                title: 'Comparables Verified',
-                description: 'Justification détaillée basée sur propriétés similaires vendues'
-              },
-              {
-                icon: '🛡️',
-                title: 'Données Sécurisées',
-                description: 'Encryption de bout en bout. Vos données propriétaires jamais partagées.'
+                description: 'Évaluation et optimisation complètes en moins d\'une minute avec rapports détaillés'
               },
               {
                 icon: '🎯',
-                title: 'Stratégie Complète',
-                description: 'Pas juste un chiffre: plan d\'action détaillé pour maximiser revenus'
+                title: 'Plan d\'Action Complet',
+                description: 'Recommandations stratégiques pour maximiser la valeur ET les revenus locatifs de vos biens'
               }
             ].map((feature, i) => (
               <div
@@ -3007,10 +4705,103 @@ function HomePage() {
           </div>
         </section>
 
+        {/* ==================== TWO PILLARS SECTION ==================== */}
+        <section className="max-w-7xl mx-auto px-6 py-20">
+          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
+            Deux outils puissants, une plateforme
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            {/* PILLAR 1: ÉVALUATION */}
+            <div className="fade-in-up" style={{ animationDelay: '0s' }}>
+              <div className="p-8 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-3xl border-2 border-indigo-300 shadow-lg shadow-indigo-200/40 card-hover">
+                <div className="text-6xl mb-6">📊</div>
+                <h3 className="text-3xl font-black text-gray-900 mb-4">Évaluation Immobilière</h3>
+                <p className="text-gray-700 mb-6 leading-relaxed">
+                  Découvrez la vraie valeur marchande de vos propriétés avec une analyse IA complète basée sur données Centris en temps réel.
+                </p>
+                
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-start gap-3">
+                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Analyse comparative de marché</p>
+                      <p className="text-sm text-gray-600">Comparables directs et tendances locales</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Évaluation par approche revenus</p>
+                      <p className="text-sm text-gray-600">Basée sur potentiel locatif actuel</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Rapport professionnel complet</p>
+                      <p className="text-sm text-gray-600">Détail des facteurs influençant la valeur</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/register"
+                  className="inline-block px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all"
+                >
+                  Évaluer ma propriété →
+                </Link>
+              </div>
+            </div>
+
+            {/* PILLAR 2: OPTIMISATION */}
+            <div className="fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <div className="p-8 bg-gradient-to-br from-emerald-50/50 to-green-50/50 rounded-3xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
+                <div className="text-6xl mb-6">💰</div>
+                <h3 className="text-3xl font-black text-gray-900 mb-4">Optimisation de Loyers</h3>
+                <p className="text-gray-700 mb-6 leading-relaxed">
+                  Trouvez le loyer optimal pour vos unités résidentielles et commerciales avec recommandations basées sur données marché.
+                </p>
+                
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Analyse loyers comparables</p>
+                      <p className="text-sm text-gray-600">Propriétés similaires dans votre région</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Résidentiel & Commercial</p>
+                      <p className="text-sm text-gray-600">Maisons, condos, immeubles, bureaux, retail</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
+                    <div>
+                      <p className="font-bold text-gray-900">Stratégies de positionnement</p>
+                      <p className="text-sm text-gray-600">Comment attirer locataires au meilleur prix</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/register"
+                  className="inline-block px-6 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all"
+                >
+                  Optimiser mes revenus →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ==================== HOW IT WORKS ==================== */}
         <section className="max-w-7xl mx-auto px-6 py-20">
           <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
-            3 étapes pour +18% de revenus
+            Comment ça marche en 3 étapes
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -3018,17 +4809,17 @@ function HomePage() {
               {
                 step: '1️⃣',
                 title: 'Créez compte gratuit',
-                description: 'Inscription en 60 secondes. Aucune carte bancaire requise.'
+                description: 'Inscription en 60 secondes. Aucune carte bancaire requise pour l\'essai.'
               },
               {
                 step: '2️⃣',
-                title: 'Analysez propriété',
-                description: 'Entrez détails de votre immeuble. L\'IA génère rapport en moins d\'une minute.'
+                title: 'Entrez détails propriété',
+                description: 'Remplissez formulaire simple: type, localisation, revenus actuels, caractéristiques.'
               },
               {
                 step: '3️⃣',
-                title: 'Implémentez recommandations',
-                description: 'Recevez plan d\'action détaillé. Appliquez stratégie et voyez résultats.'
+                title: 'Recevez rapport complet',
+                description: 'Évaluation, recommandations de loyers, plan d\'action détaillé en moins d\'une minute.'
               }
             ].map((step, i) => (
               <div
@@ -3064,10 +4855,10 @@ function HomePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { end: 18, label: 'Augmentation revenus', suffix: '%' },
+                { end: 2840, label: 'Propriétés évaluées', suffix: '+' },
+                { end: 18, label: 'Augmentation revenus moyenne', suffix: '%' },
                 { end: 48, label: 'Note moyenne utilisateurs', suffix: '★' },
-                { end: 1240, label: 'Propriétés analysées', suffix: '+' },
-                { end: 42, label: 'Gains potentiels identifiés', suffix: 'M+' }
+                { end: 98, label: 'Utilisateurs satisfaits', suffix: '%' }
               ].map((stat, i) => (
                 <div
                   key={i}
@@ -3080,18 +4871,13 @@ function HomePage() {
                         <CounterAnimation end={stat.end} duration={2500} />
                         <span>★</span>
                       </>
-                    ) : stat.suffix.includes('M') ? (
+                    ) : stat.suffix === '+' ? (
                       <>
-                        $<CounterAnimation end={stat.end} duration={2500} />
-                        M+
-                      </>
-                    ) : stat.suffix.includes('+') ? (
-                      <>
-                        <CounterAnimation end={1240} duration={2500} />+
+                        <CounterAnimation end={2840} duration={2500} />+
                       </>
                     ) : (
                       <>
-                        +<CounterAnimation end={stat.end} duration={2500} />%
+                        <CounterAnimation end={stat.end} duration={2500} />%
                       </>
                     )}
                   </p>
@@ -3107,7 +4893,7 @@ function HomePage() {
         {/* ==================== TESTIMONIALS ==================== */}
         <section className="max-w-7xl mx-auto px-6 py-20">
           <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
-            Témoignages
+            Témoignages d'utilisateurs
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -3115,30 +4901,53 @@ function HomePage() {
               {
                 name: 'Marie L.',
                 title: 'Propriétaire, Montréal',
-                comment: 'J\'ai augmenté mon loyer de $150/mois en 3 semaines. Exactement ce que prédit OptimiPlex!',
+                comment: 'L\'évaluation m\'a montré que mon triplex était évalué 15% au-dessus du marché. Grâce aux recommandations, j\'ai augmenté mon loyer de $150/mois.',
                 rating: 5
               },
               {
                 name: 'Jean D.',
                 title: 'Investisseur immobilier',
-                comment: 'Outil essentiel. Analyse vs courtiers coûte 10x plus cher. Résultats similaires.',
-                rating: 5
+                comment: 'Bon outil pour analyser rapidement mes propriétés. Les données Centris sont fiables. Quelques fonctionnalités manquantes pour vraiment avancé.',
+                rating: 4
               },
               {
                 name: 'Sophie M.',
                 title: 'Gestionnaire immobilier',
-                comment: 'Permet à nos clients de faire décisions data-driven. Vraiment révolutionnaire.',
+                comment: 'Permet à mes clients de faire décisions data-driven. Les rapports sont professionnels et bien présentés. Support excellent.',
                 rating: 5
+              },
+              {
+                name: 'Pierre G.',
+                title: 'Propriétaire, Québec',
+                comment: 'Rapport détaillé sur ma maison en location. Les comparables m\'ont aidé à négocier un meilleur loyer. Vraiment satisfait.',
+                rating: 5
+              },
+              {
+                name: 'Claudette R.',
+                title: 'Retraitée, Laval',
+                comment: 'Simple à utiliser même pour quelqu\'un pas technologique. L\'optimisation loyer était très utile. Recommande!',
+                rating: 4
+              },
+              {
+                name: 'Luc T.',
+                title: 'Développeur immobilier',
+                comment: 'Outil pratique et complet. Les données sont actuelles. Le prix est raisonnable pour ce qu\'on reçoit.',
+                rating: 4
               }
             ].map((testimonial, i) => (
               <div
                 key={i}
                 className="fade-in-up p-8 bg-white/80 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition backdrop-blur-xl card-hover glow-on-hover"
-                style={{ animationDelay: `${0.15 * i}s` }}
+                style={{ animationDelay: `${0.1 * i}s` }}
               >
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, j) => (
-                    <span key={j} className="text-xl text-amber-400">⭐</span>
+                <div className="flex gap-0.5 mb-4">
+                  {[...Array(5)].map((_, j) => (
+                    <span 
+                      key={j} 
+                      className={`text-lg ${j < testimonial.rating ? 'text-amber-400' : 'text-gray-300'}`}
+                    >
+                      ★
+                    </span>
                   ))}
                 </div>
                 <p className="text-gray-700 mb-4 italic">
@@ -3161,7 +4970,7 @@ function HomePage() {
             Tarification simple & transparente
           </h2>
           <p className="fade-in-up text-xl text-gray-600 text-center max-w-2xl mx-auto mb-16" style={{ animationDelay: '0.2s' }}>
-            Pas de surprises. Pas de frais cachés. Cancel n'importe quand.
+            Pas de surprises. Pas de frais cachés. Cancellation n'importe quand.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -3171,9 +4980,10 @@ function HomePage() {
                 price: 'Gratuit',
                 description: 'Parfait pour débuter',
                 features: [
-                  '1 analyse/mois',
-                  'Données Centris',
-                  'Rapport complet',
+                  '1 évaluation/mois',
+                  '1 analyse loyer/mois',
+                  'Résidentiel uniquement',
+                  'Rapport standard',
                   'Support email'
                 ],
                 highlighted: false
@@ -3184,9 +4994,11 @@ function HomePage() {
                 period: '/mois',
                 description: 'Pour propriétaires actifs',
                 features: [
-                  '5 analyses/mois',
-                  'Données Centris temps réel',
-                  'Rapport + stratégie',
+                  '5 évaluations/mois',
+                  '5 optimisations loyer/mois',
+                  'Résidentiel + commercial',
+                  'Rapports détaillés + stratégie',
+                  'Comparables avancés',
                   'Support prioritaire',
                   'Export PDF'
                 ],
@@ -3198,11 +5010,14 @@ function HomePage() {
                 period: '/mois',
                 description: 'Pour portefeuilles importants',
                 features: [
-                  'Analyses illimitées',
-                  'Résidentiel + commercial',
-                  'Rapports avancés',
-                  'Support 24/7',
-                  'API access'
+                  'Évaluations illimitées',
+                  'Optimisations illimitées',
+                  'Résidentiel + commercial avancé',
+                  'Rapports personnalisés',
+                  'Alertes marché hebdo',
+                  'Support 24/7 prioritaire',
+                  'API access',
+                  'Analyse portefeuille'
                 ],
                 highlighted: false
               }
@@ -3238,7 +5053,7 @@ function HomePage() {
                   )}
                 </div>
                 <Link
-                  to="/login"
+                  to="/register"
                   className={`block w-full py-3 px-6 rounded-lg font-bold mb-8 text-center transition-all ${
                     plan.highlighted
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'
@@ -3269,24 +5084,28 @@ function HomePage() {
           <div className="space-y-6">
             {[
               {
-                q: 'Comment OptimiPlex détecte-t-il le prix optimal?',
-                a: 'Nous analysons les données Centris de propriétés similaires vendues/louées, comparables directs, trends de marché local, et appliquons ML pour prédire prix optimal dans 30 jours.'
-              },
-              {
-                q: 'Quel est le taux de précision?',
-                a: '85-92% dépendant de la région et disponibilité données. Pour chaque recommandation, vous voyez le score confiance exact.'
-              },
-              {
-                q: 'Puis-je annuler n\'importe quand?',
-                a: 'Oui. Aucun engagement. Vous pouvez annuler abonnement 1 click à n\'importe quel moment.'
-              },
-              {
-                q: 'Mes données sont-elles sécurisées?',
-                a: 'Absolument. Encryption AES-256, serveurs Firebase, GDPR compliant. Vos données propriétaires jamais vendues ou partagées.'
+                q: 'Quelle est la différence entre Évaluation et Optimisation?',
+                a: 'Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données Centris.'
               },
               {
                 q: 'Fonctionne-t-il pour propriétés commerciales?',
-                a: 'Oui! Plans Growth+ incluent analyse commerciale (bureaux, retail, entrepôts).'
+                a: 'Oui! Plans Pro+ incluent analyse pour immeubles à revenus, bureaux, retail et entrepôts. Algorithe est adapté pour chaque type.'
+              },
+              {
+                q: 'Comment OptimiPlex évalue-t-elle une propriété?',
+                a: 'Nous analysons comparables Centris, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.'
+              },
+              {
+                q: 'Quel est le taux de précision?',
+                a: '85-92% dépendant région et données. Pour chaque recommandation, vous voyez score confiance exact et les propriétés comparables utilisées.'
+              },
+              {
+                q: 'Puis-je annuler mon abonnement?',
+                a: 'Oui, cancellation 1 click. Aucun engagement à long terme. Pas de frais supplémentaires pour annuler.'
+              },
+              {
+                q: 'Mes données sont-elles sécurisées?',
+                a: 'Absolument. Encryption AES-256, serveurs Firebase sécurisés, GDPR compliant. Vos données ne sont jamais vendues, partagées ou utilisées pour marketing.'
               }
             ].map((faq, i) => (
               <details
@@ -3313,7 +5132,7 @@ function HomePage() {
               <div>
                 <h4 className="font-black text-gray-900 mb-2">OptimiPlex</h4>
                 <p className="text-sm text-gray-600">
-                  Optimisez vos revenus immobiliers avec IA
+                  Évaluez et optimisez vos propriétés immobilières avec IA
                 </p>
               </div>
               <div className="mt-6 sm:mt-0 text-center sm:text-right">
