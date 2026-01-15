@@ -1,5 +1,7 @@
 require('dotenv').config();
 
+const path = require('path');
+
 const requiredEnvVars = [
   'STRIPE_SECRET_KEY',
   'ANTHROPIC_API_KEY',
@@ -1204,6 +1206,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ 
     error: process.env.NODE_ENV === 'production' ? 'Server Error' : err.message
   });
+});
+
+app.use(express.static(path.join(__dirname, 'build')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
 app.listen(PORT, () => {
