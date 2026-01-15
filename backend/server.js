@@ -1,7 +1,5 @@
 require('dotenv').config();
 
-const path = require('path');
-
 const requiredEnvVars = [
   'STRIPE_SECRET_KEY',
   'ANTHROPIC_API_KEY',
@@ -1194,7 +1192,7 @@ function parseClaudeJSON(text) {
 
 const PORT = process.env.PORT || 5001;
 
-
+const path = require('path');
 app.use(express.static(path.join(__dirname, 'build')));
 
 app.get('*', (req, res) => {
