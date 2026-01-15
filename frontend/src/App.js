@@ -201,7 +201,7 @@ function DashboardLayout() {
       <div className={`fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 z-40`}>
         <div className="p-6 border-b border-gray-200">
           <Link to="/" className="flex items-center space-x-3">
-            <img src="https://i.ibb.co/PBJSY9Z/generated-image12.png" alt="OptimiPlex Logo" className={`${sidebarOpen ? 'w-13 h-12' : 'w-8 h-8'} ${!sidebarOpen && 'mx-auto'}`} />
+            <img src="https://i.ibb.co/vCV8q9M5/Minimalist-Real-Estate-Logo.png" alt="OptimiPlex Logo" className={`${sidebarOpen ? 'w-13 h-12' : 'w-8 h-8'} ${!sidebarOpen && 'mx-auto'}`} />
             {sidebarOpen && <span className="font-black text-gray-900 text-lg">OptimiPlex</span>}
           </Link>
         </div>
@@ -4514,13 +4514,10 @@ function HomePage() {
           <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition">
               <img
-                src="https://i.ibb.co/PBJSY9Z/generated-image12.png"
+                src="https://i.ibb.co/vCV8q9M5/Minimalist-Real-Estate-Logo.png"
                 alt="OptimiPlex Logo"
                 className="w-16 h-16 rounded-xl shadow-lg shadow-indigo-200/40 bg-white/90 p-1"
               />
-              <span className="font-black text-gray-900 text-3xl hidden sm:inline tracking-tight">
-                OptimiPlex
-              </span>
             </Link>
 
             <nav className="flex items-center space-x-4">
