@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2 } from 'lucide-react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -1077,6 +1077,9 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [loading, setLoading] = useState(true);
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+
 
   // ============================================
   // CHARGER LES ANALYSES
@@ -1139,6 +1142,58 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     fetchAnalyses();
   }, [user?.uid]);
 
+
+  // ============================================
+  // MODIFIER LE TITRE D'UNE ANALYSE
+  // ============================================
+  const handleEditTitle = async (analysisId, newTitle) => {
+    if (!newTitle.trim()) {
+      alert('Le titre ne peut pas être vide');
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      await updateDoc(doc(db, 'users', user.uid, 'analyses', analysisId), {
+        titre: newTitle.trim()
+      });
+
+      // Mettre à jour l'état local
+      setAnalyses(analyses.map(a => 
+        a.id === analysisId ? { ...a, titre: newTitle.trim() } : a
+      ));
+
+      // Si le modal est ouvert, mettre à jour aussi
+      if (selectedAnalysis?.id === analysisId) {
+        setSelectedAnalysis({ ...selectedAnalysis, titre: newTitle.trim() });
+      }
+
+      setEditingId(null);
+      setEditingTitle('');
+    } catch (err) {
+      console.error('Erreur modification titre:', err);
+      alert('Erreur lors de la modification du titre');
+    }
+  };
+
+  const startEditingTitle = (analysisId, currentTitle, e) => {
+    e.stopPropagation();
+    setEditingId(analysisId);
+    setEditingTitle(currentTitle || '');
+  };
+
+  const cancelEditingTitle = (e) => {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditingTitle('');
+  };
+
+  const confirmEditingTitle = (analysisId, e) => {
+    e.stopPropagation();
+    handleEditTitle(analysisId, editingTitle);
+  };
+
+
   // ============================================
   // SUPPRIMER UNE ANALYSE
   // ============================================
@@ -1150,6 +1205,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       const db = getFirestore();
       await deleteDoc(doc(db, 'users', user.uid, 'analyses', analysisId));
       setAnalyses(analyses.filter(a => a.id !== analysisId));
+      
+      // Fermer le modal si c'est l'analyse sélectionnée
+      if (selectedAnalysis?.id === analysisId) {
+        setSelectedAnalysis(null);
+      }
     } catch (err) {
       console.error('Erreur suppression:', err);
       alert('Erreur lors de la suppression');
@@ -1157,6 +1217,12 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       setDeletingId(null);
     }
   };
+
+  const handleDeleteWithEvent = (analysisId, e) => {
+    e.stopPropagation();
+    handleDelete(analysisId);
+  };
+
 
   // ============================================
   // FORMAT CURRENCY
@@ -1166,6 +1232,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     return Math.round(value).toLocaleString('fr-CA');
   };
 
+
   // ============================================
   // DÉTERMINER LE TYPE D'ANALYSE
   // ============================================
@@ -1174,6 +1241,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     if (analyse.result?.recommandation?.loyeroptimal) return 'optimization';
     return 'unknown';
   };
+
 
   // ============================================
   // GET PROPERTY TYPE ICON
@@ -1192,6 +1260,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     return icons[type] || '🏠';
   };
 
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -1203,6 +1272,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     );
   }
 
+
   return (
     <div className="space-y-8">
       {/* ==================== HEADER ==================== */}
@@ -1210,6 +1280,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         <h1 className="text-4xl font-black text-gray-900 mb-2">📊 Vue d'ensemble</h1>
         <p className="text-gray-600 text-lg">Résumé de vos évaluations et optimisations immobilières</p>
       </div>
+
 
       {/* ==================== STATS CARDS ==================== */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -1227,6 +1298,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </p>
         </div>
 
+
         {/* CARD 2: Valeur totale */}
         <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
           <div className="flex items-start justify-between mb-4">
@@ -1241,6 +1313,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           <p className="text-xs text-gray-500">{stats.evaluations} propriétés évaluées</p>
         </div>
 
+
         {/* CARD 3: Gains potentiels */}
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
           <div className="flex items-start justify-between mb-4">
@@ -1254,6 +1327,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </div>
           <p className="text-xs text-gray-500">{stats.optimizations} propriétés optimisées</p>
         </div>
+
 
         {/* CARD 4: Évaluations */}
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -1272,6 +1346,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </button>
         </div>
 
+
         {/* CARD 5: Optimisations */}
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
           <div className="flex items-start justify-between mb-4">
@@ -1289,6 +1364,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </button>
         </div>
       </div>
+
 
       {/* ==================== QUICK START ==================== */}
       {stats.totalProperties === 0 && (
@@ -1314,6 +1390,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       )}
 
+
       {/* ==================== ANALYSES LIST ==================== */}
       {stats.totalProperties > 0 && (
         <div>
@@ -1324,16 +1401,18 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               const analysisType = getAnalysisType(analyse);
               const isValuation = analysisType === 'valuation';
               const isOptimization = analysisType === 'optimization';
+              const isEditing = editingId === analyse.id;
 
               return (
                 <div
                   key={analyse.id}
-                  className={`rounded-2xl p-6 border-2 transition-all hover:shadow-lg hover:-translate-y-1 ${
+                  onClick={() => !isEditing && setSelectedAnalysis(analyse)}
+                  className={`rounded-2xl p-6 border-2 transition-all cursor-pointer ${
                     isValuation
-                      ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400'
+                      ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400 hover:shadow-lg hover:-translate-y-1'
                       : isOptimization
-                      ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 hover:border-emerald-400'
-                      : 'bg-gray-50 border-gray-200'
+                      ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 hover:border-emerald-400 hover:shadow-lg hover:-translate-y-1'
+                      : 'bg-gray-50 border-gray-200 hover:shadow-lg hover:-translate-y-1'
                   }`}
                 >
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
@@ -1351,15 +1430,55 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           {isValuation ? '📊 Évaluation' : isOptimization ? '💰 Optimisation' : 'Analyse'}
                         </span>
                       </div>
-                      <h3 className="font-black text-gray-900 text-lg">
-                        {analyse.titre || (analyse.proprietetype === 'residential' 
-                          ? analyse.typeappart 
-                          : analyse.typecommercial)}
-                      </h3>
+                      
+                      {isEditing ? (
+                        <div className="flex gap-2 items-center mb-2">
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            autoFocus
+                            className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg font-black text-gray-900 focus:outline-none focus:border-blue-500"
+                            placeholder="Entrez le titre..."
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={(e) => confirmEditingTitle(analyse.id, e)}
+                            className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-all"
+                            title="Confirmer"
+                          >
+                            <Check size={18} />
+                          </button>
+                          <button
+                            onClick={cancelEditingTitle}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
+                            title="Annuler"
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2 group">
+                          <h3 className="font-black text-gray-900 text-lg flex-1">
+                            {analyse.titre || (analyse.proprietetype === 'residential' 
+                              ? analyse.typeappart 
+                              : analyse.typecommercial)}
+                          </h3>
+                          <button
+                            onClick={(e) => startEditingTitle(analyse.id, analyse.titre, e)}
+                            className="p-1 text-gray-400 group-hover:text-blue-600 hover:bg-blue-100 rounded transition-all opacity-0 group-hover:opacity-100"
+                            title="Modifier le titre"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        </div>
+                      )}
+                      
                       <p className="text-xs text-gray-600 mt-1">
                         📍 {analyse.ville} {analyse.quartier && `• ${analyse.quartier}`}
                       </p>
                     </div>
+
 
                     {/* ÉVALUATION - Valeur estimée */}
                     {isValuation && (
@@ -1374,6 +1493,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </p>
                         </div>
 
+
                         <div className="md:col-span-2">
                           <p className="text-xs text-gray-600 font-semibold mb-1">Appréciation</p>
                           <p className="text-2xl font-black text-blue-600">
@@ -1381,6 +1501,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </p>
                           <p className="text-xs text-gray-500 mt-1">Depuis achat</p>
                         </div>
+
 
                         <div className="md:col-span-2">
                           <p className="text-xs text-gray-600 font-semibold mb-1">Confiance IA</p>
@@ -1390,6 +1511,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                         </div>
                       </>
                     )}
+
 
                     {/* OPTIMISATION - Loyer optimal */}
                     {isOptimization && (
@@ -1402,6 +1524,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           <p className="text-xs text-gray-500 mt-1">/mois</p>
                         </div>
 
+
                         <div className="md:col-span-2">
                           <p className="text-xs text-gray-600 font-semibold mb-1">Gain mensuel</p>
                           <p className="text-2xl font-black text-emerald-600">
@@ -1409,6 +1532,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </p>
                           <p className="text-xs text-gray-500 mt-1">vs actuel</p>
                         </div>
+
 
                         <div className="md:col-span-2">
                           <p className="text-xs text-gray-600 font-semibold mb-1">Gain annuel</p>
@@ -1419,10 +1543,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       </>
                     )}
 
+
                     {/* ACTIONS */}
                     <div className="md:col-span-1 flex items-center justify-end gap-2">
                       <button
-                        onClick={() => setSelectedAnalysis(analyse)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedAnalysis(analyse);
+                        }}
                         className={`p-2 rounded-lg transition-all ${
                           isValuation
                             ? 'text-blue-600 hover:bg-blue-100'
@@ -1433,7 +1561,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                         <Eye size={20} />
                       </button>
                       <button
-                        onClick={() => handleDelete(analyse.id)}
+                        onClick={(e) => handleDeleteWithEvent(analyse.id, e)}
                         disabled={deletingId === analyse.id}
                         className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all disabled:opacity-50"
                         title="Supprimer"
@@ -1442,6 +1570,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       </button>
                     </div>
                   </div>
+
 
                   {/* DATE */}
                   <div className="mt-4 pt-4 border-t border-gray-300/40">
@@ -1455,6 +1584,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </div>
         </div>
       )}
+
 
       {/* ==================== INFO CARDS ==================== */}
       {stats.totalProperties > 0 && (
@@ -1475,6 +1605,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             </ul>
           </div>
 
+
           {/* ABOUT OPTIMIZATION */}
           <div className="bg-white rounded-2xl p-6 border-2 border-emerald-200 shadow-md hover:shadow-lg transition-all">
             <h3 className="text-xl font-black text-gray-900 mb-3 flex items-center gap-2">
@@ -1493,6 +1624,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       )}
 
+
       {/* ==================== MODAL DÉTAILS ==================== */}
       {selectedAnalysis && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1509,6 +1641,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </button>
             </div>
 
+
             <div className="p-8 space-y-6">
               {/* PROPRIÉTÉ INFO */}
               <div className={`rounded-2xl p-6 border-2 ${
@@ -1521,20 +1654,20 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
+                    <p className="text-xs text-gray-600 font-semibold mb-1">Titre</p>
+                    <p className="text-gray-900 font-bold">
+                      {selectedAnalysis.titre || (selectedAnalysis.proprietetype === 'residential'
+                        ? selectedAnalysis.typeappart
+                        : selectedAnalysis.typecommercial)}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-xs text-gray-600 font-semibold mb-1">Localisation</p>
                     <p className="text-gray-900 font-bold">{selectedAnalysis.ville}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 font-semibold mb-1">Quartier</p>
                     <p className="text-gray-900 font-bold">{selectedAnalysis.quartier || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Type</p>
-                    <p className="text-gray-900 font-bold">
-                      {selectedAnalysis.proprietetype === 'residential'
-                        ? selectedAnalysis.typeappart
-                        : selectedAnalysis.typecommercial}
-                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 font-semibold mb-1">Date analyse</p>
@@ -1544,6 +1677,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   </div>
                 </div>
               </div>
+
 
               {/* ÉVALUATION DETAILS */}
               {getAnalysisType(selectedAnalysis) === 'valuation' && (
@@ -1578,6 +1712,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     </div>
                   </div>
 
+
                   {selectedAnalysis.result?.analyse?.quartierAnalysis && (
                     <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
                       <h4 className="font-black text-indigo-900 text-lg mb-3">📍 Analyse du quartier</h4>
@@ -1585,12 +1720,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     </div>
                   )}
 
+
                   {selectedAnalysis.result?.comparable?.evaluationQualite && (
                     <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
                       <h4 className="font-black text-purple-900 text-lg mb-3">🏘️ Comparables</h4>
                       <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.comparable.evaluationQualite}</p>
                     </div>
                   )}
+
 
                   {selectedAnalysis.result?.recommendations?.strategie && (
                     <div className="bg-green-50 rounded-2xl p-6 border-2 border-green-200">
@@ -1600,6 +1737,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   )}
                 </>
               )}
+
 
               {/* OPTIMISATION DETAILS */}
               {getAnalysisType(selectedAnalysis) === 'optimization' && (
@@ -1634,12 +1772,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     </div>
                   </div>
 
+
                   {selectedAnalysis.result?.recommandation?.raisonnement && (
                     <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
                       <h4 className="font-black text-blue-900 text-lg mb-3">🤖 Raisonnement IA</h4>
                       <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommandation.raisonnement}</p>
                     </div>
                   )}
+
 
                   {selectedAnalysis.result?.marketingkit?.titreannonce && (
                     <div className="bg-pink-50 rounded-2xl p-6 border-2 border-pink-200">
@@ -1667,6 +1807,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </>
               )}
             </div>
+
 
             <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex gap-3">
               <button
@@ -4292,51 +4433,6 @@ function PropertyValuationTab({
         </div>
       )}
 
-      {/* LISTE DES ÉVALUATIONS PRÉCÉDENTES */}
-      {!selectedProperty && properties.length > 0 && !showForm && (
-        <div className="space-y-6">
-          <h3 className="text-3xl font-black text-gray-900">📋 Mes évaluations</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {properties.map((property) => (
-              <div
-                key={property.id}
-                onClick={() => setSelectedProperty(property)}
-                className="rounded-2xl border-2 border-gray-300 bg-white hover:border-indigo-500 cursor-pointer transition-all transform hover:scale-105 hover:shadow-lg p-6"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    {property?.titre && (
-                      <p className="text-indigo-600 font-black text-sm mb-1">{property.titre}</p>
-                    )}
-                    <h4 className="font-black text-lg text-gray-900">
-                      {formatPropertyType(property?.proprietyType)}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-1">{property?.ville || 'N/A'}</p>
-                  </div>
-                  <span className="text-4xl">🏠</span>
-                </div>
-
-                <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
-                  <p className="text-xs text-gray-500">Prix d'achat</p>
-                  <div className="text-lg font-black text-green-600">${formatCurrency(property?.prixAchat)}</div>
-                </div>
-
-                {property?.result?.estimationActuelle?.valeurMoyenne && (
-                  <div className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-200">
-                    <p className="text-xs text-gray-500">Valeur estimée:</p>
-                    <p className="font-black text-blue-600">${formatCurrency(property.result.estimationActuelle.valeurMoyenne)}</p>
-                  </div>
-                )}
-
-                <p className="text-xs text-gray-500 mt-3">
-                  📅 {property?.createdAt ? new Date(property.createdAt).toLocaleDateString('fr-CA') : 'N/A'}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* MESSAGE VIDE */}
       {!selectedProperty && properties.length === 0 && !showForm && (
         <div className="p-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 text-center">
@@ -4655,19 +4751,22 @@ function HomePage() {
       <div className="relative z-10">
         {/* ==================== HEADER ==================== */}
         <header className="border-b border-gray-200 sticky top-0 z-50 bg-white/80 backdrop-blur-xl">
-          <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
+            <Link
+              to="/"
+              className="flex items-center gap-3 hover:opacity-80 transition flex-shrink-0"
+            >
               <img
                 src="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png"
                 alt="OptimiPlex Logo"
-                className="w-16 h-16 rounded-xl shadow-lg shadow-indigo-200/40 bg-white/90 p-1"
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl shadow-lg shadow-indigo-200/40 bg-white/90 p-1 flex-shrink-0"
               />
-              <span className="font-black text-gray-900 text-3xl hidden sm:inline tracking-tight">
+              <span className="font-black text-gray-900 text-2xl sm:text-3xl hidden sm:inline tracking-tight">
                 OptimiPlex
               </span>
             </Link>
 
-            <nav className="flex items-center space-x-4">
+            <nav className="flex items-center space-x-2 sm:space-x-4">
               <a
                 href="#features"
                 className="hidden sm:inline px-4 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
@@ -4682,13 +4781,13 @@ function HomePage() {
               </a>
               <Link
                 to="/login"
-                className="px-6 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
+                className="px-4 sm:px-6 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
               >
                 Connexion
               </Link>
               <Link
                 to="/register"
-                className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-indigo-300/40 transition-all"
+                className="px-4 sm:px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-indigo-300/40 transition-all"
               >
                 Commencer
               </Link>
@@ -4697,7 +4796,7 @@ function HomePage() {
         </header>
 
         {/* ==================== HERO SECTION ==================== */}
-        <section className="relative min-h-[900px] max-w-7xl mx-auto px-6 py-20 sm:py-28 text-center flex flex-col justify-center">
+        <section className="relative min-h-[800px] sm:min-h-[900px] max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center flex flex-col justify-center">
           {/* Particle background for hero */}
           <ParticleBackground />
 
@@ -4710,7 +4809,7 @@ function HomePage() {
           </div>
 
           {/* Main Headline */}
-          <h1 className="relative z-10 text-5xl sm:text-7xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
+          <h1 className="relative z-10 text-3xl sm:text-5xl lg:text-7xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
             Évaluez. Optimisez.
             <br />
             <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
@@ -4719,22 +4818,23 @@ function HomePage() {
           </h1>
 
           {/* Subheadline */}
-          <p className="relative z-10 text-xl sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-4 font-light">
-            Plateforme IA complète pour immobilier résidentiel et commercial. Évaluations précises + recommandations d'optimisation de loyers.
+          <p className="relative z-10 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-4 font-light">
+            Plateforme IA complète pour immobilier résidentiel et commercial. Évaluations précises
+            + recommandations d&apos;optimisation de loyers.
             <span className="block mt-2 font-bold text-gray-900">
               +18% de revenus en moyenne.
             </span>
           </p>
 
           {/* Trust Badges */}
-          <div className="relative z-10 flex flex-col sm:flex-row justify-center gap-6 mt-8 text-sm text-gray-600 mb-12">
+          <div className="relative z-10 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 mt-8 text-sm text-gray-600 mb-12">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">✅</span>
               <span>Données Centris en direct</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">⚡</span>
-              <span>Résultats en moins d'1 minute</span>
+              <span>Résultats en moins d&apos;1 minute</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">🔒</span>
@@ -4743,42 +4843,56 @@ function HomePage() {
           </div>
 
           {/* CTA Button */}
-          <div className="relative z-10 mb-12 flex gap-4 justify-center flex-wrap">
+          <div className="relative z-10 mb-12 flex gap-3 sm:gap-4 justify-center flex-wrap">
             <Link
               to="/register"
-              className="inline-block px-8 sm:px-10 py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white rounded-xl font-bold text-lg shadow-[0_18px_45px_rgba(79,70,229,0.35)] hover:shadow-[0_20px_60px_rgba(56,189,248,0.5)] transform hover:-translate-y-1 transition-all card-hover"
+              className="inline-block px-6 sm:px-8 lg:px-10 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-[0_18px_45px_rgba(79,70,229,0.35)] hover:shadow-[0_20px_60px_rgba(56,189,248,0.5)] transform hover:-translate-y-1 transition-all card-hover"
             >
               📊 Évaluer ma propriété
             </Link>
             <Link
               to="/register"
-              className="inline-block px-8 sm:px-10 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-xl font-bold text-lg hover:bg-indigo-50 transform hover:-translate-y-1 transition-all card-hover"
+              className="inline-block px-6 sm:px-8 lg:px-10 py-3 sm:py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-xl font-bold text-base sm:text-lg hover:bg-indigo-50 transform hover:-translate-y-1 transition-all card-hover"
             >
               💰 Optimiser mes revenus
             </Link>
           </div>
 
           {/* Hero Visual */}
-          <div className="relative z-10 mt-16">
+          <div className="relative z-10 mt-10 sm:mt-16">
             <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-200/50 via-sky-200/40 to-emerald-200/40 rounded-3xl opacity-80 blur-xl" />
-            <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-8 shadow-2xl shadow-gray-200/70 card-hover">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-gray-200/70 card-hover">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {/* Card 1: Évaluation */}
-                <div className="p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover">
-                  <div className="text-4xl mb-3">📊</div>
-                  <h3 className="font-black text-gray-900 mb-2">Évaluation complète</h3>
-                  <p className="text-sm text-gray-600 mb-3">Valeur marchande de votre propriété</p>
-                  <p className="text-3xl font-black text-indigo-600 mb-2">$585,000</p>
+                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover">
+                  <div className="text-3xl sm:text-4xl mb-3">📊</div>
+                  <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
+                    Évaluation complète
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">
+                    Valeur marchande de votre propriété
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-black text-indigo-600 mb-2">
+                    $585,000
+                  </p>
                   <p className="text-xs text-gray-500">+15% depuis achat</p>
                 </div>
 
                 {/* Card 2: Optimisation */}
-                <div className="p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
-                  <div className="text-4xl mb-3">💰</div>
-                  <h3 className="font-black text-emerald-900 mb-2">Revenu optimal</h3>
-                  <p className="text-sm text-emerald-700 font-semibold mb-3">Loyer réaliste et compétitif</p>
-                  <p className="text-3xl font-black text-emerald-700 mb-2">$1,750/mois</p>
-                  <p className="text-xs text-emerald-600 font-semibold">+$350/mois (+25%)</p>
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
+                  <div className="text-3xl sm:text-4xl mb-3">💰</div>
+                  <h3 className="font-black text-emerald-900 mb-2 text-lg sm:text-xl">
+                    Revenu optimal
+                  </h3>
+                  <p className="text-xs sm:text-sm text-emerald-700 font-semibold mb-3">
+                    Loyer réaliste et compétitif
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-black text-emerald-700 mb-2">
+                    $1,750/mois
+                  </p>
+                  <p className="text-xs text-emerald-600 font-semibold">
+                    +$350/mois (+25%)
+                  </p>
                 </div>
               </div>
             </div>
@@ -4786,62 +4900,71 @@ function HomePage() {
         </section>
 
         {/* ==================== FEATURES SECTION ==================== */}
-        <section id="features" className="max-w-7xl mx-auto px-6 py-20">
-          <div className="fade-in-up mx-auto max-w-3xl text-center mb-16" style={{ animationDelay: '0s' }}>
-            <h2 className="text-4xl font-black text-gray-900 mb-4">
+        <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <div
+            className="fade-in-up mx-auto max-w-3xl text-center mb-12 sm:mb-16"
+            style={{ animationDelay: '0s' }}
+          >
+            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
               Pourquoi choisir OptimiPlex?
             </h2>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-base sm:text-lg">
               Une plateforme complète pour évaluer vos propriétés ET optimiser vos revenus locatifs, 
-              qu'elles soient résidentielles ou commerciales.
+              qu&apos;elles soient résidentielles ou commerciales.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 icon: '📊',
                 title: 'Évaluation Immobilière IA',
-                description: 'Analyse complète de la valeur de vos propriétés basée sur données Centris vérifiées et comparables locaux'
+                description:
+                  'Analyse complète de la valeur de vos propriétés basée sur données Centris vérifiées et comparables locaux',
               },
               {
                 icon: '💰',
                 title: 'Optimisation de Loyers',
-                description: 'Découvrez le loyer optimal pour vos propriétés résidentielles et commerciales basé sur le marché'
+                description:
+                  'Découvrez le loyer optimal pour vos propriétés résidentielles et commerciales basé sur le marché',
               },
               {
                 icon: '🏠',
                 title: 'Résidentiel & Commercial',
-                description: 'Analyse complète pour immeubles multi-logements, maisons, condos, bureaux, retail et entrepôts'
+                description:
+                  'Analyse complète pour immeubles multi-logements, maisons, condos, bureaux, retail et entrepôts',
               },
               {
                 icon: '📈',
                 title: 'Analyses Comparables',
-                description: 'Justification détaillée avec propriétés similaires réellement vendues/louées sur Centris'
+                description:
+                  'Justification détaillée avec propriétés similaires réellement vendues/louées sur Centris',
               },
               {
                 icon: '⚡',
                 title: 'Ultra Rapide',
-                description: 'Évaluation et optimisation complètes en moins d\'une minute avec rapports détaillés'
+                description:
+                  "Évaluation et optimisation complètes en moins d'une minute avec rapports détaillés",
               },
               {
                 icon: '🎯',
-                title: 'Plan d\'Action Complet',
-                description: 'Recommandations stratégiques pour maximiser la valeur ET les revenus locatifs de vos biens'
-              }
+                title: "Plan d'Action Complet",
+                description:
+                  'Recommandations stratégiques pour maximiser la valeur ET les revenus locatifs de vos biens',
+              },
             ].map((feature, i) => (
               <div
                 key={i}
-                className="fade-in-up p-8 rounded-2xl border border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition-all group cursor-pointer backdrop-blur-xl glow-on-hover card-hover"
+                className="fade-in-up p-6 sm:p-8 rounded-2xl border border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition-all group cursor-pointer backdrop-blur-xl glow-on-hover card-hover"
                 style={{ animationDelay: `${0.15 * i}s` }}
               >
-                <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-indigo-100/60 border border-indigo-200 text-2xl mb-4 group-hover:scale-110 transition-transform">
+                <div className="inline-flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-indigo-100/60 border border-indigo-200 text-2xl mb-4 group-hover:scale-110 transition-transform">
                   {feature.icon}
                 </div>
-                <h3 className="text-xl font-black text-gray-900 mb-3">
+                <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-3">
                   {feature.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                   {feature.description}
                 </p>
               </div>
@@ -4850,48 +4973,66 @@ function HomePage() {
         </section>
 
         {/* ==================== TWO PILLARS SECTION ==================== */}
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <h2
+            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
+            style={{ animationDelay: '0s' }}
+          >
             Deux outils puissants, une plateforme
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
             {/* PILLAR 1: ÉVALUATION */}
             <div className="fade-in-up" style={{ animationDelay: '0s' }}>
-              <div className="p-8 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-3xl border-2 border-indigo-300 shadow-lg shadow-indigo-200/40 card-hover">
-                <div className="text-6xl mb-6">📊</div>
-                <h3 className="text-3xl font-black text-gray-900 mb-4">Évaluation Immobilière</h3>
-                <p className="text-gray-700 mb-6 leading-relaxed">
-                  Découvrez la vraie valeur marchande de vos propriétés avec une analyse IA complète basée sur données Centris en temps réel.
+              <div className="p-6 sm:p-8 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-3xl border-2 border-indigo-300 shadow-lg shadow-indigo-200/40 card-hover">
+                <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">📊</div>
+                <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
+                  Évaluation Immobilière
+                </h3>
+                <p className="text-gray-700 mb-6 leading-relaxed text-sm sm:text-base">
+                  Découvrez la vraie valeur marchande de vos propriétés avec une analyse IA complète
+                  basée sur données Centris en temps réel.
                 </p>
-                
-                <div className="space-y-3 mb-8">
+
+                <div className="space-y-3 mb-6 sm:mb-8">
                   <div className="flex items-start gap-3">
                     <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Analyse comparative de marché</p>
-                      <p className="text-sm text-gray-600">Comparables directs et tendances locales</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Analyse comparative de marché
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Comparables directs et tendances locales
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Évaluation par approche revenus</p>
-                      <p className="text-sm text-gray-600">Basée sur potentiel locatif actuel</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Évaluation par approche revenus
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Basée sur potentiel locatif actuel
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Rapport professionnel complet</p>
-                      <p className="text-sm text-gray-600">Détail des facteurs influençant la valeur</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Rapport professionnel complet
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Détail des facteurs influençant la valeur
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <Link
                   to="/register"
-                  className="inline-block px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all"
+                  className="inline-block px-5 sm:px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all text-sm sm:text-base"
                 >
                   Évaluer ma propriété →
                 </Link>
@@ -4900,40 +5041,55 @@ function HomePage() {
 
             {/* PILLAR 2: OPTIMISATION */}
             <div className="fade-in-up" style={{ animationDelay: '0.2s' }}>
-              <div className="p-8 bg-gradient-to-br from-emerald-50/50 to-green-50/50 rounded-3xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
-                <div className="text-6xl mb-6">💰</div>
-                <h3 className="text-3xl font-black text-gray-900 mb-4">Optimisation de Loyers</h3>
-                <p className="text-gray-700 mb-6 leading-relaxed">
-                  Trouvez le loyer optimal pour vos unités résidentielles et commerciales avec recommandations basées sur données marché.
+              <div className="p-6 sm:p-8 bg-gradient-to-br from-emerald-50/50 to-green-50/50 rounded-3xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
+                <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">💰</div>
+                <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
+                  Optimisation de Loyers
+                </h3>
+                <p className="text-gray-700 mb-6 leading-relaxed text-sm sm:text-base">
+                  Trouvez le loyer optimal pour vos unités résidentielles et commerciales avec
+                  recommandations basées sur données marché.
                 </p>
-                
-                <div className="space-y-3 mb-8">
+
+                <div className="space-y-3 mb-6 sm:mb-8">
                   <div className="flex items-start gap-3">
                     <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Analyse loyers comparables</p>
-                      <p className="text-sm text-gray-600">Propriétés similaires dans votre région</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Analyse loyers comparables
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Propriétés similaires dans votre région
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Résidentiel & Commercial</p>
-                      <p className="text-sm text-gray-600">Maisons, condos, immeubles, bureaux, retail</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Résidentiel & Commercial
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Maisons, condos, immeubles, bureaux, retail
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
                     <div>
-                      <p className="font-bold text-gray-900">Stratégies de positionnement</p>
-                      <p className="text-sm text-gray-600">Comment attirer locataires au meilleur prix</p>
+                      <p className="font-bold text-gray-900 text-sm sm:text-base">
+                        Stratégies de positionnement
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600">
+                        Comment attirer locataires au meilleur prix
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <Link
                   to="/register"
-                  className="inline-block px-6 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all"
+                  className="inline-block px-5 sm:px-6 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all text-sm sm:text-base"
                 >
                   Optimiser mes revenus →
                 </Link>
@@ -4943,42 +5099,46 @@ function HomePage() {
         </section>
 
         {/* ==================== HOW IT WORKS ==================== */}
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <h2
+            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
+            style={{ animationDelay: '0s' }}
+          >
             Comment ça marche en 3 étapes
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 step: '1️⃣',
                 title: 'Créez compte gratuit',
-                description: 'Inscription en 60 secondes. Aucune carte bancaire requise pour l\'essai.'
+                description:
+                  "Inscription en 60 secondes. Aucune carte bancaire requise pour l'essai.",
               },
               {
                 step: '2️⃣',
                 title: 'Entrez détails propriété',
-                description: 'Remplissez formulaire simple: type, localisation, revenus actuels, caractéristiques.'
+                description:
+                  'Remplissez formulaire simple: type, localisation, revenus actuels, caractéristiques.',
               },
               {
                 step: '3️⃣',
                 title: 'Recevez rapport complet',
-                description: 'Évaluation, recommandations de loyers, plan d\'action détaillé en moins d\'une minute.'
-              }
+                description:
+                  "Évaluation, recommandations de loyers, plan d'action détaillé en moins d'une minute.",
+              },
             ].map((step, i) => (
               <div
                 key={i}
                 className="fade-in-up relative"
                 style={{ animationDelay: `${0.2 * i}s` }}
               >
-                <div className="p-8 bg-white/80 rounded-2xl border border-gray-200 text-center backdrop-blur-xl shadow-lg shadow-gray-200/60 card-hover glow-on-hover">
-                  <div className="text-5xl mb-4">{step.step}</div>
-                  <h3 className="text-xl font-black text-gray-900 mb-3">
+                <div className="p-6 sm:p-8 bg-white/80 rounded-2xl border border-gray-200 text-center backdrop-blur-xl shadow-lg shadow-gray-200/60 card-hover glow-on-hover">
+                  <div className="text-4xl sm:text-5xl mb-4">{step.step}</div>
+                  <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-3">
                     {step.title}
                   </h3>
-                  <p className="text-gray-700">
-                    {step.description}
-                  </p>
+                  <p className="text-gray-700 text-sm sm:text-base">{step.description}</p>
                 </div>
                 {i < 2 && (
                   <div className="hidden md:flex absolute top-12 -right-4 text-3xl text-indigo-300">
@@ -4991,9 +5151,12 @@ function HomePage() {
         </section>
 
         {/* ==================== PROOF SECTION ==================== */}
-        <section className="bg-gradient-to-r from-indigo-50/70 via-sky-50/50 to-transparent py-20 my-20">
-          <div className="max-w-7xl mx-auto px-6">
-            <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
+        <section className="bg-gradient-to-r from-indigo-50/70 via-sky-50/50 to-transparent py-16 sm:py-20 my-16 sm:my-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2
+              className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
+              style={{ animationDelay: '0s' }}
+            >
               Résultats vérifiés de nos utilisateurs
             </h2>
 
@@ -5002,14 +5165,14 @@ function HomePage() {
                 { end: 2840, label: 'Propriétés évaluées', suffix: '+' },
                 { end: 18, label: 'Augmentation revenus moyenne', suffix: '%' },
                 { end: 48, label: 'Note moyenne utilisateurs', suffix: '★' },
-                { end: 98, label: 'Utilisateurs satisfaits', suffix: '%' }
+                { end: 98, label: 'Utilisateurs satisfaits', suffix: '%' },
               ].map((stat, i) => (
                 <div
                   key={i}
-                  className="fade-in-up text-center p-8 bg-white/80 rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/60 backdrop-blur-xl card-hover glow-on-hover"
+                  className="fade-in-up text-center p-6 sm:p-8 bg-white/80 rounded-2xl border border-gray-200 shadow-lg shadow-gray-200/60 backdrop-blur-xl card-hover glow-on-hover"
                   style={{ animationDelay: `${0.15 * i}s` }}
                 >
-                  <p className="text-4xl font-black text-indigo-600 mb-2 whitespace-nowrap">
+                  <p className="text-3xl sm:text-4xl font-black text-indigo-600 mb-2 whitespace-nowrap">
                     {stat.suffix.includes('★') ? (
                       <>
                         <CounterAnimation end={stat.end} duration={2500} />
@@ -5025,7 +5188,7 @@ function HomePage() {
                       </>
                     )}
                   </p>
-                  <p className="text-gray-700 font-semibold">
+                  <p className="text-gray-700 font-semibold text-sm sm:text-base">
                     {stat.label}
                   </p>
                 </div>
@@ -5035,89 +5198,104 @@ function HomePage() {
         </section>
 
         {/* ==================== TESTIMONIALS ==================== */}
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
-            Témoignages d'utilisateurs
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <h2
+            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
+            style={{ animationDelay: '0s' }}
+          >
+            Témoignages d&apos;utilisateurs
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 name: 'Marie L.',
                 title: 'Propriétaire, Montréal',
-                comment: 'L\'évaluation m\'a montré que mon triplex était évalué 15% au-dessus du marché. Grâce aux recommandations, j\'ai augmenté mon loyer de $150/mois.',
-                rating: 5
+                comment:
+                  "L'évaluation m'a montré que mon triplex était évalué 15% au-dessus du marché. Grâce aux recommandations, j'ai augmenté mon loyer de $150/mois.",
+                rating: 5,
               },
               {
                 name: 'Jean D.',
                 title: 'Investisseur immobilier',
-                comment: 'Bon outil pour analyser rapidement mes propriétés. Les données Centris sont fiables. Quelques fonctionnalités manquantes pour vraiment avancé.',
-                rating: 4
+                comment:
+                  'Bon outil pour analyser rapidement mes propriétés. Les données Centris sont fiables. Quelques fonctionnalités manquantes pour vraiment avancé.',
+                rating: 4,
               },
               {
                 name: 'Sophie M.',
                 title: 'Gestionnaire immobilier',
-                comment: 'Permet à mes clients de faire décisions data-driven. Les rapports sont professionnels et bien présentés. Support excellent.',
-                rating: 5
+                comment:
+                  'Permet à mes clients de faire décisions data-driven. Les rapports sont professionnels et bien présentés. Support excellent.',
+                rating: 5,
               },
               {
                 name: 'Pierre G.',
                 title: 'Propriétaire, Québec',
-                comment: 'Rapport détaillé sur ma maison en location. Les comparables m\'ont aidé à négocier un meilleur loyer. Vraiment satisfait.',
-                rating: 5
+                comment:
+                  "Rapport détaillé sur ma maison en location. Les comparables m'ont aidé à négocier un meilleur loyer. Vraiment satisfait.",
+                rating: 5,
               },
               {
                 name: 'Claudette R.',
                 title: 'Retraitée, Laval',
-                comment: 'Simple à utiliser même pour quelqu\'un pas technologique. L\'optimisation loyer était très utile. Recommande!',
-                rating: 4
+                comment:
+                  "Simple à utiliser même pour quelqu'un pas technologique. L'optimisation loyer était très utile. Recommande!",
+                rating: 4,
               },
               {
                 name: 'Luc T.',
                 title: 'Développeur immobilier',
-                comment: 'Outil pratique et complet. Les données sont actuelles. Le prix est raisonnable pour ce qu\'on reçoit.',
-                rating: 4
-              }
+                comment:
+                  "Outil pratique et complet. Les données sont actuelles. Le prix est raisonnable pour ce qu'on reçoit.",
+                rating: 4,
+              },
             ].map((testimonial, i) => (
               <div
                 key={i}
-                className="fade-in-up p-8 bg-white/80 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition backdrop-blur-xl card-hover glow-on-hover"
+                className="fade-in-up p-6 sm:p-8 bg-white/80 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition backdrop-blur-xl card-hover glow-on-hover"
                 style={{ animationDelay: `${0.1 * i}s` }}
               >
                 <div className="flex gap-0.5 mb-4">
                   {[...Array(5)].map((_, j) => (
-                    <span 
-                      key={j} 
-                      className={`text-lg ${j < testimonial.rating ? 'text-amber-400' : 'text-gray-300'}`}
+                    <span
+                      key={j}
+                      className={`text-lg ${
+                        j < testimonial.rating ? 'text-amber-400' : 'text-gray-300'
+                      }`}
                     >
                       ★
                     </span>
                   ))}
                 </div>
-                <p className="text-gray-700 mb-4 italic">
-                  "{testimonial.comment}"
+                <p className="text-gray-700 mb-4 italic text-sm sm:text-base">
+                  &quot;{testimonial.comment}&quot;
                 </p>
-                <p className="font-black text-gray-900">
+                <p className="font-black text-gray-900 text-sm sm:text-base">
                   {testimonial.name}
                 </p>
-                <p className="text-sm text-gray-600">
-                  {testimonial.title}
-                </p>
+                <p className="text-xs sm:text-sm text-gray-600">{testimonial.title}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* ==================== PRICING SECTION ==================== */}
-        <section id="pricing" className="max-w-7xl mx-auto px-6 py-20">
-          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-4" style={{ animationDelay: '0s' }}>
+        <section id="pricing" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <h2
+            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-4"
+            style={{ animationDelay: '0s' }}
+          >
             Tarification simple & transparente
           </h2>
-          <p className="fade-in-up text-xl text-gray-600 text-center max-w-2xl mx-auto mb-16" style={{ animationDelay: '0.2s' }}>
-            Pas de surprises. Pas de frais cachés. Cancellation n'importe quand.
+          <p
+            className="fade-in-up text-lg sm:text-xl text-gray-600 text-center max-w-2xl mx-auto mb-12 sm:mb-16"
+            style={{ animationDelay: '0.2s' }}
+          >
+            Pas de surprises. Pas de frais cachés. Cancellation n&apos;importe quand.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 name: 'Essai',
@@ -5128,9 +5306,9 @@ function HomePage() {
                   '1 analyse loyer/mois',
                   'Résidentiel uniquement',
                   'Rapport standard',
-                  'Support email'
+                  'Support email',
                 ],
-                highlighted: false
+                highlighted: false,
               },
               {
                 name: 'Pro',
@@ -5144,9 +5322,9 @@ function HomePage() {
                   'Rapports détaillés + stratégie',
                   'Comparables avancés',
                   'Support prioritaire',
-                  'Export PDF'
+                  'Export PDF',
                 ],
-                highlighted: true
+                highlighted: true,
               },
               {
                 name: 'Growth',
@@ -5161,16 +5339,16 @@ function HomePage() {
                   'Alertes marché hebdo',
                   'Support 24/7 prioritaire',
                   'API access',
-                  'Analyse portefeuille'
+                  'Analyse portefeuille',
                 ],
-                highlighted: false
-              }
+                highlighted: false,
+              },
             ].map((plan, i) => (
               <div
                 key={i}
-                className={`fade-in-up rounded-2xl border p-8 transition-all backdrop-blur-xl card-hover glow-on-hover ${
+                className={`fade-in-up rounded-2xl border p-6 sm:p-8 transition-all backdrop-blur-xl card-hover glow-on-hover ${
                   plan.highlighted
-                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-100/40 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform scale-[1.03]'
+                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-100/40 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03]'
                     : 'border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40'
                 }`}
                 style={{ animationDelay: `${0.15 * i}s` }}
@@ -5180,25 +5358,23 @@ function HomePage() {
                     🌟 POPULAIRE
                   </div>
                 )}
-                <h3 className="text-2xl font-black text-gray-900 mb-2">
+                <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">
                   {plan.name}
                 </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  {plan.description}
-                </p>
-                <div className="mb-8">
-                  <span className="text-4xl font-black text-gray-900">
+                <p className="text-xs sm:text-sm text-gray-600 mb-6">{plan.description}</p>
+                <div className="mb-6 sm:mb-8">
+                  <span className="text-3xl sm:text-4xl font-black text-gray-900">
                     {plan.price}
                   </span>
                   {plan.period && (
-                    <span className="text-gray-600">
+                    <span className="text-gray-600 text-sm sm:text-base">
                       {plan.period}
                     </span>
                   )}
                 </div>
                 <Link
                   to="/register"
-                  className={`block w-full py-3 px-6 rounded-lg font-bold mb-8 text-center transition-all ${
+                  className={`block w-full py-3 px-6 rounded-lg font-bold mb-6 sm:mb-8 text-center transition-all text-sm sm:text-base ${
                     plan.highlighted
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'
                       : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
@@ -5206,9 +5382,12 @@ function HomePage() {
                 >
                   Commencer
                 </Link>
-                <ul className="space-y-3">
+                <ul className="space-y-2 sm:space-y-3">
                   {plan.features.map((feature, j) => (
-                    <li key={j} className="flex items-center gap-3 text-gray-700">
+                    <li
+                      key={j}
+                      className="flex items-center gap-2 sm:gap-3 text-gray-700 text-sm sm:text-base"
+                    >
                       <span className="text-emerald-600">✓</span>
                       {feature}
                     </li>
@@ -5220,48 +5399,53 @@ function HomePage() {
         </section>
 
         {/* ==================== FAQ ==================== */}
-        <section className="max-w-3xl mx-auto px-6 py-20">
-          <h2 className="fade-in-up text-4xl font-black text-gray-900 text-center mb-16" style={{ animationDelay: '0s' }}>
+        <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+          <h2
+            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
+            style={{ animationDelay: '0s' }}
+          >
             Questions fréquentes
           </h2>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {[
               {
                 q: 'Quelle est la différence entre Évaluation et Optimisation?',
-                a: 'Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données Centris.'
+                a: "Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données Centris.",
               },
               {
                 q: 'Fonctionne-t-il pour propriétés commerciales?',
-                a: 'Oui! Plans Pro+ incluent analyse pour immeubles à revenus, bureaux, retail et entrepôts. Algorithe est adapté pour chaque type.'
+                a: 'Oui! Plans Pro+ incluent analyse pour immeubles à revenus, bureaux, retail et entrepôts. Algorithe est adapté pour chaque type.',
               },
               {
                 q: 'Comment OptimiPlex évalue-t-elle une propriété?',
-                a: 'Nous analysons comparables Centris, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.'
+                a: 'Nous analysons comparables Centris, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.',
               },
               {
                 q: 'Quel est le taux de précision?',
-                a: '85-92% dépendant région et données. Pour chaque recommandation, vous voyez score confiance exact et les propriétés comparables utilisées.'
+                a: '85-92% dépendant région et données. Pour chaque recommandation, vous voyez score confiance exact et les propriétés comparables utilisées.',
               },
               {
                 q: 'Puis-je annuler mon abonnement?',
-                a: 'Oui, cancellation 1 click. Aucun engagement à long terme. Pas de frais supplémentaires pour annuler.'
+                a: 'Oui, cancellation 1 click. Aucun engagement à long terme. Pas de frais supplémentaires pour annuler.',
               },
               {
                 q: 'Mes données sont-elles sécurisées?',
-                a: 'Absolument. Encryption AES-256, serveurs Firebase sécurisés, GDPR compliant. Vos données ne sont jamais vendues, partagées ou utilisées pour marketing.'
-              }
+                a: 'Absolument. Encryption AES-256, serveurs Firebase sécurisés, GDPR compliant. Vos données ne sont jamais vendues, partagées ou utilisées pour marketing.',
+              },
             ].map((faq, i) => (
               <details
                 key={i}
-                className="fade-in-up group p-6 bg-white/80 rounded-2xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition backdrop-blur-xl glow-on-hover"
+                className="fade-in-up group p-5 sm:p-6 bg-white/80 rounded-2xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition backdrop-blur-xl glow-on-hover"
                 style={{ animationDelay: `${0.1 * i}s` }}
               >
-                <summary className="flex items-center gap-3 font-black text-gray-900 text-lg list-none">
-                  <span className="group-open:rotate-180 transition-transform text-indigo-500">▶</span>
+                <summary className="flex items-center gap-3 font-black text-gray-900 text-base sm:text-lg list-none">
+                  <span className="group-open:rotate-180 transition-transform text-indigo-500">
+                    ▶
+                  </span>
                   {faq.q}
                 </summary>
-                <p className="mt-4 text-gray-700 ml-8">
+                <p className="mt-3 sm:mt-4 text-gray-700 ml-7 sm:ml-8 text-sm sm:text-base">
                   {faq.a}
                 </p>
               </details>
@@ -5270,24 +5454,34 @@ function HomePage() {
         </section>
 
         {/* ==================== FOOTER ==================== */}
-        <footer className="border-t border-gray-200 bg-white/90 py-12 mt-20">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between">
-              <div>
-                <h4 className="font-black text-gray-900 mb-2">OptimiPlex</h4>
-                <p className="text-sm text-gray-600">
+        <footer className="border-t border-gray-200 bg-white/90 py-10 sm:py-12 mt-16 sm:mt-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
+              <div className="text-center sm:text-left">
+                <h4 className="font-black text-gray-900 mb-1 sm:mb-2 text-base sm:text-lg">
+                  OptimiPlex
+                </h4>
+                <p className="text-xs sm:text-sm text-gray-600">
                   Évaluez et optimisez vos propriétés immobilières avec IA
                 </p>
               </div>
-              <div className="mt-6 sm:mt-0 text-center sm:text-right">
-                <p className="text-sm text-gray-600">
-                  <a href="#" className="hover:text-gray-900 transition">Contact</a>
+              <div className="mt-4 sm:mt-0 text-center sm:text-right text-xs sm:text-sm">
+                <p className="text-gray-600">
+                  <a href="#" className="hover:text-gray-900 transition">
+                    Contact
+                  </a>
                   {' • '}
-                  <a href="#" className="hover:text-gray-900 transition">Conditions</a>
+                  <a href="#" className="hover:text-gray-900 transition">
+                    Conditions
+                  </a>
                   {' • '}
-                  <a href="#" className="hover:text-gray-900 transition">Politique de confidentialité</a>
+                  <a href="#" className="hover:text-gray-900 transition">
+                    Politique de confidentialité
+                  </a>
                 </p>
-                <p className="text-xs text-gray-500 mt-4">&copy; 2026 OptimiPlex. Tous droits réservés.</p>
+                <p className="text-gray-500 mt-3 sm:mt-4 text-[11px] sm:text-xs">
+                  &copy; 2026 OptimiPlex. Tous droits réservés.
+                </p>
               </div>
             </div>
           </div>
