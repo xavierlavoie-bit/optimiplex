@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X } from 'lucide-react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -73,6 +73,186 @@ const googleProvider = new GoogleAuthProvider();
 // --- CONFIGURATION STRIPE ---
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 
+// ============================================
+// 1️⃣ HOOK POUR DÉTECTION MOBILE
+// ============================================
+const useWindowSize = () => {
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  return windowSize;
+};
+
+// ============================================
+// 2️⃣ MOBILE HEADER - TOP BAR MOBILE
+// ============================================
+function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo }) {
+  const windowSize = useWindowSize();
+  const isMobile = windowSize.width < 768;
+
+  useEffect(() => {
+    if (!isMobile) {
+      setSidebarOpen(true);
+    }
+  }, [isMobile, setSidebarOpen]);
+
+  return (
+    <>
+      {/* Mobile Top Bar - Visible < 768px */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4">
+        <h1 className="text-lg font-black text-gray-900">OptimiPlex</h1>
+        
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-2 rounded-lg transition hover:bg-gray-100"
+        >
+          {sidebarOpen ? (
+            <X size={24} className="text-gray-900" />
+          ) : (
+            <Menu size={24} className="text-gray-900" />
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {sidebarOpen && isMobile && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40 top-16"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Offset for mobile top bar */}
+      <div className="md:hidden h-16" />
+    </>
+  );
+}
+
+// ============================================
+// 3️⃣ SIDEBAR RESPONSIVE - DESKTOP + MOBILE
+// ============================================
+function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout }) {
+  const windowSize = useWindowSize();
+  const isMobile = windowSize.width < 768;
+
+  const navItems = [
+    { id: 'overview', label: '📈 Vue d\'ensemble' },
+    { id: 'optimization', label: '⚡ Optimiseur' },
+    { id: 'valuation', label: '📊 Évaluation' },
+    { id: 'profile', label: '👤 Mon Profil' },
+  ];
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  return (
+    <>
+      {/* Desktop Sidebar - Visible >= 768px */}
+      <div className={`hidden md:block fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 z-40`}>
+        {/* Logo */}
+        <div className="p-6 border-b border-gray-200">
+          <h1 className={`font-black text-gray-900 ${sidebarOpen ? 'text-lg' : 'text-sm text-center'}`}>
+            {sidebarOpen ? 'OptimiPlex' : 'OP'}
+          </h1>
+        </div>
+
+        {/* Navigation */}
+        <nav className="py-4 space-y-2 px-4">
+          {navItems.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => handleTabChange(id)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+                activeTab === id
+                  ? 'bg-indigo-100 border border-indigo-300 text-indigo-700'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }`}
+            >
+              {sidebarOpen ? (
+                <span className="font-semibold">{label}</span>
+              ) : (
+                <span className="text-center w-full">{label.charAt(0)}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* Bottom Actions */}
+        <div className="absolute bottom-6 left-0 right-0 px-4 space-y-3">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="w-full p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all text-sm"
+          >
+            {sidebarOpen ? '← Réduire' : '→'}
+          </button>
+          <button
+            onClick={onLogout}
+            className="w-full p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-all text-sm font-semibold"
+          >
+            {sidebarOpen ? '🚪 Déconnexion' : '✕'}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Sidebar - Visible < 768px */}
+      <nav
+        className={`md:hidden fixed top-16 left-0 h-screen bg-white w-64 z-40 transform transition-transform duration-300 border-r border-gray-200 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } overflow-y-auto`}
+      >
+        {/* User Info Mobile */}
+        <div className="p-4 border-b border-gray-200">
+          <p className="text-sm text-gray-600 truncate font-medium">{user?.email}</p>
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
+            <span className="text-xs font-semibold text-blue-700">
+              {planInfo[userPlan]?.name}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation Items Mobile */}
+        <div className="py-2">
+          {navItems.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => handleTabChange(id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-l-4 ${
+                activeTab === id
+                  ? 'bg-indigo-50 text-indigo-600 border-indigo-600'
+                  : 'text-gray-700 hover:bg-gray-50 border-transparent'
+              }`}
+            >
+              <span className="font-medium text-sm">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Logout Mobile */}
+        <div className="px-4 py-2 mt-4 border-t border-gray-200 pt-4">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium text-sm"
+          >
+            🚪 Déconnexion
+          </button>
+        </div>
+      </nav>
+    </>
+  );
+}
+
 
 
 
@@ -88,6 +268,7 @@ function DashboardLayout() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
+
 
   const planInfo = {
     essai: { name: 'Essai', price: 'Gratuit', color: 'blue', priceId: null },
@@ -195,148 +376,111 @@ function DashboardLayout() {
                       userProfile?.role === 'proprio' ? 'Propriétaire' : 
                       userProfile?.role === 'investisseur' ? 'Investisseur' : 'Membre';
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Sidebar */}
-      <div className={`fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 z-40`}>
-        <div className="p-6 border-b border-gray-200">
-          <Link to="/" className="flex items-center space-x-3">
-            <img src="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" alt="OptimiPlex Logo" className={`${sidebarOpen ? 'w-13 h-12' : 'w-8 h-8'} ${!sidebarOpen && 'mx-auto'}`} />
-            {sidebarOpen && <span className="font-black text-gray-900 text-lg">OptimiPlex</span>}
-          </Link>
-        </div>
+ return (
+  <div className="min-h-screen bg-gray-50">
+    {/* 1️⃣ MOBILE HEADER */}
+    <MobileHeader 
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      user={user}
+      userPlan={userPlan}
+      planInfo={planInfo}
+    />
 
-        <nav className="p-4 space-y-2">
-          {[
-            { id: 'overview', icon: '📊', label: 'Vue d\'ensemble' },
-            { id: 'optimization', icon: '🎯', label: 'Optimiseur' },
-            { id: "valuation", icon: "🏠", label: "Évaluation" },
-            { id: 'profile', icon: '👤', label: 'Mon Profil' }
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                activeTab === item.id
-                  ? `bg-indigo-100 border border-indigo-300 text-indigo-700`
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-              }`}
-            >
-              <span className="text-xl">{item.icon}</span>
-              {sidebarOpen && <span className="font-semibold">{item.label}</span>}
-            </button>
-          ))}
-        </nav>
+    {/* 2️⃣ RESPONSIVE SIDEBAR */}
+    <ResponsiveSidebar
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      user={user}
+      userPlan={userPlan}
+      planInfo={planInfo}
+      onLogout={handleLogout}
+    />
 
-        <div className="absolute bottom-6 left-0 right-0 px-4 space-y-3">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all text-sm"
-          >
-            {sidebarOpen ? '◀ Réduire' : '▶'}
-          </button>
-          <button
-            onClick={handleLogout}
-            className="w-full p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-all text-sm font-semibold"
-          >
-            {sidebarOpen ? '🚪 Déconnexion' : '🚪'}
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
-        {/* Top Header */}
-        <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-30">
-          <div className="px-8 py-5 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-black text-gray-900">
-                {activeTab === 'profile' ? 'Mon Profil' : 
-                 activeTab === 'optimization' ? 'Nouvelle Analyse' : 'Tableau de bord'}
-              </h1>
-              <p className="text-sm text-gray-600">
-                {activeTab === 'profile' ? 'Gérez vos informations personnelles' : 'Bienvenue sur votre espace'}
+    {/* 3️⃣ MAIN CONTENT - DESKTOP AVEC MARGIN */}
+    <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300`}>
+      {/* TOP HEADER - ton header actuel */}
+      <header className="border-b border-gray-200 bg-white80 backdrop-blur-sm sticky top-0 z-30 hidden md:block">
+        <div className="px-8 py-5 flex items-center justify-between">
+          <h1 className="text-2xl font-black text-gray-900">
+            {activeTab === 'profile' ? '👤 Mon Profil' : activeTab === 'optimization' ? '⚡ Optimiseur' : activeTab === 'valuation' ? '📊 Évaluation' : '📈 Tableau de bord'}
+          </h1>
+          <div className="flex items-center space-x-6">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-bold text-gray-900">{userProfile?.displayName || user?.email?.split('@')[0]}</p>
+              <p className="text-xs text-indigo-600 font-semibold">
+                {userProfile?.role === 'courtier' ? 'Courtier Immobilier' : userProfile?.role === 'proprio' ? 'Propriétaire' : userProfile?.role === 'investisseur' ? 'Investisseur' : 'Membre'}
               </p>
             </div>
-            <div className="flex items-center space-x-6">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-gray-900">{displayName}</p>
-                <p className="text-xs text-indigo-600 font-semibold">{displayRole}</p>
-              </div>
-              <div className={`px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 border border-indigo-700 text-white shadow-md`}>
-                <span className="font-bold text-sm">{planInfo[userPlan].name}</span>
-              </div>
+            <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 border border-indigo-700 text-white shadow-md">
+              <span className="font-bold text-sm">{planInfo[userPlan]?.name}</span>
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Plan Banner */}
-        {activeTab !== 'profile' && (
-          <div className="px-8 py-6">
-            <div className={`p-6 rounded-xl bg-gradient-to-r from-indigo-100 to-blue-100 border border-indigo-300 flex items-center justify-between`}>
-              <div>
-                <h3 className={`text-lg font-black text-indigo-900`}>{planInfo[userPlan].name}</h3>
-                <p className="text-sm text-indigo-700 mt-1">{planInfo[userPlan].price}</p>
-              </div>
-              {userPlan !== 'premium' && (
-                <button
-                  onClick={() => setShowUpgradeModal(true)}
-                  className={`px-6 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-bold hover:shadow-lg hover:shadow-indigo-300 transition-all`}
-                >
-                  ⬆ Upgrader
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+      {/* PLAN BANNER - ton banner actuel */}
+      {activeTab !== 'profile' && (
+        <div className="px-4 sm:px-8 py-6">
+    <div className="relative rounded-2xl overflow-hidden shadow-lg">
+      {/* Background Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500"></div>
+      
+      {/* Decorative Elements */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
+      <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36"></div>
 
-        {/* Tabs Content */}
-        <div className="px-8 py-6 pb-20">
-          {activeTab === 'overview' && (
-  <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />
-
-          )}
-
-          {activeTab === 'optimization' && (
-            <OptimizationTab
-              userPlan={userPlan}
-              user={user}
-              setUserPlan={setUserPlan}
-              showUpgradeModal={showUpgradeModal}
-              setShowUpgradeModal={setShowUpgradeModal}
-            />
-          )}
-
-          {activeTab === 'valuation' && (
-              <PropertyValuationTab
-                user={user}
-                userPlan={userPlan}
-                setUserPlan={setUserPlan}
-                showUpgradeModal={showUpgradeModal}
-                setShowUpgradeModal={setShowUpgradeModal}
-              />
-            )}
-
-
-          {activeTab === 'profile' && (
-            <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />
-          )}
+      {/* Content */}
+      <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 z-10">
+        
+        {/* Left Section - Plan Info */}
+        <div className="flex-1">
+          <p className="text-white/70 text-sm font-semibold mb-2 uppercase tracking-wide">Plan actuel</p>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-2">
+            {planInfo[userPlan]?.name}
+          </h2>
+          <p className="text-white/90 text-lg font-bold">
+            {planInfo[userPlan]?.price}
+          </p>
         </div>
 
-        {/* MODAL UPGRADE avec STRIPE */}
-        {showUpgradeModal && (
-          <UpgradeModal
-            user={user}
-            userPlan={userPlan}
-            planInfo={planInfo}
-            setUserPlan={setUserPlan}
-            showUpgradeModal={showUpgradeModal}
-            setShowUpgradeModal={setShowUpgradeModal}
-          />
+        {/* Right Section - CTA Button */}
+        {userPlan !== 'premium' && (
+          <button 
+            onClick={() => setShowUpgradeModal(true)} 
+            className="w-full sm:w-auto px-8 py-4 bg-white text-indigo-600 font-black rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 transform hover:-translate-y-1"
+          >
+            🚀 Upgrader
+          </button>
+        )}
+
+        {userPlan === 'premium' && (
+          <div className="w-full sm:w-auto px-8 py-4 bg-white/20 backdrop-blur-sm text-white font-bold rounded-xl border border-white/30 text-center">
+            ✨ Plan Premium actif
+          </div>
         )}
       </div>
     </div>
-  );
+  </div>
+      )}
+
+      {/* TABS CONTENT - ton contenu actuel */}
+      <div className="px-8 py-6 pb-20">
+        {activeTab === 'overview' && <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />}
+        {activeTab === 'optimization' && <OptimizationTab userPlan={userPlan} user={user} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
+        {activeTab === 'valuation' && <PropertyValuationTab user={user} userPlan={userPlan} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
+        {activeTab === 'profile' && <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />}
+      </div>
+    </div>
+
+    {/* UPGRADE MODAL - ton modal actuel */}
+    {showUpgradeModal && (
+      <UpgradeModal user={user} userPlan={userPlan} planInfo={planInfo} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />
+    )}
+  </div>
+);
 }
 
 // ============================================
