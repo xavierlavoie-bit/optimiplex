@@ -1893,6 +1893,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const resultRef = useRef(null);
 
   const loadingMessages = [
     '🔍 Recherche des meilleur listing...',
@@ -1947,7 +1948,8 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       '112': '1 1/2',
       '312': '3 1/2',
       '412': '4 1/2',
-      '512': '5 1/2'
+      '512': '5 1/2',
+      '612': '6 1/2'
     };
     return labels[typeValue] || typeValue;
   };
@@ -1971,7 +1973,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         // 🔥 Récupérer les données depuis Firestore directement
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        
+
         if (!userDoc.exists()) {
           console.log('❌ Utilisateur non trouvé dans Firestore');
           return;
@@ -1987,13 +1989,13 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         // 📅 Vérifier si le mois a changé et réinitialiser si nécessaire
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        
+
         let quotaCount = 0;
         let resetDate = new Date();
 
         if (userData.quotaTracking) {
           const trackingMonth = userData.quotaTracking.month || '';
-          
+
           if (trackingMonth === currentMonth) {
             // Même mois - utiliser le count actuel
             quotaCount = userData.quotaTracking.count || 0;
@@ -2002,10 +2004,10 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             // Mois différent - réinitialiser
             console.log('🔄 Réinitialisation du quota (nouveau mois)');
             quotaCount = 0;
-            
-            // Calculer la date de réinitialisation (même jour du mois prochain)
+
+            // Calculer la date de réinitialisation (premier jour du mois prochain)
             resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            
+
             // Mettre à jour Firestore
             await updateDoc(doc(db, 'users', user.uid), {
               'quotaTracking.count': 0,
@@ -2042,7 +2044,6 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           remaining: remaining,
           resetDate: resetDate.toLocaleDateString('fr-CA')
         });
-
       } catch (error) {
         console.error('❌ Erreur chargement quota:', error);
         setQuotaInfo({
@@ -2060,6 +2061,15 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       loadQuota();
     }
   }, [user?.uid]);
+
+  // ✅ SCROLL AUTOMATIQUE VERS LES RÉSULTATS
+  useEffect(() => {
+    if (result && resultRef.current) {
+      setTimeout(() => {
+        resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [result]);
 
   const handleSubmit = async () => {
     const apartmentLabel = getApartmentLabel(formData.typeappart);
@@ -2103,7 +2113,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       const db = getFirestore();
       const now = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      
+
       await updateDoc(doc(db, 'users', user.uid), {
         'quotaTracking.count': increment(1),
         'quotaTracking.month': currentMonth
@@ -2150,11 +2160,27 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     }
   };
 
+  // ✅ FONCTION POUR AFFICHER CORRECTEMENT LES GAINS/PERTES
+  const getDifferenceDisplay = () => {
+    if (!result || !result.recommandation) return null;
+    
+    const difference = result.recommandation.loyeroptimal - formData.loyeractuel;
+    const differenceMensuelle = Math.round(difference);
+    const differenceAnnuelle = Math.round(difference * 12);
+
+    return {
+      mensuelle: differenceMensuelle,
+      annuelle: differenceAnnuelle,
+      isPositive: difference >= 0,
+      isBetter: difference >= 0
+    };
+  };
+
   return (
     <div className="space-y-8">
       <LoadingSpinner isLoading={loading} messages={loadingMessages} />
 
-      {/* ✅ QUOTA INFO CARD - AVEC LOGS DE DEBUG */}
+      {/* ✅ QUOTA INFO CARD */}
       {quotaInfo && (
         <div className={`p-6 rounded-xl border-2 ${
           quotaInfo.remaining > 0
@@ -2206,6 +2232,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
       )}
 
+      {/* FORMULAIRE PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-8 bg-gray-100 rounded-xl border border-gray-300">
         <div className="lg:col-span-2">
           <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -2238,7 +2265,11 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
                 className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               />
               <button
-                onClick={() => { setShowCustomVille(false); setCustomVille(''); setFormData({ ...formData, ville: '' }); }}
+                onClick={() => { 
+                  setShowCustomVille(false); 
+                  setCustomVille(''); 
+                  setFormData({ ...formData, ville: '' }); 
+                }}
                 className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 font-semibold text-gray-900"
               >
                 ✕
@@ -2277,9 +2308,21 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           <input
             type="number"
             value={formData.loyeractuel || ''}
-            onChange={(e) => setFormData({ ...formData, loyeractuel: parseInt(e.target.value) || 1400 })}
-            min="500"
-            max="5000"
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || value === '0') {
+                setFormData({ ...formData, loyeractuel: value === '' ? '' : 0 });
+              } else {
+                setFormData({ ...formData, loyeractuel: parseInt(value) || '' });
+              }
+            }}
+            onBlur={(e) => {
+              // Quand on quitte le champ, on met une valeur par défaut si vide
+              if (!formData.loyeractuel || formData.loyeractuel === 0 || formData.loyeractuel === '') {
+                setFormData({ ...formData, loyeractuel: 1400 });
+              }
+            }}
+            placeholder="Ex: 1400"
             className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-lg"
           />
         </div>
@@ -2347,6 +2390,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
       )}
 
+      {/* BOUTON ANALYSER */}
       <div className="text-center">
         <button
           onClick={handleSubmit}
@@ -2361,28 +2405,63 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </button>
       </div>
 
-      {result && (
-        <div className="space-y-8 mt-8">
+      {/* RÉSULTATS */}
+      {result && getDifferenceDisplay() && (
+        <div ref={resultRef} className="space-y-8 mt-8">
           {/* Header résumé */}
-          <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center">
-            <h3 className="text-4xl font-black text-emerald-900 mb-2">
+          <div className={`p-8 bg-gradient-to-r rounded-2xl border-2 text-center ${
+            getDifferenceDisplay().isBetter 
+              ? 'from-emerald-100 to-emerald-200 border-emerald-300' 
+              : 'from-orange-100 to-orange-200 border-orange-300'
+          }`}>
+            <h3 className={`text-4xl font-black mb-2 ${
+              getDifferenceDisplay().isBetter 
+                ? 'text-emerald-900' 
+                : 'text-orange-900'
+            }`}>
               ${Math.round(result.recommandation?.loyeroptimal || 0)}
             </h3>
-            <p className="text-emerald-800 text-lg mb-6">Loyer optimal recommandé</p>
+            <p className={`text-lg mb-6 ${
+              getDifferenceDisplay().isBetter 
+                ? 'text-emerald-800' 
+                : 'text-orange-800'
+            }`}>
+              Loyer optimal recommandé
+            </p>
 
             <div className="flex flex-wrap justify-center gap-8">
               <div>
-                <div className="font-black text-2xl text-emerald-700">
-                  +${Math.round((result.recommandation?.loyeroptimal - formData.loyeractuel) / 12) || 0}
+                <div className={`font-black text-2xl ${
+                  getDifferenceDisplay().isBetter 
+                    ? 'text-emerald-700' 
+                    : 'text-orange-700'
+                }`}>
+                  {getDifferenceDisplay().mensuelle > 0 ? '+' : ''}{getDifferenceDisplay().mensuelle >= 0 ? '$' : '-$'}{Math.abs(getDifferenceDisplay().mensuelle)}
                 </div>
-                <div className="text-emerald-600 text-sm">par mois</div>
+                <div className={`text-sm ${
+                  getDifferenceDisplay().isBetter 
+                    ? 'text-emerald-600' 
+                    : 'text-orange-600'
+                }`}>
+                  par mois
+                </div>
               </div>
 
               <div>
-                <div className="font-black text-2xl text-emerald-700">
-                  ${Math.round(result.recommandation?.loyeroptimal - formData.loyeractuel) || 0}
+                <div className={`font-black text-2xl ${
+                  getDifferenceDisplay().isBetter 
+                    ? 'text-emerald-700' 
+                    : 'text-orange-700'
+                }`}>
+                  {getDifferenceDisplay().annuelle > 0 ? '+' : ''}{getDifferenceDisplay().annuelle >= 0 ? '$' : '-$'}{Math.abs(getDifferenceDisplay().annuelle)}
                 </div>
-                <div className="text-emerald-600 text-sm">par année</div>
+                <div className={`text-sm ${
+                  getDifferenceDisplay().isBetter 
+                    ? 'text-emerald-600' 
+                    : 'text-orange-600'
+                }`}>
+                  par année
+                </div>
               </div>
 
               <div>
@@ -2503,6 +2582,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     </div>
   );
 }
+
 
 
 
