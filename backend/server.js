@@ -1192,6 +1192,8 @@ function parseClaudeJSON(text) {
 
 const PORT = process.env.PORT || 5001;
 
+const path = require('path');
+
 
 app.use(express.static(path.join(__dirname, 'build')));
 
