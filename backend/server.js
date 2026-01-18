@@ -1042,6 +1042,366 @@ REPONSE EN JSON STRICT:
   }
 });
 
+app.post('/api/property/valuation-estimator-commercial', checkQuota, async (req, res) => {
+  try {
+    const {
+      userId,
+      proprietyType, // 'depanneur', 'immeuble_revenus', 'hotel', etc.
+      typeCom, // Alternative name for proprietyType
+      ville,
+      quartier = '',
+      addresseComplete = '',
+      prixAchat,
+      anneeAchat,
+      anneeConstruction,
+      surfaceTotale = 0,
+      surfaceLocable = 0,
+      
+      // POUR IMMEUBLE À REVENUS
+      nombreUnites,
+      tauxOccupation,
+      loyerMoyenParUnite,
+      revenus_bruts_annuels,
+      revenuBrutAnnuel, // Alternative name
+      depenses_annuelles,
+      depensesAnnuelles, // Alternative name
+      
+      // POUR HÔTEL
+      nombreChambres,
+      tauxOccupationHotel,
+      tariffMoyenParNuit,
+      
+      // POUR COMMERCE GÉNÉRIQUE
+      clienteleActive = 'stable',
+      
+      // GÉNÉRAL COMMERCIAL
+      etatGeneral = 'bon',
+      renovations = [],
+      accessibilite = 'moyenne',
+      parking = 0,
+      terrain_detail = '',
+      notes_additionnelles = ''
+    } = req.body;
+
+    // ✅ NORMALISATION - Gérer les deux noms de variables
+    const finalProprieTyType = proprietyType || typeCom;
+    const finalRevenusAnnuels = revenus_bruts_annuels || revenuBrutAnnuel;
+    const finalDepenses = depenses_annuelles || depensesAnnuelles;
+
+    // ✅ VALIDATIONS OBLIGATOIRES
+    if (!finalProprieTyType || !ville || !prixAchat || !anneeAchat || !anneeConstruction) {
+      return res.status(400).json({
+        error: 'Paramètres obligatoires manquants',
+        required: ['proprietyType', 'ville', 'prixAchat', 'anneeAchat', 'anneeConstruction'],
+        received: { proprietyType, ville, prixAchat, anneeAchat, anneeConstruction }
+      });
+    }
+
+    // ✅ VALIDATIONS SUPPLÉMENTAIRES SELON TYPE
+    if (finalProprieTyType === 'immeuble_revenus') {
+      if (!nombreUnites || !finalRevenusAnnuels || !finalDepenses) {
+        return res.status(400).json({
+          error: 'Données manquantes pour immeuble à revenus',
+          required: ['nombreUnites', 'revenus_bruts_annuels (ou revenuBrutAnnuel)', 'depenses_annuelles (ou depensesAnnuelles)'],
+          received: { nombreUnites, revenuBrutAnnuel, depensesAnnuelles, revenus_bruts_annuels, depenses_annuelles }
+        });
+      }
+    }
+
+    if (finalProprieTyType === 'hotel') {
+      if (!nombreChambres || !tauxOccupationHotel || !tariffMoyenParNuit) {
+        return res.status(400).json({
+          error: 'Données manquantes pour hôtel',
+          required: ['nombreChambres', 'tauxOccupationHotel', 'tariffMoyenParNuit'],
+          received: { nombreChambres, tauxOccupationHotel, tariffMoyenParNuit }
+        });
+      }
+    }
+
+    if (['depanneur', 'restaurant', 'commerce'].includes(finalProprieTyType)) {
+      if (!finalRevenusAnnuels || !finalDepenses) {
+        return res.status(400).json({
+          error: `Données manquantes pour ${finalProprieTyType}`,
+          required: ['revenuBrutAnnuel', 'depensesAnnuelles'],
+          received: { revenuBrutAnnuel, depensesAnnuelles }
+        });
+      }
+    }
+
+    console.log(`🏪 Évaluation Commerciale: ${finalProprieTyType} à ${ville}`);
+
+    const anneeActuelle = new Date().getFullYear();
+    const ansAchatEcoules = anneeActuelle - anneeAchat;
+    const ageConstruction = anneeActuelle - anneeConstruction;
+
+    // ============================================
+    // CONSTRUCTION DU PROMPT SPÉCIFIQUE
+    // ============================================
+
+    let promptSpecifique = '';
+
+    if (finalProprieTyType === 'immeuble_revenus') {
+      const noi = finalRevenusAnnuels - finalDepenses;
+      const ratioDepenses = (finalDepenses / finalRevenusAnnuels * 100).toFixed(1);
+      
+      promptSpecifique = `
+DONNÉES FINANCIÈRES IMMEUBLE À REVENUS:
+- Nombre d'unités: ${nombreUnites}
+- Taux d'occupation: ${tauxOccupation}%
+- Loyer moyen: $${loyerMoyenParUnite}/mois
+- Revenus bruts annuels: $${finalRevenusAnnuels?.toLocaleString('fr-CA')}
+- Dépenses annuelles: $${finalDepenses?.toLocaleString('fr-CA')}
+- NOI annuel: $${noi?.toLocaleString('fr-CA')}
+- Ratio dépenses: ${ratioDepenses}%
+- Prix d'achat: $${prixAchat?.toLocaleString('fr-CA')}
+
+ANALYSE:
+1. Cap Rate = NOI / Prix d'achat = ${noi} / ${prixAchat} = ${((noi / prixAchat) * 100).toFixed(2)}%
+2. Évaluer potentiel augmentation loyers (+5% = +$${Math.round(finalRevenusAnnuels * 0.05)}/an)
+3. Identifier opportunités occupation (+ 1% occupation = +$${Math.round((finalRevenusAnnuels / 100))}/an)
+4. Évaluer dépenses réelles vs marché
+5. Projeter valeur dans 5-10 ans
+`;
+    }
+
+    if (finalProprieTyType === 'hotel') {
+      const revenuBrutHotel = nombreChambres * 365 * tauxOccupationHotel / 100 * tariffMoyenParNuit;
+      const nuitees = Math.round(nombreChambres * 365 * tauxOccupationHotel / 100);
+      const revpar = Math.round((revenuBrutHotel / (nombreChambres * 365)) * 100) / 100;
+      
+      promptSpecifique = `
+DONNÉES FINANCIÈRES HÔTEL:
+- Chambres: ${nombreChambres}
+- Taux occupation: ${tauxOccupationHotel}%
+- Tarif moyen/nuit: $${tariffMoyenParNuit}
+- Revenu annuel estimé: $${Math.round(revenuBrutHotel)?.toLocaleString('fr-CA')}
+- Nuitées annuelles: ${nuitees?.toLocaleString('fr-CA')}
+- RevPAR: $${revpar}
+
+ANALYSE:
+1. Comparer RevPAR $${revpar} vs marché québécois (~$100-150 haut de gamme)
+2. Évaluer saison: améliorer taux ${tauxOccupationHotel}% → 75%+ = +$${Math.round(revenuBrutHotel * 0.25)}/an
+3. Analyser coûts exploitation (main-d'œuvre, énergie, etc.)
+4. Identifier améliorations tarifaires ou packages
+`;
+    }
+
+    if (['depanneur', 'restaurant', 'commerce'].includes(finalProprieTyType) && finalRevenusAnnuels) {
+      const revenuNet = finalRevenusAnnuels - finalDepenses;
+      const margeNette = ((revenuNet / finalRevenusAnnuels) * 100).toFixed(1);
+      
+      promptSpecifique = `
+DONNÉES FINANCIÈRES COMMERCE:
+- Type: ${finalProprieTyType}
+- Revenu brut annuel: $${finalRevenusAnnuels?.toLocaleString('fr-CA')}
+- Dépenses annuelles: $${finalDepenses?.toLocaleString('fr-CA')}
+- Revenu net: $${revenuNet?.toLocaleString('fr-CA')}
+- Marge nette: ${margeNette}%
+- Santé clientèle: ${clienteleActive}
+
+ANALYSE:
+1. Évaluer stabilité revenus (croissance historique?)
+2. Analyser marges: ${margeNette}% - benchmark industrie 10-20%
+3. Identifier risques continuité clientèle (${clienteleActive})
+4. Évaluer impact économique local
+5. Estimer potentiel croissance vs marché
+`;
+    }
+
+    // ============================================
+    // PROMPT PRINCIPAL
+    // ============================================
+
+    const valuationPrompt = `
+Vous êtes un évaluateur immobilier expert du marché québécois spécialisé en propriétés commerciales.
+Estimez la valeur marchande actuelle basée sur les approches par le revenu et les comparables.
+
+INFORMATIONS GÉNÉRALES:
+- Type: ${finalProprieTyType}
+- Localisation: ${ville}${quartier ? `, ${quartier}` : ''}
+- Adresse: ${addresseComplete || 'Non spécifiée'}
+- Surface totale: ${surfaceTotale || '?'} pi²
+- Surface locable: ${surfaceLocable || '?'} pi²
+- Prix d'achat: $${prixAchat?.toLocaleString('fr-CA')}
+- Année d'achat: ${anneeAchat} (il y a ${ansAchatEcoules} ans)
+- Année construction: ${anneeConstruction} (${ageConstruction} ans)
+- État: ${etatGeneral}
+- Rénovations: ${renovations && renovations.length > 0 ? renovations.join(', ') : 'Aucune'}
+- Parking: ${parking || '?'} places
+- Accessibilité: ${accessibilite || 'Non spécifiée'}
+
+${promptSpecifique}
+
+TÂCHES:
+1. Analyser rentabilité actuelle et potentiel futur
+2. Calculer métriques clés (Cap Rate, NOI, Cash-on-Cash, RevPAR si applicable)
+3. Évaluer le marché commercial local de ${ville}
+4. Identifier risques et opportunités spécifiques
+5. Fournir valeur marchande réaliste ET fourchette (basse/haute)
+6. Recommander stratégies d'optimisation
+
+REPONSE EN JSON STRICT (pas de texte avant/après):
+{
+  "estimationActuelle": {
+    "valeurBasse": [nombre $],
+    "valeurMoyenne": [nombre $],
+    "valeurHaute": [nombre $]
+  },
+  "metriquesCommerciales": {
+    "capRate": [nombre % ou null],
+    "noiAnnuel": [nombre $ ou null],
+    "cashOnCash": [nombre % ou null],
+    "revenuParSurfaceLocable": [nombre $/pi² ou null],
+    "multiplicateurRevenu": [nombre ou null],
+    "revpar": [nombre $ ou null]
+  },
+  "analyse": {
+    "appreciationTotale": [nombre $],
+    "appreciationAnnuelle": [nombre $],
+    "pourcentageGain": [nombre %],
+    "marketTrend": "haussier | baissier | stable",
+    "rentabiliteActuelle": "très rentable | rentable | acceptable | faible",
+    "risques": ["risque1", "risque2"],
+    "opportunities": ["opportunité1", "opportunité2"],
+    "secteurAnalysis": "description analyse secteur"
+  },
+  "facteurs_prix": {
+    "augmentent": ["facteur1", "facteur2"],
+    "diminuent": ["facteur1", "facteur2"],
+    "neutre": ["facteur1"]
+  },
+  "recommendations": {
+    "ameliorationsValeur": ["amélioration1"],
+    "optimisationRevenu": ["stratégie1"],
+    "reduceExpenses": ["réduction1"],
+    "strategie": "description stratégie complète",
+    "timing": "recommandation timing"
+  },
+  "comparable": {
+    "proprietesCommerciales": [nombre],
+    "prix_moyen": [nombre $/pi²],
+    "prix_min": [nombre $/pi²],
+    "prix_max": [nombre $/pi²],
+    "evaluation_qualite": "description qualité"
+  }
+}
+`;
+
+    // ============================================
+    // APPEL CLAUDE
+    // ============================================
+
+    const response = await claude.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 4000,
+      temperature: 0.3,
+      system: `Vous êtes un évaluateur immobilier expert québécois avec 15+ ans d'expérience en commercial.
+               Vous êtes spécialisé en Cap Rates, NOI, Cash-on-Cash, RevPAR et métriques commerciales.
+               Répondez TOUJOURS avec du JSON valide, complet et bien structuré.
+               Jamais de texte avant ou après le JSON.
+               Si un champ ne s'applique pas, mettez null.`,
+      messages: [{ role: 'user', content: valuationPrompt }]
+    });
+
+    const valuationResult = parseClaudeJSON(response.content[0].text);
+
+    // ============================================
+    // SAUVEGARDE FIRESTORE
+    // ============================================
+
+    const evaluationRef = await db.collection('users').doc(userId).collection('evaluations_commerciales').add({
+      proprietyType: finalProprieTyType,
+      ville,
+      quartier,
+      addresseComplete,
+      prixAchat,
+      anneeAchat,
+      anneeConstruction,
+      surfaceTotale,
+      surfaceLocable,
+      etatGeneral,
+      renovations,
+      accessibilite,
+      parking,
+      terrain_detail,
+      notes_additionnelles,
+      
+      // Données spécifiques selon type
+      ...(finalProprieTyType === 'immeuble_revenus' && {
+        nombreUnites,
+        tauxOccupation,
+        loyerMoyenParUnite,
+        revenus_bruts_annuels: finalRevenusAnnuels,
+        depenses_annuelles: finalDepenses
+      }),
+      
+      ...(finalProprieTyType === 'hotel' && {
+        nombreChambres,
+        tauxOccupationHotel,
+        tariffMoyenParNuit
+      }),
+      
+      ...(finalProprieTyType === 'commerce' && {
+        revenus_bruts_annuels: finalRevenusAnnuels,
+        depenses_annuelles: finalDepenses,
+        clienteleActive
+      }),
+      
+      // Résultats
+      result: valuationResult,
+      evaluationType: 'commercial',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // ============================================
+    // MISE À JOUR QUOTA
+    // ============================================
+
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    await db.collection('users').doc(userId).update({
+      'quotaTracking.count': admin.firestore.FieldValue.increment(1),
+      'quotaTracking.month': currentMonth,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log(`✅ Évaluation commerciale créée: ${evaluationRef.id}`);
+
+    res.json({
+      id: evaluationRef.id,
+      ...valuationResult
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur Valuation Commerciale:', error);
+    res.status(500).json({
+      error: "Échec de l'évaluation commerciale",
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Helper: Parse JSON from Claude
+function parseClaudeJSON(text) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e2) {
+        console.error('Failed to parse Claude JSON:', e2);
+        throw e2;
+      }
+    }
+    throw e;
+  }
+}
+
 // GET QUOTA INFO
 app.get('/api/property/quota/:userId', async (req, res) => {
   try {

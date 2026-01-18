@@ -6,7 +6,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2 } from 'lucide-react';
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users,
+  Megaphone,
+  Target,
+  List,
+  AlertCircle } from 'lucide-react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -487,127 +491,308 @@ function DashboardLayout() {
 // ⬆️ MODAL UPGRADE avec STRIPE
 // ============================================
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
+  if (!showUpgradeModal) return null;
+
+  const plans = [
+    { 
+      key: 'essai', 
+      name: 'Essai', 
+      price: 'Gratuit', 
+      features: [
+        '1 analyse résidentielle/mois',
+        'Résidentiel basique',
+        'Accès limité'
+      ],
+      icon: '🎯',
+      color: 'blue'
+    },
+    { 
+      key: 'pro', 
+      name: 'Pro', 
+      price: '$29/mois', 
+      features: [
+        '5 analyses résidentiel/mois',
+        'Résidentiel + extras',
+        'Support email',
+        'Rapports détaillés'
+      ],
+      icon: '🚀',
+      color: 'purple'
+    },
+    { 
+      key: 'growth', 
+      name: 'Growth', 
+      price: '$69/mois', 
+      features: [
+        'Analyses illimitées',
+        'Résidentiel + Commercial',
+        'Support prioritaire',
+        'Données avancées'
+      ],
+      icon: '💎',
+      color: 'indigo',
+      recommended: true
+    },
+    { 
+      key: 'entreprise', 
+      name: 'Entreprise', 
+      price: 'Sur mesure', 
+      features: [
+        'Solution 100% adaptée',
+        'API + White label',
+        'Formation équipe incluse',
+        'Support dédié 24/7',
+        'Volume illimité'
+      ],
+      icon: '👑',
+      color: 'amber'
+    }
+  ];
+
+  const isDowngrade = (key) => {
+    if (key === 'essai' && userPlan !== 'essai') return true;
+    if (key === 'pro' && (userPlan === 'growth' || userPlan === 'entreprise')) return true;
+    if (key === 'growth' && userPlan === 'entreprise') return true;
+    return false;
+  };
+
+  const handleContactEnterprise = () => {
+    const emailContent = `Bonjour équipe OptimiPlex,
+
+Je suis intéressé par une **solution sur mesure** adaptée à mes besoins spécifiques:
+
+👤 Mon profil actuel:
+• Plan: ${userPlan === 'pro' ? 'Pro ($29)' : userPlan === 'growth' ? 'Growth ($69)' : userPlan === 'essai' ? 'Essai' : 'Autre'}
+• Email: ${user?.email || 'non fourni'}
+• Analyses/mois: [précisez votre volume actuel]
+
+🎯 Mes besoins spécifiques:
+□ Solution Entreprise complète
+□ IA adaptée à mon marché [précisez: immobilier, commercial, etc.]
+□ API personnalisée
+□ Formation équipe [nombre personnes]
+□ White label / branding
+□ [Autres besoins spécifiques]
+
+💰 Budget mensuel approximatif: [$XXX]
+⏰ Délai souhaité: [MM/AAAA]
+
+Pouvez-vous me proposer une démo / pricing adapté?
+
+Merci!
+---
+${user?.email || 'contact'}`;
+
+    navigator.clipboard.writeText(emailContent);
+    window.open(
+      'https://mail.google.com/mail/?view=cm&fs=1&to=info@optimiplex.com&su=Demande+Plan+Entreprise&body=' + encodeURIComponent(emailContent),
+      '_blank'
+    );
+    setShowUpgradeModal(false);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 border border-gray-200">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-3xl font-black text-gray-900">⬆️ Upgrader votre plan</h3>
+    <div 
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-8"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          setShowUpgradeModal(false);
+        }
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-y-auto border border-gray-200">
+        {/* HEADER STICKY */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 md:px-8 py-6 flex items-center justify-between z-10">
+          <div>
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900">⬆️ Upgrader votre plan</h2>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">Plan actuel: <span className="font-bold uppercase">{userPlan}</span></p>
+          </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
-            className="text-3xl text-gray-400 hover:text-gray-600"
+            className="flex-shrink-0 ml-4 text-2xl md:text-3xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center transition-all"
           >
             ✕
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          {[
-            { key: 'essai', name: 'Essai', price: 'Gratuit', features: ['1 analyse/mois', 'Résidentiel basique'] },
-            { key: 'pro', name: 'Pro', price: '$29/mois', features: ['5 analyses/mois', 'Résidentiel + extras', 'Support email'] },
-            { key: 'growth', name: 'Growth', price: '$69/mois', features: ['Analyses illimitées', 'Résidentiel + Commercial', 'Support prioritaire'] },
-            { 
-              key: 'entreprise', 
-              name: 'Entreprise', 
-              price: 'Sur mesure', 
-              features: [
-                'Solution 100% adaptée',
-                'API + White label',
-                'Formation équipe incluse',
-                'Support dédié 24/7',
-                'Volume illimité'
-              ]
-            }
-          ].map(({ key, name, price, features }) => {
-            const isDowngrade = 
-              (key === 'essai' && userPlan !== 'essai') ||                    
-              (key === 'pro' && (userPlan === 'growth' || userPlan === 'entreprise')) ||
-              (key === 'growth' && userPlan === 'entreprise');
-            
-            return (
-              <div
-                key={key}
-                className={`p-6 rounded-xl border-2 cursor-pointer transition-all group ${
-                  userPlan === key
-                    ? 'bg-indigo-100 border-indigo-400 shadow-lg shadow-indigo-200'
-                    : isDowngrade
-                    ? 'bg-gray-100 border-gray-400 opacity-60 cursor-not-allowed'
-                    : 'bg-gray-50 border-gray-200 hover:border-indigo-400 hover:shadow-md'
-                }`}
-              >
-                <h4 className="text-xl font-black text-gray-900 mb-2">{name}</h4>
-                <p className="text-2xl font-bold text-indigo-600 mb-4">{price}</p>
-                <ul className="space-y-2 text-sm text-gray-700 mb-4">
-                  {features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className="text-emerald-600">✓</span>
-                      {feature}
-                    </li>
-                  ))}
+        {/* CONTENT */}
+        <div className="px-4 md:px-8 py-6 md:py-8">
+          {/* PLANS GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+            {plans.map(({ key, name, price, features, icon, color, recommended }) => {
+              const isPlanDowngrade = isDowngrade(key);
+              const isCurrentPlan = userPlan === key;
+
+              const colorClasses = {
+                blue: {
+                  bg: 'bg-blue-50',
+                  border: 'border-blue-200',
+                  active: 'bg-blue-100 border-blue-400 shadow-lg shadow-blue-200',
+                  button: 'bg-blue-600 hover:bg-blue-700'
+                },
+                purple: {
+                  bg: 'bg-purple-50',
+                  border: 'border-purple-200',
+                  active: 'bg-purple-100 border-purple-400 shadow-lg shadow-purple-200',
+                  button: 'bg-purple-600 hover:bg-purple-700'
+                },
+                indigo: {
+                  bg: 'bg-indigo-50',
+                  border: 'border-indigo-200',
+                  active: 'bg-indigo-100 border-indigo-400 shadow-lg shadow-indigo-200',
+                  button: 'bg-indigo-600 hover:bg-indigo-700'
+                },
+                amber: {
+                  bg: 'bg-amber-50',
+                  border: 'border-amber-200',
+                  active: 'bg-amber-100 border-amber-400 shadow-lg shadow-amber-200',
+                  button: 'bg-amber-600 hover:bg-amber-700'
+                }
+              };
+
+              const colors = colorClasses[color];
+
+              return (
+                <div
+                  key={key}
+                  className={`relative p-4 md:p-6 rounded-xl border-2 transition-all ${
+                    isCurrentPlan
+                      ? `${colors.active}`
+                      : isPlanDowngrade
+                      ? `${colors.bg} ${colors.border} opacity-60 cursor-not-allowed`
+                      : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md cursor-pointer`
+                  }`}
+                  onClick={() => !isPlanDowngrade && !isCurrentPlan && setSelectedPlan(key)}
+                >
+                  {/* RECOMMENDED BADGE */}
+                  {recommended && (
+                    <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg">
+                      RECOMMANDÉ ⭐
+                    </div>
+                  )}
+
+                  {/* ICON & NAME */}
+                  <div className="mb-4">
+                    <div className="text-3xl md:text-4xl mb-2">{icon}</div>
+                    <h4 className="text-lg md:text-xl font-black text-gray-900">{name}</h4>
+                  </div>
+
+                  {/* PRICE */}
+                  <p className={`text-xl md:text-2xl font-black mb-4`}>
+                    <span className={`text-${color}-600`}>{price}</span>
+                  </p>
+
+                  {/* FEATURES */}
+                  <ul className="space-y-2 text-xs md:text-sm text-gray-700 mb-6">
+                    {features.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* ACTION BUTTON */}
+                  {isCurrentPlan ? (
+                    <div className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold text-center shadow-md text-sm md:text-base`}>
+                      Plan actuel ✅
+                    </div>
+                  ) : isPlanDowngrade ? (
+                    <div className="w-full py-2 md:py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-center font-semibold text-xs md:text-sm shadow-md">
+                      🔒 Downgrade via annulation
+                    </div>
+                  ) : key === 'entreprise' ? (
+                    <button
+                      onClick={handleContactEnterprise}
+                      className="w-full py-2 md:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-600 transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0"
+                    >
+                      📧 Contacter
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedPlan(key)}
+                      className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0`}
+                    >
+                      Choisir
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* CHECKOUT SECTION */}
+          {selectedPlan && selectedPlan !== 'entreprise' && !isDowngrade(selectedPlan) && userPlan !== selectedPlan && (
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-xl p-6 md:p-8 shadow-lg">
+              <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-4">
+                ✅ Confirmer votre upgrade vers {plans.find(p => p.key === selectedPlan)?.name}
+              </h3>
+              
+              <div className="mb-6 p-4 bg-white rounded-lg border border-indigo-200">
+                <p className="text-sm md:text-base text-gray-700 mb-3">
+                  <span className="font-bold">Récapitulatif:</span>
+                </p>
+                <ul className="text-sm md:text-base space-y-2 text-gray-800">
+                  <li>• Plan: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.name}</span></li>
+                  <li>• Email: <span className="font-bold">{user?.email}</span></li>
+                  <li>• Prix: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.price}</span></li>
                 </ul>
+              </div>
 
-                {userPlan === key ? (
-                  <div className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold text-center shadow-md">
-                    Plan actuel ✅
-                  </div>
-                ) : isDowngrade ? (
-                  <div className="w-full py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-center font-semibold text-sm shadow-md">
-                    🔒 Downgrade via annulation
-                  </div>
-                ) : key === 'entreprise' ? (
-                  /* ✅ BOUTON EMAIL INFO@OPTIMIPLEX.COM */
-                  <button 
-                        onClick={() => {
-                          // ✅ 1. Copie email pré-rempli
-                          const emailContent = `Bonjour équipe Optimiplex,
-
-                              Je suis intéressé par une **solution sur mesure** adaptée à mes besoins spécifiques:
-
-                              👤 Mon profil actuel:
-                              • Plan: ${userPlan === 'pro' ? 'Pro ($29)' : userPlan === 'growth' ? 'Growth ($69)' : 'Essai'}
-                              • Email: ${user.email}
-                              • Analyses/mois: [précisez votre volume actuel]
-
-                              🎯 Mes besoins spécifiques:
-                              □ Solution Entreprise complète
-                              □ IA adaptée à mon marché [précisez: immobilier, commercial, etc.]
-                              □ API personnalisée
-                              □ Formation équipe [nombre personnes]
-                              □ White label / branding
-                              □ [Autres besoins spécifiques]
-
-                              💰 Budget mensuel approximatif: [$XXX]
-                              ⏰ Délai souhaité: [MM/AAAA]
-
-                              Pouvez-vous me proposer une démo / pricing adapté?
-
-                              Merci!
-                              ---
-                      ${user.email}`;
-
-                          navigator.clipboard.writeText(emailContent);
-                          
-                          // ✅ 2. Ouvre Gmail (Brave friendly)
-                          window.open('https://mail.google.com/mail/?view=cm&fs=1&to=info@optimiplex.com&su=Demande+Plan+Entreprise&body=' + encodeURIComponent(emailContent), '_blank');
-                          
-                          setShowUpgradeModal(false);
-                        }}
-                        className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-600 transition-all transform hover:-translate-y-0.5"
-                      >
-                        📧 Contacter info@optimiplex.com (Gmail)
-                      </button>
-
-                ) : (
-                  <StripeCheckoutButton 
-                    plan={key} 
-                    planInfo={planInfo} 
-                    user={user} 
+              <div className="flex flex-col md:flex-row gap-3">
+                <button
+                  onClick={() => setSelectedPlan(null)}
+                  className="flex-1 py-2 md:py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold rounded-lg transition-colors text-sm md:text-base"
+                >
+                  ← Retour
+                </button>
+                <div className="flex-1">
+                  <StripeCheckoutButton
+                    plan={selectedPlan}
+                    planInfo={planInfo}
+                    user={user}
                     setUserPlan={setUserPlan}
                     setShowUpgradeModal={setShowUpgradeModal}
                   />
-                )}
+                </div>
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {/* FOIRE AUX QUESTIONS */}
+          <div className="mt-8 md:mt-12 pt-8 md:pt-12 border-t border-gray-200">
+            <h3 className="text-lg md:text-xl font-black text-gray-900 mb-6">❓ Questions fréquentes</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Puis-je changer de plan après?</p>
+                <p className="text-xs md:text-sm text-gray-700">Oui! Vous pouvez upgrader ou downgrader à tout moment. Les changements sont effectifs le mois suivant.</p>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Aucun engagement?</p>
+                <p className="text-xs md:text-sm text-gray-700">Correct! Vous pouvez annuler votre abonnement à tout moment, sans pénalité.</p>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Quand est la facturation?</p>
+                <p className="text-xs md:text-sm text-gray-700">Le paiement est débité le même jour chaque mois. Vous recevez une facture par email.</p>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Besoin d'aide?</p>
+                <p className="text-xs md:text-sm text-gray-700">Contactez support@optimiplex.com ou utilisez le chat en bas à droite.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* FOOTER INFO */}
+          <div className="mt-8 md:mt-12 text-center text-xs md:text-sm text-gray-600 py-4 border-t border-gray-200">
+            <p>💳 Paiement sécurisé via Stripe | 🔒 Aucune donnée partagée</p>
+            <p className="mt-2">Conditions d'utilisation • Politique de confidentialité</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1080,7 +1265,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
 
-
   // ============================================
   // CHARGER LES ANALYSES
   // ============================================
@@ -1089,51 +1273,70 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       if (!user?.uid) return;
       try {
         const db = getFirestore();
-        const analysesRef = collection(db, 'users', user.uid, 'analyses');
-        const q = query(analysesRef);
-        const querySnapshot = await getDocs(q);
+        const allData = [];
 
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })).sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(a.timestamp);
-          const dateB = b.createdAt?.toDate?.() || new Date(b.timestamp);
+        // Helper pour charger une collection de manière sécurisée
+        const fetchCollection = async (collName, typeOverride) => {
+          try {
+            const ref = collection(db, 'users', user.uid, collName);
+            const snap = await getDocs(query(ref));
+            snap.docs.forEach(doc => {
+              allData.push({
+                id: doc.id,
+                collection: collName,
+                proprietype: typeOverride, // force le type si connu par la collection
+                ...doc.data()
+              });
+            });
+          } catch (e) {
+            console.log(`Info: Collection ${collName} vide ou inaccessible`);
+          }
+        };
+
+        await fetchCollection('analyses');
+        await fetchCollection('evaluations', 'residential');
+        await fetchCollection('evaluations_commerciales', 'commercial');
+
+        // Trier par date décroissante
+        const data = allData.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(a.timestamp || 0);
+          const dateB = b.createdAt?.toDate?.() || new Date(b.timestamp || 0);
           return dateB - dateA;
         });
 
         setAnalyses(data);
 
         // Calculer les stats
-        if (data.length > 0) {
-          let totalVal = 0;
-          let totalGains = 0;
-          let evaluationCount = 0;
-          let optimizationCount = 0;
+        let totalVal = 0;
+        let totalGains = 0;
+        let evaluationCount = 0;
+        let optimizationCount = 0;
 
-          data.forEach(analyse => {
-            // Compte les types
-            if (analyse.result?.estimationActuelle) {
-              evaluationCount++;
-              totalVal += analyse.result.estimationActuelle.valeurMoyenne || 0;
-            }
-            
-            if (analyse.result?.recommandation) {
-              optimizationCount++;
-              totalGains += analyse.result.recommandation.gainannuel || 0;
-            }
-          });
+        data.forEach(item => {
+          const res = item.result || {};
+          const recs = res.recommendations || res.recommandation || {};
+          
+          if (res.estimationActuelle?.valeurMoyenne) {
+            evaluationCount++;
+            totalVal += Number(res.estimationActuelle.valeurMoyenne) || 0;
+          }
+          
+          if (recs.gainannuel || recs.optimisationRevenu) {
+            optimizationCount++;
+            totalGains += Number(recs.gainannuel) || 0;
+          }
+        });
 
-          setStats({
-            totalProperties: data.length,
-            totalValuation: Math.round(totalVal),
-            totalGainsPotential: Math.round(totalGains),
-            evaluations: evaluationCount,
-            optimizations: optimizationCount
-          });
-        }
+        setStats({
+          totalProperties: data.length,
+          totalValuation: Math.round(totalVal),
+          totalGainsPotential: Math.round(totalGains),
+          evaluations: evaluationCount,
+          optimizations: optimizationCount
+        });
+
       } catch (err) {
-        console.error('Erreur fetch analyses:', err);
+        console.error('Erreur chargement dashboard:', err);
       } finally {
         setLoading(false);
       }
@@ -1142,147 +1345,550 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     fetchAnalyses();
   }, [user?.uid]);
 
-
   // ============================================
-  // MODIFIER LE TITRE D'UNE ANALYSE
+  // ACTIONS (EDIT / DELETE)
   // ============================================
-  const handleEditTitle = async (analysisId, newTitle) => {
-    if (!newTitle.trim()) {
-      alert('Le titre ne peut pas être vide');
-      return;
-    }
-
-    try {
-      const db = getFirestore();
-      await updateDoc(doc(db, 'users', user.uid, 'analyses', analysisId), {
-        titre: newTitle.trim()
-      });
-
-      // Mettre à jour l'état local
-      setAnalyses(analyses.map(a => 
-        a.id === analysisId ? { ...a, titre: newTitle.trim() } : a
-      ));
-
-      // Si le modal est ouvert, mettre à jour aussi
-      if (selectedAnalysis?.id === analysisId) {
-        setSelectedAnalysis({ ...selectedAnalysis, titre: newTitle.trim() });
-      }
-
-      setEditingId(null);
-      setEditingTitle('');
-    } catch (err) {
-      console.error('Erreur modification titre:', err);
-      alert('Erreur lors de la modification du titre');
-    }
-  };
-
-  const startEditingTitle = (analysisId, currentTitle, e) => {
-    e.stopPropagation();
-    setEditingId(analysisId);
-    setEditingTitle(currentTitle || '');
-  };
-
-  const cancelEditingTitle = (e) => {
-    e.stopPropagation();
-    setEditingId(null);
-    setEditingTitle('');
-  };
-
-  const confirmEditingTitle = (analysisId, e) => {
-    e.stopPropagation();
-    handleEditTitle(analysisId, editingTitle);
-  };
-
-
-  // ============================================
-  // SUPPRIMER UNE ANALYSE
-  // ============================================
-  const handleDelete = async (analysisId) => {
+  const handleDelete = async (analysisId, collectionName, e) => {
+    if (e) e.stopPropagation();
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette analyse?')) return;
 
     setDeletingId(analysisId);
     try {
       const db = getFirestore();
-      await deleteDoc(doc(db, 'users', user.uid, 'analyses', analysisId));
-      setAnalyses(analyses.filter(a => a.id !== analysisId));
+      // Fallback sur 'analyses' si collectionName est vide (pour compatibilité)
+      await deleteDoc(doc(db, 'users', user.uid, collectionName || 'analyses', analysisId));
       
-      // Fermer le modal si c'est l'analyse sélectionnée
-      if (selectedAnalysis?.id === analysisId) {
-        setSelectedAnalysis(null);
-      }
+      setAnalyses(prev => prev.filter(a => a.id !== analysisId));
+      if (selectedAnalysis?.id === analysisId) setSelectedAnalysis(null);
     } catch (err) {
-      console.error('Erreur suppression:', err);
+      console.error(err);
       alert('Erreur lors de la suppression');
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleDeleteWithEvent = (analysisId, e) => {
-    e.stopPropagation();
-    handleDelete(analysisId);
+  const handleEditTitle = async (analysisId, newTitle, collectionName, e) => {
+    if (e) e.stopPropagation();
+    if (!newTitle.trim()) return;
+
+    try {
+      const db = getFirestore();
+      await updateDoc(doc(db, 'users', user.uid, collectionName || 'analyses', analysisId), { titre: newTitle.trim() });
+      
+      setAnalyses(prev => prev.map(a => a.id === analysisId ? { ...a, titre: newTitle.trim() } : a));
+      if (selectedAnalysis?.id === analysisId) {
+        setSelectedAnalysis(prev => ({ ...prev, titre: newTitle.trim() }));
+      }
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert('Erreur modification titre');
+    }
   };
 
+  // ============================================
+  // UTILITAIRES D'AFFICHAGE
+  // ============================================
+  const formatCurrency = (val) => val ? Math.round(val).toLocaleString('fr-CA') : '0';
 
-  // ============================================
-  // FORMAT CURRENCY
-  // ============================================
-  const formatCurrency = (value) => {
-    if (!value || isNaN(value)) return '0';
-    return Math.round(value).toLocaleString('fr-CA');
-  };
-
-
-  // ============================================
-  // DÉTERMINER LE TYPE D'ANALYSE
-  // ============================================
   const getAnalysisType = (analyse) => {
     if (analyse.result?.estimationActuelle?.valeurMoyenne) return 'valuation';
-    if (analyse.result?.recommandation?.loyeroptimal) return 'optimization';
-    return 'unknown';
+    return 'optimization';
   };
 
+  const isCommercial = (analyse) => {
+    const type = analyse.proprietype || analyse.proprietetype || '';
+    return type === 'commercial' || 
+           analyse.collection === 'evaluations_commerciales' || 
+           ['immeuble_revenus', 'hotel', 'depanneur', 'bureau', 'commerce', 'restaurant'].includes(type);
+  };
 
-  // ============================================
-  // GET PROPERTY TYPE ICON
-  // ============================================
   const getPropertyIcon = (type) => {
+    const t = (type || '').toLowerCase();
     const icons = {
       unifamilial: '🏠',
       jumelee: '🏘️',
       duplex: '🏢',
       triplex: '🏢',
+      '4plex': '🏗️',
       condo: '🏙️',
       immeuble_revenus: '🏗️',
+      hotel: '🏨',
+      depanneur: '🏪',
+      restaurant: '🍽️',
+      bureau: '📋',
+      commerce: '🛍️',
+      terrain_commercial: '🌳',
+      terrain: '🌳',
       residential: '🏠',
-      commercial: '🏪'
+      commercial: '🏢'
     };
-    return icons[type] || '🏠';
+    
+    if (icons[t]) return icons[t];
+    
+    // Fallback logic
+    if (t.includes('hotel') || t.includes('commercial') || t.includes('revenu') || t.includes('bureau')) {
+      return '🏢';
+    }
+    return '🏠';
   };
 
+  const getPropertyLabel = (analyse) => {
+    return analyse.titre || analyse.typeappart || analyse.proprietetype || 'Propriété';
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[500px]">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin text-5xl mb-4">🔄</div>
-          <p className="text-gray-600 text-lg">Chargement de vos analyses...</p>
+          <div className="animate-spin text-4xl mb-4">🔄</div>
+          <p className="text-gray-600">Chargement de vos données...</p>
         </div>
       </div>
     );
   }
 
+  // Variables pour la modale (extraction sécurisée des données)
+  const renderModalContent = () => {
+    if (!selectedAnalysis) return null;
+
+    const result = selectedAnalysis.result || {};
+    const type = getAnalysisType(selectedAnalysis);
+    const isValuation = type === 'valuation';
+    const isCom = isCommercial(selectedAnalysis);
+
+    // Extraction robuste des données
+    const facteurs = result.facteursPrix || result.facteurs_prix || {};
+    const comparable = result.comparable || {};
+    const qualiteEval = comparable.evaluationQualite || comparable.evaluation_qualite;
+    
+    // Supporte les deux formats de clés pour les recommandations
+    const recs = result.recommendations || result.recommandation || {};
+    
+    // Données spécifiques optimisation
+    const marketAnalysis = result.marketanalysis || {};
+    const marketingKit = result.marketingkit || {};
+    
+    // Données spécifiques évaluation
+    const metrics = result.metriquesCommerciales || {};
+    const analyseData = result.analyse || {};
+    
+    // Texte d'analyse (quartier ou secteur)
+    const textAnalysis = analyseData.quartierAnalysis || analyseData.secteurAnalysis;
+
+    return (
+      <div className="p-8 space-y-8">
+        {/* INFO PROPRIÉTÉ */}
+        <div className={`rounded-2xl p-6 border-2 ${isValuation ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'}`}>
+          <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
+            <span className="text-2xl">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> Propriété
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-gray-600 font-semibold mb-1">Titre</p>
+              <p className="text-gray-900 font-bold">{getPropertyLabel(selectedAnalysis)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 font-semibold mb-1">Localisation</p>
+              <p className="text-gray-900 font-bold">{selectedAnalysis.ville}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 font-semibold mb-1">Quartier</p>
+              <p className="text-gray-900 font-bold">{selectedAnalysis.quartier || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 font-semibold mb-1">Date analyse</p>
+              <p className="text-gray-900 font-bold">
+                {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* =================================================================================
+                                      SECTION ÉVALUATION 
+           ================================================================================= */}
+        {isValuation && (
+          <>
+            <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300">
+              <h4 className="font-black text-blue-900 text-lg mb-4">💎 Estimation de valeur</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-blue-700 font-semibold mb-2">Valeur moyenne</p>
+                  <p className="text-2xl font-black text-blue-700">
+                    ${formatCurrency(result.estimationActuelle?.valeurMoyenne)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-blue-700 font-semibold mb-2">Fourchette basse</p>
+                  <p className="text-xl font-bold text-blue-600">
+                    ${formatCurrency(result.estimationActuelle?.valeurBasse)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-blue-700 font-semibold mb-2">Fourchette haute</p>
+                  <p className="text-xl font-bold text-blue-600">
+                    ${formatCurrency(result.estimationActuelle?.valeurHaute)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-blue-700 font-semibold mb-2">
+                    {isCom ? 'Cap Rate' : 'Appréciation'}
+                  </p>
+                  <p className="text-2xl font-black text-blue-700">
+                    {isCom 
+                      ? `${metrics.capRate?.toFixed(2) || '-'}%` 
+                      : `+${analyseData.pourcentageGain?.toFixed(1) || 0}%`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ANALYSE DÉTAILLÉE */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {analyseData.appreciationTotale !== undefined && (
+                  <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Appréciation Totale</p>
+                    <p className="text-2xl font-black text-green-600">${formatCurrency(analyseData.appreciationTotale)}</p>
+                  </div>
+                )}
+                {analyseData.appreciationAnnuelle !== undefined && (
+                  <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Appréciation/An</p>
+                    <p className="text-2xl font-black text-blue-600">${formatCurrency(analyseData.appreciationAnnuelle)}</p>
+                  </div>
+                )}
+                {analyseData.marketTrend && (
+                  <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Tendance Marché</p>
+                    <p className="text-lg font-black text-orange-600 capitalize">{analyseData.marketTrend}</p>
+                  </div>
+                )}
+              </div>
+
+              {textAnalysis && (
+                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
+                  <p className="text-sm font-bold text-indigo-900 mb-2">🎯 Analyse du {isCom ? 'Secteur' : 'Quartier'}</p>
+                  <p className="text-gray-800 leading-relaxed text-sm">{textAnalysis}</p>
+                </div>
+              )}
+            </div>
+
+            {/* MÉTRIQUES COMMERCIALES SUPPLÉMENTAIRES */}
+            {isCom && metrics.noiAnnuel !== undefined && (
+               <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
+                 <h4 className="font-black text-purple-900 text-lg mb-4">💹 Métriques Financières</h4>
+                 <div className="grid grid-cols-3 gap-4">
+                   <div>
+                     <p className="text-xs text-purple-700 font-semibold mb-1">NOI Annuel</p>
+                     <p className="text-xl font-bold text-purple-800">${formatCurrency(metrics.noiAnnuel)}</p>
+                   </div>
+                   {metrics.multiplicateurRevenu && (
+                     <div>
+                       <p className="text-xs text-purple-700 font-semibold mb-1">Mult. Revenu</p>
+                       <p className="text-xl font-bold text-purple-800">{metrics.multiplicateurRevenu.toFixed(2)}x</p>
+                     </div>
+                   )}
+                   {metrics.cashOnCash && (
+                     <div>
+                       <p className="text-xs text-purple-700 font-semibold mb-1">Cash-on-Cash</p>
+                       <p className="text-xl font-bold text-purple-800">{metrics.cashOnCash.toFixed(2)}%</p>
+                     </div>
+                   )}
+                 </div>
+               </div>
+            )}
+
+            {/* FACTEURS DE PRIX */}
+            {(facteurs.augmentent?.length > 0 || facteurs.diminuent?.length > 0) && (
+              <div>
+                <h4 className="font-black text-gray-900 text-lg mb-4">🎯 Facteurs de Prix</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {facteurs.augmentent?.length > 0 && (
+                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4">
+                      <p className="text-sm font-black text-green-700 mb-3">✅ Points Forts</p>
+                      <ul className="text-sm space-y-1">
+                        {facteurs.augmentent.map((item, idx) => (
+                          <li key={idx} className="text-gray-700 flex gap-2"><Check size={14} className="mt-1 text-green-600 shrink-0"/> {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {facteurs.diminuent?.length > 0 && (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
+                      <p className="text-sm font-black text-red-700 mb-3">⚠️ Points Faibles</p>
+                      <ul className="text-sm space-y-1">
+                        {facteurs.diminuent.map((item, idx) => (
+                          <li key={idx} className="text-gray-700 flex gap-2"><X size={14} className="mt-1 text-red-600 shrink-0"/> {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* =================================================================================
+                                      SECTION OPTIMISATION
+           ================================================================================= */}
+        {!isValuation && (
+          <>
+            <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
+              <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Potentiel d'Optimisation</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer Optimal</p>
+                  <p className="text-2xl font-black text-emerald-700">
+                    ${formatCurrency(recs.loyeroptimal)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Mensuel</p>
+                  <p className="text-2xl font-black text-emerald-700">
+                    +${formatCurrency(recs.gainmensuel)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Annuel</p>
+                  <p className="text-2xl font-black text-emerald-700">
+                    +${formatCurrency(recs.gainannuel)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
+                  <p className="text-2xl font-black text-emerald-700">
+                    {recs.confiance || 85}%
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ANALYSE MARCHÉ (Optimisation) */}
+            {marketAnalysis.mediane && (
+              <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
+                <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
+                  📈 Analyse du Marché Local
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-gray-50 p-3 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-1">Médiane Marché</p>
+                    <p className="font-bold text-gray-900">${formatCurrency(marketAnalysis.mediane)}</p>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-1">Taux Occupation</p>
+                    <p className="font-bold text-gray-900">{marketAnalysis.occupation}%</p>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-1">Tendance 30j</p>
+                    <p className={`font-bold ${marketAnalysis.tendance30j >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {marketAnalysis.tendance30j > 0 ? '+' : ''}{marketAnalysis.tendance30j}%
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-1">Listings Similaires</p>
+                    <p className="font-bold text-gray-900">{marketAnalysis.listingssimilaires}</p>
+                  </div>
+                </div>
+                {marketAnalysis.fourchette && (
+                  <div className="text-sm text-gray-600">
+                    <span className="font-semibold">Fourchette du marché :</span> ${formatCurrency(marketAnalysis.fourchette[0])} - ${formatCurrency(marketAnalysis.fourchette[1])}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MARKETING KIT (Optimisation) */}
+            {marketingKit.titreannonce && (
+              <div className="bg-pink-50 rounded-2xl p-6 border-2 border-pink-200">
+                <h4 className="font-black text-pink-900 text-lg mb-4 flex items-center gap-2">
+                  📢 Kit Marketing
+                </h4>
+                <div className="space-y-4">
+                  <div className="bg-white p-4 rounded-xl border border-pink-100">
+                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase">Titre de l'annonce</p>
+                    <p className="font-bold text-gray-900">{marketingKit.titreannonce}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-pink-100">
+                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase">Description accrocheuse</p>
+                    <p className="text-gray-700 text-sm italic">"{marketingKit.descriptionaccroche}"</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-pink-100">
+                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase flex items-center gap-1">
+                      👥 Profil locataire cible
+                    </p>
+                    <p className="text-gray-700 text-sm">{marketingKit.profillocataire}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* =================================================================================
+                                      RECOMMANDATIONS STRATÉGIQUES
+           ================================================================================= */}
+        
+        {recs && (recs.ameliorationsValeur || recs.strategie || recs.operationnelle || recs.pointscles || recs.raisonnement) && (
+          <div className="space-y-6">
+            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3">
+              <span className="bg-yellow-100 p-2 rounded-xl text-2xl">💡</span> Recommandations Stratégiques
+            </h4>
+            
+            <div className="grid grid-cols-1 gap-6">
+
+              {/* === RAISONNEMENT GLOBAL === */}
+              {recs.raisonnement && (
+                <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
+                  <p className="font-bold text-blue-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    🤖 Analyse & Raisonnement
+                  </p>
+                  <p className="text-gray-800 text-sm leading-relaxed">
+                    {recs.raisonnement}
+                  </p>
+                </div>
+              )}
+              
+              {/* === OPTIMISATION : POINTS CLÉS === */}
+              {!isValuation && recs.pointscles && (
+                <div className="bg-emerald-50 rounded-2xl p-6 border-2 border-emerald-200">
+                  <p className="font-bold text-emerald-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    🎯 Points Clés
+                  </p>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {recs.pointscles.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
+                        <span className="text-emerald-500 font-bold mt-0.5 shrink-0">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* === OPTIMISATION : JUSTIFICATION === */}
+              {!isValuation && recs.justification && (
+                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
+                  <p className="font-bold text-indigo-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    📝 Justification
+                  </p>
+                  <ul className="space-y-3">
+                    {recs.justification.map((item, i) => (
+                      <li key={i} className="text-sm text-indigo-800 flex gap-3 items-start">
+                        <span className="text-indigo-500 font-bold">•</span> {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* === OPTIMISATION : CONSIDÉRATIONS === */}
+              {!isValuation && recs.considerations && (
+                <div className="bg-red-50 rounded-2xl p-6 border-2 border-red-200">
+                  <p className="font-bold text-red-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    ⚠️ Considérations Importantes
+                  </p>
+                  <ul className="space-y-3">
+                    {recs.considerations.map((item, i) => (
+                      <li key={i} className="text-sm text-red-800 flex gap-3 items-start">
+                        <span className="text-red-500 font-bold">!</span> {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* === VALUATION : RENOVATIONS === */}
+              {recs.ameliorationsValeur?.length > 0 && (
+                <div className="bg-orange-50 rounded-2xl p-6 border-2 border-orange-200">
+                  <p className="font-bold text-orange-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    🔨 Travaux Prioritaires
+                  </p>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {recs.ameliorationsValeur.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
+                        <span className="text-orange-500 font-bold mt-0.5 shrink-0">✓</span>
+                        <span className="leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* === STRATÉGIE GLOBALE (Commun) === */}
+              {recs.strategie && (
+                <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
+                  <p className="font-bold text-purple-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    📈 Stratégie Globale
+                  </p>
+                  <p className="text-purple-800 text-sm leading-relaxed">{recs.strategie}</p>
+                </div>
+              )}
+
+              {/* === OPÉRATIONNEL (Commercial) === */}
+              {isCommercial && recs.operationnelle && (
+                <div className="bg-amber-50 rounded-2xl p-6 border-2 border-amber-200">
+                  <p className="font-bold text-amber-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    ⚙️ Optimisation Opérationnelle
+                  </p>
+                  <p className="text-amber-800 text-sm leading-relaxed">{recs.operationnelle}</p>
+                </div>
+              )}
+
+              {/* === TIMING & PROCHAINES ÉTAPES === */}
+              {(recs.timing || recs.venteMeilleuresChances || recs.prochainesetapes) && (
+                <div className="bg-gray-50 rounded-2xl p-6 border-2 border-gray-200">
+                  <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    🚀 Plan d'action
+                  </p>
+                  
+                  {(recs.timing || recs.venteMeilleuresChances) && (
+                    <div className="flex gap-3 items-start mb-4 bg-white p-3 rounded-xl border border-gray-200">
+                      <span className="text-xl">⏱️</span>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Timing Recommandé</p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {recs.timing || recs.venteMeilleuresChances}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {recs.prochainesetapes && (
+                    <div>
+                      <p className="font-bold text-gray-700 mb-3 text-sm">Prochaines étapes :</p>
+                      <ul className="space-y-2">
+                        {recs.prochainesetapes.map((step, i) => (
+                          <li key={i} className="text-gray-600 flex gap-3 text-sm bg-white p-2 rounded-lg border border-gray-100">
+                            <span className="bg-gray-200 text-gray-700 font-bold w-6 h-6 flex items-center justify-center rounded-full text-xs shrink-0">{i+1}</span> 
+                            <span className="mt-0.5">{step}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8">
-      {/* ==================== HEADER ==================== */}
+      {/* HEADER */}
       <div>
         <h1 className="text-4xl font-black text-gray-900 mb-2">📊 Vue d'ensemble</h1>
         <p className="text-gray-600 text-lg">Résumé de vos évaluations et optimisations immobilières</p>
       </div>
 
-
-      {/* ==================== STATS CARDS ==================== */}
+      {/* STATS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* CARD 1: Total Propriétés */}
         <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -1298,7 +1904,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </p>
         </div>
 
-
         {/* CARD 2: Valeur totale */}
         <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
           <div className="flex items-start justify-between mb-4">
@@ -1313,7 +1918,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           <p className="text-xs text-gray-500">{stats.evaluations} propriétés évaluées</p>
         </div>
 
-
         {/* CARD 3: Gains potentiels */}
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
           <div className="flex items-start justify-between mb-4">
@@ -1327,7 +1931,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </div>
           <p className="text-xs text-gray-500">{stats.optimizations} propriétés optimisées</p>
         </div>
-
 
         {/* CARD 4: Évaluations */}
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -1345,7 +1948,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             Voir détails <ChevronRight size={14} />
           </button>
         </div>
-
 
         {/* CARD 5: Optimisations */}
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
@@ -1365,8 +1967,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       </div>
 
-
-      {/* ==================== QUICK START ==================== */}
+      {/* QUICK START */}
       {stats.totalProperties === 0 && (
         <div className="bg-gradient-to-r from-indigo-100 via-blue-100 to-cyan-100 rounded-3xl p-8 border-2 border-indigo-300 text-center">
           <h2 className="text-3xl font-black text-indigo-900 mb-3">🚀 Commencez dès maintenant!</h2>
@@ -1390,8 +1991,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       )}
 
-
-      {/* ==================== ANALYSES LIST ==================== */}
+      {/* LISTE DES ANALYSES */}
       {stats.totalProperties > 0 && (
         <div>
           <h2 className="text-2xl font-black text-gray-900 mb-6">📋 Vos analyses récentes</h2>
@@ -1419,7 +2019,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     {/* TYPE BADGE + TITLE */}
                     <div className="md:col-span-3">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">{getPropertyIcon(analyse.proprietetype)}</span>
+                        <span className="text-2xl">{getPropertyIcon(analyse.proprietype || analyse.proprietetype)}</span>
                         <span className={`px-3 py-1 rounded-full text-xs font-black ${
                           isValuation
                             ? 'bg-blue-200 text-blue-800'
@@ -1443,16 +2043,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                             onClick={(e) => e.stopPropagation()}
                           />
                           <button
-                            onClick={(e) => confirmEditingTitle(analyse.id, e)}
+                            onClick={(e) => { e.stopPropagation(); handleEditTitle(analyse.id, editingTitle, analyse.collection, e); }}
                             className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-all"
-                            title="Confirmer"
                           >
                             <Check size={18} />
                           </button>
                           <button
-                            onClick={cancelEditingTitle}
+                            onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditingTitle(''); }}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
-                            title="Annuler"
                           >
                             <X size={18} />
                           </button>
@@ -1460,14 +2058,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       ) : (
                         <div className="flex items-start gap-2 group">
                           <h3 className="font-black text-gray-900 text-lg flex-1">
-                            {analyse.titre || (analyse.proprietetype === 'residential' 
-                              ? analyse.typeappart 
-                              : analyse.typecommercial)}
+                            {getPropertyLabel(analyse)}
                           </h3>
                           <button
-                            onClick={(e) => startEditingTitle(analyse.id, analyse.titre, e)}
+                            onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || ''); }}
                             className="p-1 text-gray-400 group-hover:text-blue-600 hover:bg-blue-100 rounded transition-all opacity-0 group-hover:opacity-100"
-                            title="Modifier le titre"
                           >
                             <Edit2 size={16} />
                           </button>
@@ -1479,8 +2074,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       </p>
                     </div>
 
-
-                    {/* ÉVALUATION - Valeur estimée */}
+                    {/* DETAILS RAPIDES */}
                     {isValuation && (
                       <>
                         <div className="md:col-span-2">
@@ -1488,32 +2082,21 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           <p className="text-2xl font-black text-blue-600">
                             ${formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne)}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Plage: ${formatCurrency(analyse.result?.estimationActuelle?.valeurBasse)} - ${formatCurrency(analyse.result?.estimationActuelle?.valeurHaute)}
-                          </p>
                         </div>
-
-
                         <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Appréciation</p>
-                          <p className="text-2xl font-black text-blue-600">
-                            +{analyse.result?.analyse?.pourcentageGain || 0}%
+                          <p className="text-xs text-gray-600 font-semibold mb-1">
+                             {isCommercial(analyse) ? 'Cap Rate' : 'Appréciation'}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">Depuis achat</p>
-                        </div>
-
-
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Confiance IA</p>
                           <p className="text-2xl font-black text-blue-600">
-                            {analyse.result?.recommandation?.confiance || 85}%
+                            {isCommercial(analyse)
+                              ? `${analyse.result?.metriquesCommerciales?.capRate?.toFixed(2) || '-'}%`
+                              : `+${analyse.result?.analyse?.pourcentageGain?.toFixed(1) || 0}%`
+                            }
                           </p>
                         </div>
                       </>
                     )}
 
-
-                    {/* OPTIMISATION - Loyer optimal */}
                     {isOptimization && (
                       <>
                         <div className="md:col-span-2">
@@ -1521,19 +2104,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           <p className="text-2xl font-black text-emerald-600">
                             ${formatCurrency(analyse.result?.recommandation?.loyeroptimal)}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">/mois</p>
                         </div>
-
-
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Gain mensuel</p>
-                          <p className="text-2xl font-black text-emerald-600">
-                            +${formatCurrency(analyse.result?.recommandation?.gainmensuel)}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">vs actuel</p>
-                        </div>
-
-
                         <div className="md:col-span-2">
                           <p className="text-xs text-gray-600 font-semibold mb-1">Gain annuel</p>
                           <p className="text-2xl font-black text-emerald-600">
@@ -1543,40 +2114,19 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       </>
                     )}
 
-
                     {/* ACTIONS */}
-                    <div className="md:col-span-1 flex items-center justify-end gap-2">
+                    <div className="md:col-span-3 flex items-center justify-end gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAnalysis(analyse);
-                        }}
-                        className={`p-2 rounded-lg transition-all ${
-                          isValuation
-                            ? 'text-blue-600 hover:bg-blue-100'
-                            : 'text-emerald-600 hover:bg-emerald-100'
-                        }`}
-                        title="Voir détails"
-                      >
-                        <Eye size={20} />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteWithEvent(analyse.id, e)}
-                        disabled={deletingId === analyse.id}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all disabled:opacity-50"
+                        onClick={(e) => handleDelete(analyse.id, analyse.collection, e)}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
                         title="Supprimer"
                       >
                         <Trash2 size={20} />
                       </button>
+                      <button className="p-2 text-gray-400">
+                        <ChevronRight size={24} />
+                      </button>
                     </div>
-                  </div>
-
-
-                  {/* DATE */}
-                  <div className="mt-4 pt-4 border-t border-gray-300/40">
-                    <p className="text-xs text-gray-500">
-                      📅 {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp).toLocaleDateString('fr-CA')}
-                    </p>
                   </div>
                 </div>
               );
@@ -1585,51 +2135,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       )}
 
-
-      {/* ==================== INFO CARDS ==================== */}
-      {stats.totalProperties > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
-          {/* ABOUT VALUATIONS */}
-          <div className="bg-white rounded-2xl p-6 border-2 border-blue-200 shadow-md hover:shadow-lg transition-all">
-            <h3 className="text-xl font-black text-gray-900 mb-3 flex items-center gap-2">
-              <span>📊</span> À propos des Évaluations
-            </h3>
-            <p className="text-gray-700 leading-relaxed mb-4 text-sm">
-              Découvrez la vraie valeur marchande de vos propriétés basée sur les données Centris, les comparables locaux et les tendances du marché.
-            </p>
-            <ul className="space-y-2 text-xs text-gray-600">
-              <li>✓ Analyse comparative de marché</li>
-              <li>✓ Évaluation par approche revenus</li>
-              <li>✓ Rapport professionnel détaillé</li>
-              <li>✓ Appréciation et historique</li>
-            </ul>
-          </div>
-
-
-          {/* ABOUT OPTIMIZATION */}
-          <div className="bg-white rounded-2xl p-6 border-2 border-emerald-200 shadow-md hover:shadow-lg transition-all">
-            <h3 className="text-xl font-black text-gray-900 mb-3 flex items-center gap-2">
-              <span>💰</span> À propos de l'Optimisation
-            </h3>
-            <p className="text-gray-700 leading-relaxed mb-4 text-sm">
-              Trouvez le loyer optimal pour vos propriétés résidentielles et commerciales pour maximiser vos revenus.
-            </p>
-            <ul className="space-y-2 text-xs text-gray-600">
-              <li>✓ Analyse loyers comparables</li>
-              <li>✓ Support résidentiel & commercial</li>
-              <li>✓ Stratégies de positionnement</li>
-              <li>✓ Gains potentiels calculés</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-
-      {/* ==================== MODAL DÉTAILS ==================== */}
+      {/* MODALE DÉTAILS */}
       {selectedAnalysis && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-3xl">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-3xl z-10">
               <h3 className="text-2xl font-black text-gray-900">
                 {getAnalysisType(selectedAnalysis) === 'valuation' ? '📊 Détails Évaluation' : '💰 Détails Optimisation'}
               </h3>
@@ -1641,173 +2151,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </button>
             </div>
 
-
-            <div className="p-8 space-y-6">
-              {/* PROPRIÉTÉ INFO */}
-              <div className={`rounded-2xl p-6 border-2 ${
-                getAnalysisType(selectedAnalysis) === 'valuation'
-                  ? 'bg-blue-50 border-blue-200'
-                  : 'bg-emerald-50 border-emerald-200'
-              }`}>
-                <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
-                  <span>{getPropertyIcon(selectedAnalysis.proprietetype)}</span> Propriété
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Titre</p>
-                    <p className="text-gray-900 font-bold">
-                      {selectedAnalysis.titre || (selectedAnalysis.proprietetype === 'residential'
-                        ? selectedAnalysis.typeappart
-                        : selectedAnalysis.typecommercial)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Localisation</p>
-                    <p className="text-gray-900 font-bold">{selectedAnalysis.ville}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Quartier</p>
-                    <p className="text-gray-900 font-bold">{selectedAnalysis.quartier || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-semibold mb-1">Date analyse</p>
-                    <p className="text-gray-900 font-bold">
-                      {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-
-              {/* ÉVALUATION DETAILS */}
-              {getAnalysisType(selectedAnalysis) === 'valuation' && (
-                <>
-                  <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300">
-                    <h4 className="font-black text-blue-900 text-lg mb-4">💎 Estimation de valeur</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur moyenne</p>
-                        <p className="text-2xl font-black text-blue-700">
-                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurMoyenne)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur basse</p>
-                        <p className="text-2xl font-black text-blue-700">
-                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurBasse)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-blue-700 font-semibold mb-2">Valeur haute</p>
-                        <p className="text-2xl font-black text-blue-700">
-                          ${formatCurrency(selectedAnalysis.result?.estimationActuelle?.valeurHaute)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-blue-700 font-semibold mb-2">Appréciation</p>
-                        <p className="text-2xl font-black text-blue-700">
-                          +{selectedAnalysis.result?.analyse?.pourcentageGain || 0}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-
-                  {selectedAnalysis.result?.analyse?.quartierAnalysis && (
-                    <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
-                      <h4 className="font-black text-indigo-900 text-lg mb-3">📍 Analyse du quartier</h4>
-                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.analyse.quartierAnalysis}</p>
-                    </div>
-                  )}
-
-
-                  {selectedAnalysis.result?.comparable?.evaluationQualite && (
-                    <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
-                      <h4 className="font-black text-purple-900 text-lg mb-3">🏘️ Comparables</h4>
-                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.comparable.evaluationQualite}</p>
-                    </div>
-                  )}
-
-
-                  {selectedAnalysis.result?.recommendations?.strategie && (
-                    <div className="bg-green-50 rounded-2xl p-6 border-2 border-green-200">
-                      <h4 className="font-black text-green-900 text-lg mb-3">🎯 Stratégie d'investissement</h4>
-                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommendations.strategie}</p>
-                    </div>
-                  )}
-                </>
-              )}
-
-
-              {/* OPTIMISATION DETAILS */}
-              {getAnalysisType(selectedAnalysis) === 'optimization' && (
-                <>
-                  <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
-                    <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Recommandation d'optimisation</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer optimal</p>
-                        <p className="text-2xl font-black text-emerald-700">
-                          ${formatCurrency(selectedAnalysis.result?.recommandation?.loyeroptimal)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-700 font-semibold mb-2">Gain mensuel</p>
-                        <p className="text-2xl font-black text-emerald-700">
-                          +${formatCurrency(selectedAnalysis.result?.recommandation?.gainmensuel)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-700 font-semibold mb-2">Gain annuel</p>
-                        <p className="text-2xl font-black text-emerald-700">
-                          +${formatCurrency(selectedAnalysis.result?.recommandation?.gainannuel)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
-                        <p className="text-2xl font-black text-emerald-700">
-                          {selectedAnalysis.result?.recommandation?.confiance || 85}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-
-                  {selectedAnalysis.result?.recommandation?.raisonnement && (
-                    <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
-                      <h4 className="font-black text-blue-900 text-lg mb-3">🤖 Raisonnement IA</h4>
-                      <p className="text-gray-800 leading-relaxed">{selectedAnalysis.result.recommandation.raisonnement}</p>
-                    </div>
-                  )}
-
-
-                  {selectedAnalysis.result?.marketingkit?.titreannonce && (
-                    <div className="bg-pink-50 rounded-2xl p-6 border-2 border-pink-200">
-                      <h4 className="font-black text-pink-900 text-lg mb-4">📢 Marketing Kit</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs text-pink-700 font-semibold mb-1">Titre annonce</p>
-                          <p className="text-gray-800 font-bold">{selectedAnalysis.result.marketingkit.titreannonce}</p>
-                        </div>
-                        {selectedAnalysis.result.marketingkit.descriptionaccroche && (
-                          <div>
-                            <p className="text-xs text-pink-700 font-semibold mb-1">Description</p>
-                            <p className="text-gray-800">{selectedAnalysis.result.marketingkit.descriptionaccroche}</p>
-                          </div>
-                        )}
-                        {selectedAnalysis.result.marketingkit.profillocataire && (
-                          <div>
-                            <p className="text-xs text-pink-700 font-semibold mb-1">Profil locataire idéal</p>
-                            <p className="text-gray-800">{selectedAnalysis.result.marketingkit.profillocataire}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
+            {/* CONTENU MODALE AVEC LOGIQUE ROBUSTE */}
+            {renderModalContent()}
 
             <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex gap-3">
               <button
@@ -1817,7 +2162,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 Fermer
               </button>
               <button
-                onClick={() => handleDelete(selectedAnalysis.id)}
+                onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)}
                 disabled={deletingId === selectedAnalysis.id}
                 className="py-3 px-6 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-all disabled:opacity-50"
               >
@@ -1830,6 +2175,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     </div>
   );
 }
+
+
 
 // ============================================
 // 🎯 OPTIMIZATION TAB (Code existant inchangé)
@@ -2178,7 +2525,11 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 
   return (
     <div className="space-y-8">
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} />
+      <LoadingSpinner 
+  isLoading={loading} 
+  messages={loadingMessages}
+  estimatedTime={25}
+/>
 
       {/* ✅ QUOTA INFO CARD */}
       {quotaInfo && (
@@ -2602,6 +2953,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const resultRef = useRef(null);
 
   const loadingMessages = [
     '🔍 Recherche des meilleur listing...',
@@ -2612,10 +2964,10 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN
+  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN (Aligné avec PropertyValuationTab)
   const PLAN_LIMITS = {
-    essai: 0,
-    pro: 0,
+    essai: 1,
+    pro: 5,
     growth: 999,
     entreprise: 999
   };
@@ -2648,8 +3000,6 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     { value: 'retail', label: '🛍️ Retail' }
   ];
 
-  const isCommercialBlocked = userPlan === 'essai' || userPlan === 'pro';
-
   // ✅ CHARGER LE QUOTA DEPUIS FIRESTORE
   useEffect(() => {
     const loadQuota = async () => {
@@ -2659,62 +3009,43 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           return;
         }
 
-        // 🔥 Récupérer les données depuis Firestore directement
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        
+
         if (!userDoc.exists()) {
           console.log('❌ Utilisateur non trouvé dans Firestore');
           return;
         }
 
         const userData = userDoc.data();
-        console.log('📊 Données utilisateur Firestore:', userData);
+        // console.log('📊 Données utilisateur Firestore:', userData);
 
-        // 📋 Récupérer le plan et les limites
         const userPlanNow = userData.plan || 'essai';
         const planLimit = PLAN_LIMITS[userPlanNow] || PLAN_LIMITS['essai'];
 
-        // 📅 Vérifier si le mois a changé et réinitialiser si nécessaire
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        
+
         let quotaCount = 0;
-        let resetDate = new Date();
+        let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
         if (userData.quotaTracking) {
           const trackingMonth = userData.quotaTracking.month || '';
-          
+
           if (trackingMonth === currentMonth) {
-            // Même mois - utiliser le count actuel
             quotaCount = userData.quotaTracking.count || 0;
-            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
+            if (userData.quotaTracking.resetAt?.toDate) {
+              resetDate = userData.quotaTracking.resetAt.toDate();
+            } else if (userData.nextResetDate) {
+              resetDate = new Date(userData.nextResetDate);
+            }
           } else {
-            // Mois différent - réinitialiser
             console.log('🔄 Réinitialisation du quota (nouveau mois)');
             quotaCount = 0;
-            
-            // Calculer la date de réinitialisation (même jour du mois prochain)
-            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            
-            // Mettre à jour Firestore
-            await updateDoc(doc(db, 'users', user.uid), {
-              'quotaTracking.count': 0,
-              'quotaTracking.month': currentMonth,
-              'quotaTracking.resetAt': resetDate
-            });
+            // Mise à jour si mois différent (optionnel ici, fait au submit généralement, mais bon pour l'affichage)
           }
-        } else {
-          // Pas de tracking existant - initialiser
-          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-          await updateDoc(doc(db, 'users', user.uid), {
-            'quotaTracking.count': 0,
-            'quotaTracking.month': currentMonth,
-            'quotaTracking.resetAt': resetDate
-          });
         }
 
-        // 📊 Calculer remaining et updated
         const remaining = Math.max(0, planLimit - quotaCount);
 
         setQuotaInfo({
@@ -2724,14 +3055,6 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           plan: userPlanNow,
           resetDate: resetDate,
           isUnlimited: planLimit >= 999
-        });
-
-        console.log('✅ Quota chargé:', {
-          plan: userPlanNow,
-          current: quotaCount,
-          limit: planLimit,
-          remaining: remaining,
-          resetDate: resetDate.toLocaleDateString('fr-CA')
         });
 
       } catch (error) {
@@ -2747,18 +3070,22 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       }
     };
 
-    if (user?.uid && !isCommercialBlocked) {
+    if (user?.uid) {
       loadQuota();
     }
-  }, [user?.uid, isCommercialBlocked]);
+  }, [user?.uid]);
+
+  // ✅ SCROLL AUTOMATIQUE VERS LES RÉSULTATS
+  useEffect(() => {
+    if (result && resultRef.current) {
+      setTimeout(() => {
+        resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [result]);
 
   const handleSubmit = async () => {
-    if (isCommercialBlocked) {
-      setError('🔒 Commercial disponible à partir du plan Growth. Upgrader maintenant.');
-      setShowUpgradeModal(true);
-      return;
-    }
-
+    
     if (!formData.ville) {
       setError('🚨 Veuillez remplir tous les champs obligatoires');
       return;
@@ -2789,24 +3116,24 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       };
 
       const response = await axios.post(
-        `${API_BASE_URL}/api/pricing/commercial-optimizer`,
+        `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/pricing/commercial-optimizer`,
         { userId: user.uid, ...analysisData }
       );
 
       console.log('🎉 Réponse API complète:', response.data);
 
-      // 📝 Mettre à jour le quota dans Firestore
       const db = getFirestore();
       const now = new Date();
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      
+
+      // Mise à jour du quota côté client pour synchro immédiate (optionnel si le backend le fait aussi)
       await updateDoc(doc(db, 'users', user.uid), {
         'quotaTracking.count': increment(1),
         'quotaTracking.month': currentMonth
       });
 
-      // Sauvegarder l'analyse
       if (user) {
+        // Enregistrement dans une collection distincte ou 'analyses'
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
         await addDoc(analysesRef, {
           ...analysisData,
@@ -2818,7 +3145,6 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         });
       }
 
-      // ✅ Mettre à jour le quota localement
       setQuotaInfo(prev => ({
         ...prev,
         current: prev.current + 1,
@@ -2830,14 +3156,14 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       console.error('❌ Erreur complète:', err);
       if (err.response?.status === 429) {
         setQuotaError(`🔒 ${err.response.data.error}`);
-        setQuotaInfo({
-          current: err.response.data.current,
-          limit: err.response.data.limit,
-          remaining: 0,
-          plan: quotaInfo.plan,
-          resetDate: new Date(err.response.data.resetDate),
-          isUnlimited: false
-        });
+        // Mise à jour force du quota si l'API renvoie les infos
+        if (err.response.data.resetDate) {
+             setQuotaInfo(prev => ({
+                ...prev,
+                remaining: 0,
+                resetDate: new Date(err.response.data.resetDate)
+             }));
+        }
       } else {
         setError('Erreur: ' + (err.response?.data?.error || err.message));
       }
@@ -2848,43 +3174,77 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 
   return (
     <div className="space-y-8">
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} />
+      <LoadingSpinner 
+        isLoading={loading} 
+        messages={loadingMessages}
+        estimatedTime={25}
+      />
 
-      {/* ✅ QUOTA INFO CARD - AVEC LOGS DE DEBUG */}
-      {!isCommercialBlocked && quotaInfo && (
-        <div className={`p-6 rounded-xl border-2 ${
-          quotaInfo.remaining > 0
-            ? 'bg-emerald-50 border-emerald-300'
-            : 'bg-red-50 border-red-300'
-        }`}>
+      {/* ✅ QUOTA INFO CARD - Style PropertyValuationTab */}
+      {quotaInfo && (
+        <div
+          className={`p-6 rounded-xl border-2 ${
+            quotaInfo.remaining > 0
+              ? 'bg-emerald-50 border-emerald-300'
+              : 'bg-red-50 border-red-300'
+          }`}
+        >
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0 ? '📊 Analyses restantes' : '❌ Quota atteint'}
+                {quotaInfo.remaining > 0
+                  ? '📊 Analyses commerciales restantes'
+                  : '❌ Quota atteint'}
               </h3>
-              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
+              <p className="text-xs text-gray-600 mt-1">
+                Plan:{' '}
+                <span className="font-bold uppercase">{quotaInfo.plan}</span>
+              </p>
             </div>
             <span className="text-3xl font-black">
               {quotaInfo.remaining}/{quotaInfo.limit}
             </span>
           </div>
-
           <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
             <div
               className={`h-3 rounded-full transition-all ${
                 quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
               }`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
+              style={{
+                width: `${
+                  quotaInfo.limit > 0
+                    ? ((quotaInfo.limit - quotaInfo.current) /
+                        quotaInfo.limit) *
+                      100
+                    : 100
+                }%`,
+              }}
             />
           </div>
-
-          <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+          <p
+            className={`text-sm ${
+              quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'
+            }`}
+          >
             {quotaInfo.remaining > 0
-              ? `${quotaInfo.remaining} analyse${quotaInfo.remaining > 1 ? 's' : ''} commerciale${quotaInfo.remaining > 1 ? 's' : ''} restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
-              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
-            }
+              ? `${quotaInfo.remaining} analyse${
+                  quotaInfo.remaining > 1 ? 's' : ''
+                } restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
+              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString(
+                  'fr-CA'
+                )}`}
           </p>
-         
+          {quotaInfo.plan === 'essai' &&
+            quotaInfo.remaining === 0 &&
+            !quotaInfo.isUnlimited && (
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(true)}
+                className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all"
+              >
+                ⬆️ Upgrader pour plus d'analyses
+              </button>
+            )}
         </div>
       )}
 
@@ -2894,21 +3254,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
       )}
 
-      {isCommercialBlocked && (
-        <div className="p-6 bg-gradient-to-r from-red-100 to-red-50 rounded-xl border-2 border-red-400">
-          <p className="text-red-900 font-bold text-base mb-2">
-            🔒 Plan non disponible pour Commercial
-          </p>
-          <p className="text-red-800 text-sm mb-4">Accès à partir de Growth ($69/mois)</p>
-          <button
-            onClick={() => setShowUpgradeModal(true)}
-            className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold rounded-lg hover:shadow-lg transition-all"
-          >
-            💎 Upgrader maintenant
-          </button>
-        </div>
-      )}
-
+      {/* FORMULAIRE PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-8 bg-gray-100 rounded-xl border border-gray-300">
         <div className="lg:col-span-2">
           <label className="block text-sm font-semibold text-gray-700 mb-3">📝 Titre du local (optionnel)</label>
@@ -2916,18 +3262,18 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.titre}
             onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
             placeholder="Ex: Bureau Centre-ville, Retail Laurier..."
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Type de local</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">🏢 Type de local</label>
           <select
             value={formData.typecommercial}
             onChange={(e) => setFormData({ ...formData, typecommercial: e.target.value })}
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {typeCommercialOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -2936,13 +3282,13 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Quartier (optionnel)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">📍 Quartier (optionnel)</label>
           <input
             value={formData.quartier}
             onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
             placeholder="Centre-ville, Plateau, Griffintown..."
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -2953,25 +3299,25 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.ville}
             onChange={(e) => setFormData({ ...formData, ville: e.target.value })}
             placeholder="Ex: Montréal, Québec, Lévis..."
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Surface (pi²)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">📏 Surface (pi²)</label>
           <input
             type="number"
             value={formData.surfacepiedcarre}
             onChange={(e) => setFormData({ ...formData, surfacepiedcarre: parseInt(e.target.value) || 2000 })}
             min="100"
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Prix actuel ($/pi²/an)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">💰 Prix actuel ($/pi²/an)</label>
           <div className="flex gap-2">
             <input
               type="number"
@@ -2979,22 +3325,22 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               onChange={(e) => setFormData({ ...formData, prixactuelpiedcarre: parseFloat(e.target.value) || 18 })}
               step="0.5"
               min="5"
-              disabled={isCommercialBlocked}
-              className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+              disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+              className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <div className="flex items-center px-4 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold">
+            <div className="flex items-center px-4 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold disabled:opacity-50">
               $/pi²
             </div>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Visibilité du local</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">👀 Visibilité du local</label>
           <select
             value={formData.visibilite}
             onChange={(e) => setFormData({ ...formData, visibilite: e.target.value })}
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {visibiliteOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3003,15 +3349,15 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Terme du bail (ans)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">📅 Terme du bail (ans)</label>
           <input
             type="number"
             value={formData.termebailans}
             onChange={(e) => setFormData({ ...formData, termebailans: parseInt(e.target.value) || 3 })}
             min="1"
             max="10"
-            disabled={isCommercialBlocked}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50"
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -3026,14 +3372,14 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             ].map(item => (
               <label
                 key={item.key}
-                className="flex items-center p-3 bg-indigo-100 rounded-lg cursor-pointer hover:bg-indigo-200 transition-colors border border-indigo-300 disabled:opacity-50"
+                className={`flex items-center p-3 bg-indigo-100 rounded-lg cursor-pointer hover:bg-indigo-200 transition-colors border border-indigo-300 ${quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <input
                   type="checkbox"
                   checked={formData[item.key]}
                   onChange={(e) => setFormData({ ...formData, [item.key]: e.target.checked })}
-                  disabled={isCommercialBlocked}
-                  className="w-4 h-4 text-indigo-600 rounded disabled:opacity-50"
+                  disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+                  className="w-4 h-4 text-indigo-600 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="ml-2 text-xs font-semibold text-indigo-700">{item.label}</span>
               </label>
@@ -3048,29 +3394,34 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         </div>
       )}
 
+      {/* BOUTON ANALYSER */}
       <div className="text-center">
         <button
           onClick={handleSubmit}
-          disabled={loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
+          disabled={loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
           className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto
-            ${loading || isCommercialBlocked || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
+            ${loading || (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
         >
-          {loading ? '🔄 Analyse en cours...' : isCommercialBlocked ? '🔒 Commercial (Growth+)' : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited ? '❌ Quota atteint' : '🏢 Analyser Commercial'}
+          {loading 
+            ? '🔄 Analyse en cours...' 
+            : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited 
+              ? '❌ Quota atteint' 
+              : '🏢 Analyser Commercial'}
         </button>
       </div>
 
+      {/* RÉSULTATS */}
       {result && (
-        <div className="space-y-8 mt-8">
-          
-          {/* Header résumé */}
-          <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center">
+        <div ref={resultRef} className="space-y-8 mt-8">
+          {/* HEADER RÉSUMÉ */}
+          <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center shadow-lg">
             <h3 className="text-4xl font-black text-emerald-900 mb-2">
               ${(result.recommandation?.loyeroptimal || 0).toFixed(2)}/pi²/an
             </h3>
-            <p className="text-emerald-800 text-lg mb-6">Loyer optimal recommandé</p>
+            <p className="text-emerald-800 text-lg mb-6 font-semibold">Loyer optimal recommandé</p>
 
             <div className="flex flex-wrap justify-center gap-8">
               <div>
@@ -3096,7 +3447,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           </div>
 
-          {/* Justification */}
+          {/* JUSTIFICATION */}
           {result.recommandation?.justification && Array.isArray(result.recommandation.justification) && result.recommandation.justification.length > 0 && (
             <div className="p-6 bg-blue-100 rounded-xl border border-blue-300">
               <h4 className="font-black text-blue-900 text-lg mb-4">✓ Justification</h4>
@@ -3111,7 +3462,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Points clés */}
+          {/* POINTS CLÉS */}
           {result.recommandation?.pointscles && Array.isArray(result.recommandation.pointscles) && result.recommandation.pointscles.length > 0 && (
             <div className="p-6 bg-purple-100 rounded-xl border border-purple-300">
               <h4 className="font-black text-purple-900 text-lg mb-4">• Points clés</h4>
@@ -3126,7 +3477,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Considérations */}
+          {/* CONSIDÉRATIONS */}
           {result.recommandation?.considerations && Array.isArray(result.recommandation.considerations) && result.recommandation.considerations.length > 0 && (
             <div className="p-6 bg-amber-100 rounded-xl border border-amber-300">
               <h4 className="font-black text-amber-900 text-lg mb-4">⚠️ Considérations</h4>
@@ -3141,7 +3492,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Prochaines étapes */}
+          {/* PROCHAINES ÉTAPES */}
           {result.recommandation?.prochainesetapes && Array.isArray(result.recommandation.prochainesetapes) && result.recommandation.prochainesetapes.length > 0 && (
             <div className="p-6 bg-green-100 rounded-xl border border-green-300">
               <h4 className="font-black text-green-900 text-lg mb-4">🎯 Prochaines étapes</h4>
@@ -3156,7 +3507,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Marketing Kit */}
+          {/* MARKETING KIT */}
           {result.marketingkit && (
             <div className="p-6 bg-pink-100 rounded-xl border border-pink-300">
               <h4 className="font-black text-pink-900 text-lg mb-4">📢 Marketing Kit</h4>
@@ -3183,7 +3534,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Raisonnement IA */}
+          {/* RAISONNEMENT IA */}
           {result.recommandation?.raisonnement && (
             <div className="p-6 bg-indigo-100 rounded-xl border border-indigo-300">
               <h4 className="font-black text-indigo-900 text-lg mb-4">🤖 Raisonnement IA</h4>
@@ -3191,7 +3542,84 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           )}
 
-          {/* Bouton réinitialiser */}
+          {/* ANALYSE MARCHÉ */}
+          {result.analyseMarche && (
+            <div className="p-6 bg-gradient-to-r from-cyan-100 to-blue-100 rounded-xl border border-cyan-300">
+              <h4 className="font-black text-cyan-900 text-lg mb-4">📊 Analyse du Marché</h4>
+              <p className="text-gray-800 leading-relaxed">{result.analyseMarche}</p>
+            </div>
+          )}
+
+          {/* STRATÉGIE RECOMMANDÉE */}
+          {result.recommandation?.strategie && (
+            <div className="p-6 bg-gradient-to-r from-orange-100 to-yellow-100 rounded-xl border border-orange-300">
+              <h4 className="font-black text-orange-900 text-lg mb-4">🎯 Stratégie Recommandée</h4>
+              <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{result.recommandation.strategie}</p>
+            </div>
+          )}
+
+          {/* COMPARABLES */}
+          {result.comparable && (
+            <div className="p-6 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl border border-indigo-300">
+              <h4 className="font-black text-indigo-900 text-lg mb-4">📈 Comparables du Marché</h4>
+              <div className="space-y-3">
+                {result.comparable.prix_moyen && (
+                  <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                    <p className="text-xs font-semibold text-indigo-600">PRIX MOYEN MARCHÉ</p>
+                    <p className="text-2xl font-bold text-indigo-700">${result.comparable.prix_moyen.toFixed(2)}/pi²/an</p>
+                  </div>
+                )}
+                {result.comparable.prix_min && result.comparable.prix_max && (
+                  <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                    <p className="text-xs font-semibold text-indigo-600">FOURCHETTE MARCHÉ</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-bold">${result.comparable.prix_min.toFixed(2)}</span>
+                      {' - '}
+                      <span className="font-bold">${result.comparable.prix_max.toFixed(2)}</span>
+                      {' $/pi²/an'}
+                    </p>
+                  </div>
+                )}
+                {result.comparable.evaluation_qualite && (
+                  <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                    <p className="text-xs font-semibold text-indigo-600">QUALITÉ ÉVALUATION</p>
+                    <p className="text-sm text-gray-700">{result.comparable.evaluation_qualite}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* FACTEURS DE PRIX */}
+          {result.facteurs_prix && (
+            <div className="p-6 bg-gradient-to-r from-lime-100 to-green-100 rounded-xl border border-lime-300">
+              <h4 className="font-black text-lime-900 text-lg mb-4">🔑 Facteurs de Prix</h4>
+              <div className="space-y-3">
+                {result.facteurs_prix.augmentent && result.facteurs_prix.augmentent.length > 0 && (
+                  <div>
+                    <p className="text-sm font-bold text-green-700 mb-2">✅ Augmentent le loyer:</p>
+                    <ul className="text-sm space-y-1">
+                      {result.facteurs_prix.augmentent.map((item, idx) => (
+                        <li key={idx} className="text-gray-700">• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.facteurs_prix.diminuent && result.facteurs_prix.diminuent.length > 0 && (
+                  <div className="pt-3 border-t border-lime-300">
+                    <p className="text-sm font-bold text-red-700 mb-2">⚠️ Diminuent le loyer:</p>
+                    <ul className="text-sm space-y-1">
+                      {result.facteurs_prix.diminuent.map((item, idx) => (
+                        <li key={idx} className="text-gray-700">• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* BOUTON RÉINITIALISER */}
           <div className="text-center">
             <button
               onClick={() => setResult(null)}
@@ -3211,112 +3639,129 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 // 🏠 COMPOSANT : ESTIMATEUR DE VALEUR IMMOBILIÈRE
 // ====================================================================
 
-function PropertyValuationTab({ 
-  user, 
-  userPlan, 
+function PropertyValuationTab({
+  user,
+  userPlan,
   setUserPlan,
-  showUpgradeModal, 
-  setShowUpgradeModal 
+  showUpgradeModal,
+  setShowUpgradeModal,
 }) {
-  // ============================================
-  // STATE - GESTION DES ÉTATS
-  // ============================================
-  const [properties, setProperties] = useState([]);
+  const [evaluationType, setEvaluationType] = useState('residential');
   const [loading, setLoading] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideProgress, setSlideProgress] = useState(0);
-  
+
+  const isSubmittingRef = useRef(false);
+
   const [quotaInfo, setQuotaInfo] = useState({
     remaining: 0,
     limit: 1,
     current: 0,
     plan: 'essai',
     resetDate: new Date(),
-    isUnlimited: false
+    isUnlimited: false,
   });
-  
+
   const [error, setError] = useState('');
-  const [quotaError, setQuotaError] = useState('');
   const [slideErrors, setSlideErrors] = useState({});
-  
-  const resultRef = React.useRef(null);
 
-  // ============================================
-  // MESSAGES DE CHARGEMENT
-  // ============================================
-  const loadingMessages = [
-    '🔍 Analyse de la propriété...',
-    '📊 Récupération des données du marché...',
-    '🤖 IA prédit la valeur actuelle...',
-    '📈 Calcul de l\'appréciation...',
-    '💰 Génération du rapport...',
-    '✅ Finalisation de l\'évaluation...'
-  ];
+  const resultRef = useRef(null);
 
-  // ============================================
-  // LIMITES DE QUOTA PAR PLAN
-  // ============================================
+  const loadingMessages = {
+    residential: [
+      '🔍 Analyse de la propriété résidentielle...',
+      '📊 Récupération des données du marché...',
+      '🤖 IA prédit la valeur actuelle...',
+      '📈 Calcul de l’appréciation...',
+      '💰 Génération du rapport...',
+      '✅ Finalisation de l’évaluation...',
+    ],
+    commercial: [
+      '🏪 Analyse de la propriété commerciale...',
+      '📊 Calcul des revenus et dépenses...',
+      '💹 Analyse des métriques commerciales...',
+      '🤖 IA évalue le potentiel de rentabilité...',
+      '📈 Optimisation des stratégies...',
+      '💰 Génération du rapport complet...',
+    ],
+  };
+
   const PLAN_LIMITS = {
     essai: 1,
     pro: 5,
     growth: 999,
-    entreprise: 999
+    entreprise: 999,
   };
 
-  // ============================================
-  // DONNÉES DU FORMULAIRE
-  // ============================================
-  const [formData, setFormData] = useState({
+  // ------------ FORM STATES ------------
+
+  const [formDataResidential, setFormDataResidential] = useState({
     titre: '',
     proprietyType: 'unifamilial',
     ville: '',
     quartier: '',
     addresseComplete: '',
     prixAchat: '',
-    anneeAchat: new Date().getFullYear() - 5,
+    anneeAchat: new Date().getFullYear() - 3,
     anneeConstruction: 1990,
     surfaceHabitee: '',
     surfaceLot: '',
     nombreChambres: 3,
     nombreSallesBain: 2,
-    stationnements: 0,
-    sous_sol: 'finished',
+    garage: 0,
+    sous_sol: 'none',
     etatGeneral: 'bon',
-    renovations: [],
     piscine: false,
-    terrasse: false,
-    chauffageRadiant: false,
-    climatisation: false,
-    fireplace: false,
-    sauna: false,
-    cinema: false,
-    salleSport: false,
-    nombreLogements: 4,
     terrain_detail: '',
-    notes_additionnelles: ''
+    notes_additionnelles: '',
   });
 
-  // ============================================
-  // CONFIGURATION DES SLIDES
-  // ============================================
-  const slides = [
+  const [formDataCommercial, setFormDataCommercial] = useState({
+    titre: '',
+    proprietyType: 'immeuble_revenus',
+    ville: '',
+    quartier: '',
+    addresseComplete: '',
+    prixAchat: '',
+    anneeAchat: new Date().getFullYear() - 3,
+    anneeConstruction: 1990,
+    surfaceTotale: '',
+    surfaceLocable: '',
+    etatGeneral: 'bon',
+    renovations: [],
+    accessibilite: 'tres_bonne',
+    parking: 6,
+    terrain_detail: '',
+    notes_additionnelles: '',
+    nombreUnites: 6,
+    tauxOccupation: 95,
+    loyerMoyenParUnite: 1200,
+    revenuBrutAnnuel: '',
+    depensesAnnuelles: '',
+    nombreChambres: 50,        // pour hôtel
+    tauxOccupationHotel: 70,   // pour hôtel
+    tariffMoyenParNuit: 150,   // pour hôtel
+    clienteleActive: 'stable', // pour hôtel / commerce
+  });
+
+  const slidesResidential = [
     {
       id: 'location',
       title: 'Localisation',
       description: 'Où se situe votre propriété?',
       icon: '📍',
-      required: ['ville'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete']
+      required: ['ville', 'proprietyType'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete'],
     },
     {
       id: 'acquisition',
       title: 'Acquisition',
-      description: 'Informations d\'achat',
+      description: "Informations d'achat",
       icon: '💰',
-      required: ['prixAchat', 'anneeAchat'],
-      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction']
+      required: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
+      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
     },
     {
       id: 'dimensions',
@@ -3324,23 +3769,23 @@ function PropertyValuationTab({
       description: 'Taille et surface',
       icon: '📏',
       required: [],
-      fields: ['surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'stationnements']
+      fields: ['surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'garage'],
     },
     {
       id: 'condition',
       title: 'État et condition',
       description: 'Caractéristiques de la propriété',
       icon: '🏗️',
-      required: [],
-      fields: ['sous_sol', 'etatGeneral']
+      required: ['etatGeneral'],
+      fields: ['sous_sol', 'etatGeneral'],
     },
     {
       id: 'amenities',
-      title: 'Aménagements premium',
+      title: 'Aménagements',
       description: 'Équipements spéciaux',
       icon: '✨',
       required: [],
-      fields: ['amenities']
+      fields: ['piscine', 'terrain_detail'],
     },
     {
       id: 'details',
@@ -3348,1176 +3793,1836 @@ function PropertyValuationTab({
       description: 'Informations complémentaires',
       icon: '📝',
       required: [],
-      fields: ['terrain_detail', 'notes_additionnelles']
-    }
+      fields: ['notes_additionnelles'],
+    },
   ];
 
-  // ============================================
-  // AMÉNAGEMENTS DISPONIBLES
-  // ============================================
-  const amenagements = [
-    { key: 'piscine', label: 'Piscine', icon: '🏊' },
-    { key: 'terrasse', label: 'Terrasse', icon: '🏡' },
-    { key: 'chauffageRadiant', label: 'Chauffage radiant', icon: '🌡️' },
-    { key: 'climatisation', label: 'Climatisation', icon: '❄️' },
-    { key: 'fireplace', label: 'Foyer', icon: '🔥' },
-    { key: 'sauna', label: 'Sauna', icon: '🧖' },
-    { key: 'cinema', label: 'Salle cinéma', icon: '🎬' },
-    { key: 'salleSport', label: 'Salle sport', icon: '💪' }
+  const slidesCommercial = [
+    {
+      id: 'location-com',
+      title: 'Localisation',
+      description: 'Où se situe votre propriété?',
+      icon: '📍',
+      required: ['ville', 'proprietyType'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete'],
+    },
+    {
+      id: 'acquisition-com',
+      title: 'Acquisition',
+      description: "Informations d'achat",
+      icon: '💰',
+      required: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
+      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
+    },
+    {
+      id: 'dimensions-com',
+      title: 'Infrastructure',
+      description: 'Surface et caractéristiques',
+      icon: '📏',
+      required: [],
+      fields: ['surfaceTotale', 'surfaceLocable', 'parking', 'accessibilite'],
+    },
+    {
+      id: 'specific-com',
+      title: 'Détails spécifiques',
+      description: 'Données du type de propriété',
+      icon: '💹',
+      required: [],
+      fields: [
+        'nombreUnites',
+        'tauxOccupation',
+        'loyerMoyenParUnite',
+        'nombreChambres',
+        'tauxOccupationHotel',
+        'tariffMoyenParNuit',
+        'clienteleActive',
+      ],
+    },
+    {
+      id: 'financial-com',
+      title: 'Détails financiers',
+      description: 'Revenus et dépenses',
+      icon: '💰',
+      required: ['revenuBrutAnnuel', 'depensesAnnuelles'],
+      fields: ['revenuBrutAnnuel', 'depensesAnnuelles'],
+    },
+    {
+      id: 'condition-com',
+      title: 'État de la propriété',
+      description: 'Condition et rénovations',
+      icon: '🔧',
+      required: [],
+      fields: ['etatGeneral', 'renovations'],
+    },
+    {
+      id: 'details-com',
+      title: 'Notes finales',
+      description: 'Informations additionnelles',
+      icon: '📝',
+      required: [],
+      fields: ['terrain_detail', 'notes_additionnelles'],
+    },
   ];
 
-  // ============================================
-  // TYPES DE PROPRIÉTÉS
-  // ============================================
-  const propertyTypes = [
+  const slides = evaluationType === 'residential' ? slidesResidential : slidesCommercial;
+  const formData = evaluationType === 'residential' ? formDataResidential : formDataCommercial;
+  const setFormData =
+    evaluationType === 'residential' ? setFormDataResidential : setFormDataCommercial;
+
+  const propertyTypesResidential = [
     { value: 'unifamilial', label: 'Unifamilial', icon: '🏠' },
     { value: 'jumelee', label: 'Jumelée', icon: '🏘️' },
     { value: 'duplex', label: 'Duplex', icon: '🏢' },
     { value: 'triplex', label: 'Triplex', icon: '🏢' },
-    { value: 'immeuble_revenus', label: 'Immeuble à revenus', icon: '🏗️' },
-    { value: 'condo', label: 'Condo', icon: '🏙️' }
+    { value: '4plex', label: '4-plex', icon: '🏗️' },
+    { value: 'condo', label: 'Condo', icon: '🏙️' },
   ];
 
-  // ============================================
-  // ÉTATS DE CONDITIONS
-  // ============================================
+  const propertyTypesCommercial = [
+    { value: 'immeuble_revenus', label: 'Immeuble à revenus', icon: '🏢' },
+    { value: 'hotel', label: 'Hôtel', icon: '🏨' },
+    { value: 'depanneur', label: 'Dépanneur', icon: '🏪' },
+    { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
+    { value: 'bureau', label: 'Bureau', icon: '📋' },
+    { value: 'commerce', label: 'Autre commerce', icon: '🛍️' },
+    { value: 'terrain_commercial', label: 'Terrain', icon: '🌳' },
+  ];
+
+  const propertyTypes =
+    evaluationType === 'residential' ? propertyTypesResidential : propertyTypesCommercial;
+
   const etatsGeneraux = [
-    { value: 'excellent', label: 'Excellent', icon: '⭐', color: 'emerald' },
-    { value: 'bon', label: 'Bon', icon: '👍', color: 'green' },
-    { value: 'moyen', label: 'Moyen', icon: '➖', color: 'yellow' },
-    { value: 'faible', label: 'Faible', icon: '⚠️', color: 'orange' },
-    { value: 'necessite_renovation', label: 'Nécessite rénovation', icon: '🔨', color: 'red' }
+    { value: 'excellent', label: 'Excellent', icon: '⭐' },
+    { value: 'bon', label: 'Bon', icon: '👍' },
+    { value: 'moyen', label: 'Moyen', icon: '➖' },
+    { value: 'faible', label: 'Faible', icon: '⚠️' },
+    { value: 'renovation', label: 'À rénover', icon: '🔨' },
   ];
 
-  // ============================================
-  // TYPES DE SOUS-SOL
-  // ============================================
   const typesUnderground = [
     { value: 'none', label: 'Aucun', icon: '❌' },
-    { value: 'unfinished', label: 'Non aménagé', icon: '🪨' },
-    { value: 'partial', label: 'Partiellement aménagé', icon: '🔨' },
-    { value: 'finished', label: 'Complètement aménagé', icon: '✅' }
+    { value: 'partial', label: 'Partiellement fini', icon: '🔨' },
+    { value: 'full', label: 'Entièrement fini', icon: '✅' },
   ];
 
-  // ============================================
-  // HELPER: Format property type label
-  // ============================================
-  const formatPropertyType = (type) => {
-    if (!type) return 'Unknown';
-    const typeObj = propertyTypes.find(p => p.value === type);
-    return typeObj ? typeObj.label : type.charAt(0).toUpperCase() + type.slice(1);
+  const accessibiliteOptions = [
+    { value: 'tres_bonne', label: 'Très bonne', icon: '✅' },
+    { value: 'bonne', label: 'Bonne', icon: '👍' },
+    { value: 'moyenne', label: 'Moyenne', icon: '➖' },
+    { value: 'limitee', label: 'Limitée', icon: '⚠️' },
+  ];
+
+  const clienteleOptions = [
+    { value: 'stable', label: 'Stable', icon: '➡️' },
+    { value: 'croissance', label: 'En croissance', icon: '📈' },
+    { value: 'decline', label: 'En déclin', icon: '📉' },
+  ];
+
+  // ------------ HELPERS ------------
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setSlideErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
-  // ============================================
-  // HELPER: Safe format currency
-  // ============================================
-  const formatCurrency = (value) => {
-    if (!value && value !== 0) return 'N/A';
-    return Number(value).toLocaleString('fr-CA');
-  };
-
-  // ============================================
-  // HELPER: Check if Pro Plan
-  // ============================================
-  const isProPlan = quotaInfo.plan === 'pro' || quotaInfo.plan === 'premium' || quotaInfo.plan === 'growth' || quotaInfo.plan === 'entreprise';
-
-  // ============================================
-  // EFFECT: Charger les données au démarrage
-  // ============================================
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        if (!user?.uid) {
-          console.log('❌ Pas d\'utilisateur connecté');
-          return;
-        }
-
-        const db = getFirestore();
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        
-        if (!userDoc.exists()) {
-          console.log('❌ Utilisateur non trouvé dans Firestore');
-          return;
-        }
-
-        const userData = userDoc.data();
-        console.log('📊 Données utilisateur Firestore:', userData);
-
-        const userPlan = userData.plan || 'essai';
-        const planLimit = PLAN_LIMITS[userPlan] || PLAN_LIMITS['essai'];
-
-        const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        
-        let quotaCount = 0;
-        let resetDate = new Date();
-
-        if (userData.quotaTracking) {
-          const trackingMonth = userData.quotaTracking.month || '';
-          
-          if (trackingMonth === currentMonth) {
-            quotaCount = userData.quotaTracking.count || 0;
-            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
-          } else {
-            console.log('🔄 Réinitialisation du quota (nouveau mois)');
-            quotaCount = 0;
-            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            
-            await updateDoc(doc(db, 'users', user.uid), {
-              'quotaTracking.count': 0,
-              'quotaTracking.month': currentMonth,
-              'quotaTracking.resetAt': resetDate
-            });
-          }
-        } else {
-          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-          await updateDoc(doc(db, 'users', user.uid), {
-            'quotaTracking.count': 0,
-            'quotaTracking.month': currentMonth,
-            'quotaTracking.resetAt': resetDate
-          });
-        }
-
-        const remaining = Math.max(0, planLimit - quotaCount);
-
-        setQuotaInfo({
-          remaining: remaining,
-          limit: planLimit,
-          current: quotaCount,
-          plan: userPlan,
-          resetDate: resetDate,
-          isUnlimited: planLimit >= 999
-        });
-
-        console.log('✅ Quota chargé:', {
-          plan: userPlan,
-          current: quotaCount,
-          limit: planLimit,
-          remaining: remaining,
-          resetDate: resetDate.toLocaleDateString('fr-CA')
-        });
-
-        const analysesRef = collection(db, 'users', user.uid, 'analyses');
-        const snapshot = await getDocs(analysesRef);
-        const evaluations = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setProperties(evaluations);
-
-      } catch (error) {
-        console.error('❌ Erreur chargement données:', error);
-        setQuotaInfo({
-          remaining: 0,
-          limit: 1,
-          current: 0,
-          plan: 'essai',
-          resetDate: new Date(),
-          isUnlimited: false
-        });
-      }
-    };
-
-    if (user?.uid) {
-      loadData();
-    }
-  }, [user?.uid]);
-
-  // ============================================
-  // EFFET: Mettre à jour la barre de progression
-  // ============================================
-  useEffect(() => {
-    const progress = ((currentSlide + 1) / slides.length) * 100;
-    setSlideProgress(progress);
-  }, [currentSlide, slides.length]);
-
-  // ============================================
-  // FONCTION: Valider le slide actuel
-  // ============================================
   const validateCurrentSlide = () => {
-    const slide = slides[currentSlide];
-    const newErrors = {};
-
-    slide.required.forEach(field => {
-      if (!formData[field] || formData[field] === '') {
-        newErrors[field] = 'Ce champ est obligatoire';
+    const cfg = slides[currentSlide];
+    const errors = {};
+    cfg.required.forEach((field) => {
+      const value = formData[field];
+      if (value === '' || value === null || value === undefined) {
+        errors[field] = true;
       }
     });
-
-    setSlideErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setSlideErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  // ============================================
-  // FONCTION: Aller au slide suivant
-  // ============================================
-  const goToNextSlide = () => {
-    if (validateCurrentSlide()) {
-      if (currentSlide < slides.length - 1) {
-        setCurrentSlide(currentSlide + 1);
-        setSlideErrors({});
-      }
-    }
-  };
+  const submitEvaluation = async () => {
 
-  // ============================================
-  // FONCTION: Aller au slide précédent
-  // ============================================
-  const goToPrevSlide = () => {
-    if (currentSlide > 0) {
-      setCurrentSlide(currentSlide - 1);
-      setSlideErrors({});
-    }
-  };
-
-  // ============================================
-  // FONCTION: Soumettre l'évaluation
-  // ============================================
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-
-    if (!validateCurrentSlide()) {
-      return;
-    }
-
-    if (!formData.prixAchat || !formData.anneeAchat || !formData.ville) {
-      setError('🚨 Remplissez tous les champs obligatoires');
-      return;
-    }
-
-    if (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
-      setError(`❌ Limite d'évaluations atteinte pour le plan ${quotaInfo.plan}`);
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setQuotaError('');
-    setSelectedProperty(null);
-
+    if (isSubmittingRef.current) return; // Si déjà en cours, on annule
+    isSubmittingRef.current = true;
+    
     try {
-      const response = await axios.post('/api/property/valuation-estimator', {
-        userId: user.uid,
-        titre: formData.titre,
-        proprietyType: formData.proprietyType,
-        ville: formData.ville,
-        quartier: formData.quartier,
-        addresseComplete: formData.addresseComplete,
-        prixAchat: parseInt(formData.prixAchat),
-        anneeAchat: formData.anneeAchat,
-        anneeConstruction: formData.anneeConstruction,
-        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
-        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
-        nombreChambres: parseInt(formData.nombreChambres),
-        nombreSallesBain: parseInt(formData.nombreSallesBain),
-        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
-        sous_sol: formData.sous_sol,
-        etatGeneral: formData.etatGeneral,
-        renovations: formData.renovations,
-        piscine: formData.piscine,
-        terrasse: formData.terrasse,
-        chauffageRadiant: formData.chauffageRadiant,
-        climatisation: formData.climatisation,
-        fireplace: formData.fireplace,
-        sauna: formData.sauna,
-        cinema: formData.cinema,
-        salleSport: formData.salleSport,
-        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
-        terrain_detail: formData.terrain_detail,
-        notes_additionnelles: formData.notes_additionnelles
+      setLoading(true);
+      setError('');
+
+      if (evaluationType === 'commercial') {
+        const requiredFields = ['ville', 'revenuBrutAnnuel', 'depensesAnnuelles'];
+        if (formData.proprietyType === 'immeuble_revenus') {
+          requiredFields.push('nombreUnites', 'tauxOccupation', 'loyerMoyenParUnite');
+        }
+        if (formData.proprietyType === 'hotel') {
+          requiredFields.push('nombreChambres', 'tauxOccupationHotel', 'tariffMoyenParNuit');
+        }
+        const missing = requiredFields.filter((f) => {
+          const v = formData[f];
+          return v === '' || v === null || v === undefined;
+        });
+        if (missing.length > 0) {
+          setError(`Champs obligatoires manquants: ${missing.join(', ')}`);
+          setLoading(false);
+          isSubmittingRef.current = false;
+          return;
+        }
+      }
+
+      const endpoint =
+        evaluationType === 'residential'
+          ? `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`
+          : `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator-commercial`;
+
+      const payload =
+        evaluationType === 'residential'
+          ? {
+              userId: user?.uid,
+              ...formData,
+            }
+          : {
+              userId: user?.uid,
+              ...formData,
+              proprietyType: formData.proprietyType,
+              typeCom: formData.proprietyType,
+              surfaceTotale: Number(formData.surfaceTotale) || 0,
+              surfaceLocable: Number(formData.surfaceLocable) || 0,
+              accessibilite: formData.accessibilite || 'moyenne',
+              parking: Number(formData.parking) || 0,
+              ...(formData.proprietyType === 'immeuble_revenus' && {
+                nombreUnites: Number(formData.nombreUnites) || 0,
+                tauxOccupation: Number(formData.tauxOccupation) || 0,
+                loyerMoyenParUnite: Number(formData.loyerMoyenParUnite) || 0,
+                revenus_bruts_annuels: Number(formData.revenuBrutAnnuel) || 0,
+                depenses_annuelles: Number(formData.depensesAnnuelles) || 0,
+              }),
+              ...(formData.proprietyType === 'hotel' && {
+                nombreChambres: Number(formData.nombreChambres) || 0,
+                tauxOccupationHotel: Number(formData.tauxOccupationHotel) || 0,
+                tariffMoyenParNuit: Number(formData.tariffMoyenParNuit) || 0,
+                revenuBrutAnnuel: Number(formData.revenuBrutAnnuel) || 0,
+                depensesAnnuelles: Number(formData.depensesAnnuelles) || 0,
+              }),
+              etatGeneral: formData.etatGeneral || 'bon',
+              renovations: formData.renovations || [],
+              terrain_detail: formData.terrain_detail || '',
+              notes_additionnelles: formData.notes_additionnelles || '',
+            };
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
-      console.log('🎉 Réponse API complète:', response.data);
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Erreur HTTP ${resp.status}`);
+      }
 
-      const db = getFirestore();
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      
-      const analysesRef = collection(db, 'users', user.uid, 'analyses');
-      const docRef = await addDoc(analysesRef, {
-        titre: formData.titre,
-        proprietyType: formData.proprietyType,
-        ville: formData.ville,
-        quartier: formData.quartier,
-        addresseComplete: formData.addresseComplete,
-        prixAchat: parseInt(formData.prixAchat),
-        anneeAchat: formData.anneeAchat,
-        anneeConstruction: formData.anneeConstruction,
-        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
-        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
-        nombreChambres: parseInt(formData.nombreChambres),
-        nombreSallesBain: parseInt(formData.nombreSallesBain),
-        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
-        sous_sol: formData.sous_sol,
-        etatGeneral: formData.etatGeneral,
-        renovations: formData.renovations,
-        piscine: formData.piscine,
-        terrasse: formData.terrasse,
-        chauffageRadiant: formData.chauffageRadiant,
-        climatisation: formData.climatisation,
-        fireplace: formData.fireplace,
-        sauna: formData.sauna,
-        cinema: formData.cinema,
-        salleSport: formData.salleSport,
-        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
-        terrain_detail: formData.terrain_detail,
-        notes_additionnelles: formData.notes_additionnelles,
-        result: response.data,
-        createdAt: now
-      });
-
-      await updateDoc(doc(db, 'users', user.uid), {
-        'quotaTracking.count': increment(1),
-        'quotaTracking.month': currentMonth
-      });
-
-      const newProperty = {
-        id: docRef.id,
-        titre: formData.titre,
-        proprietyType: formData.proprietyType,
-        ville: formData.ville,
-        quartier: formData.quartier,
-        addresseComplete: formData.addresseComplete,
-        prixAchat: parseInt(formData.prixAchat),
-        anneeAchat: formData.anneeAchat,
-        anneeConstruction: formData.anneeConstruction,
-        surfaceHabitee: formData.surfaceHabitee ? parseInt(formData.surfaceHabitee) : null,
-        surfaceLot: formData.surfaceLot ? parseInt(formData.surfaceLot) : null,
-        nombreChambres: parseInt(formData.nombreChambres),
-        nombreSallesBain: parseInt(formData.nombreSallesBain),
-        stationnements: formData.stationnements ? parseInt(formData.stationnements) : 0,
-        sous_sol: formData.sous_sol,
-        etatGeneral: formData.etatGeneral,
-        renovations: formData.renovations,
-        piscine: formData.piscine,
-        terrasse: formData.terrasse,
-        chauffageRadiant: formData.chauffageRadiant,
-        climatisation: formData.climatisation,
-        fireplace: formData.fireplace,
-        sauna: formData.sauna,
-        cinema: formData.cinema,
-        salleSport: formData.salleSport,
-        nombreLogements: formData.proprietyType === 'immeuble_revenus' ? parseInt(formData.nombreLogements) : null,
-        terrain_detail: formData.terrain_detail,
-        notes_additionnelles: formData.notes_additionnelles,
-        result: response.data,
-        createdAt: now
-      };
-
-      setProperties([newProperty, ...properties]);
-      
-      setQuotaInfo(prev => ({
-        ...prev,
-        current: prev.current + 1,
-        remaining: Math.max(0, prev.remaining - 1)
-      }));
-
-      setSelectedProperty(newProperty);
+      const result = await resp.json();
+      setSelectedProperty(result);
       setShowForm(false);
       setCurrentSlide(0);
 
-      setFormData({
-        titre: '',
-        proprietyType: 'unifamilial',
-        ville: '',
-        quartier: '',
-        addresseComplete: '',
-        prixAchat: '',
-        anneeAchat: new Date().getFullYear() - 5,
-        anneeConstruction: 1990,
-        surfaceHabitee: '',
-        surfaceLot: '',
-        nombreChambres: 3,
-        nombreSallesBain: 2,
-        stationnements: 0,
-        sous_sol: 'finished',
-        etatGeneral: 'bon',
-        renovations: [],
-        piscine: false,
-        terrasse: false,
-        chauffageRadiant: false,
-        climatisation: false,
-        fireplace: false,
-        sauna: false,
-        cinema: false,
-        salleSport: false,
-        nombreLogements: 4,
-        terrain_detail: '',
-        notes_additionnelles: ''
-      });
-
       setTimeout(() => {
-        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
-
-    } catch (error) {
-      console.error('❌ Erreur complète:', error);
-      if (error.response?.status === 429) {
-        setQuotaError(error.response.data.error || 'Quota atteint');
-      } else {
-        setError(error.response?.data?.error || 'Erreur lors de l\'évaluation');
-      }
+        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Erreur lors de l'évaluation");
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
-  // ============================================
-  // FONCTION: Supprimer une évaluation
-  // ============================================
-  const deleteProperty = async (propertyId) => {
-    if (!window.confirm('Confirmer la suppression?')) return;
-    try {
-      const db = getFirestore();
-      
-      await deleteDoc(doc(db, 'users', user.uid, 'analyses', propertyId));
-      
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      
-      await updateDoc(doc(db, 'users', user.uid), {
-        'quotaTracking.count': increment(-1),
-        'quotaTracking.month': currentMonth
-      });
-
-      setProperties(properties.filter(p => p.id !== propertyId));
-      setSelectedProperty(null);
-      
-      setQuotaInfo(prev => ({
-        ...prev,
-        current: Math.max(0, prev.current - 1),
-        remaining: prev.remaining + 1
-      }));
-      
-      alert('✅ Évaluation supprimée');
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('❌ Erreur lors de la suppression');
+  const nextSlide = () => {
+    if (!validateCurrentSlide()) return;
+    if (currentSlide < slides.length - 1) {
+      setCurrentSlide((s) => s + 1);
+    } else {
+      // Call submit only once
+      submitEvaluation();
     }
   };
 
-  // ============================================
-  // 🔒 PLAN ESSAI - BLOQUÉ
-  // ============================================
-  if (!isProPlan) {
-    return (
-      <div className="space-y-6 p-8">
-        <LoadingSpinner 
-          isLoading={loading} 
-          messages={loadingMessages} 
+  const previousSlide = () => {
+    if (currentSlide > 0) setCurrentSlide((s) => s - 1);
+  };
+
+  useEffect(() => {
+    setSlideProgress(((currentSlide + 1) / slides.length) * 100);
+  }, [currentSlide, slides.length]);
+
+  // quota load
+  useEffect(() => {
+    const loadQuota = async () => {
+      try {
+        if (!user?.uid) return;
+        const db = getFirestore();
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) return;
+        const data = userDoc.data();
+        const plan = data.plan || 'essai';
+        const limit = PLAN_LIMITS[plan] || PLAN_LIMITS.essai;
+
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(
+          now.getMonth() + 1
+        ).padStart(2, '0')}`;
+        let count = 0;
+        let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        if (data.quotaTracking) {
+          const trackingMonth = data.quotaTracking.month || '';
+          count = data.quotaTracking.count || 0;
+          if (trackingMonth !== currentMonth) count = 0;
+        }
+        const remaining = Math.max(0, limit - count);
+        setQuotaInfo({
+          remaining,
+          limit,
+          current: count,
+          plan,
+          resetDate,
+          isUnlimited: limit === 999,
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadQuota();
+  }, [user?.uid]);
+
+  // ------------ SLIDE RENDERERS ------------
+
+  const renderLocationSlideResidential = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Titre (optionnel)
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: Maison familiale Lévis"
+          value={formData.titre}
+          onChange={(e) => handleChange('titre', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
+      </div>
 
-        <div className="p-8 bg-gradient-to-r from-indigo-100 to-indigo-50 rounded-2xl border-2 border-indigo-300 text-center">
-          <h2 className="text-3xl font-black text-indigo-900 mb-3">🔒 Plan Pro Requis</h2>
-          <p className="text-indigo-800 text-lg mb-6">
-            L'évaluation immobilière est disponible à partir du plan <span className="font-bold">Pro ($29/mois)</span>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Type de propriété *{' '}
+          {slideErrors.proprietyType && (
+            <span className="text-red-500">requis</span>
+          )}
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {propertyTypes.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => handleChange('proprietyType', t.value)}
+              className={`p-2 rounded-lg text-center transition border-2 ${
+                formData.proprietyType === t.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              <div className="text-lg">{t.icon}</div>
+              <div className="text-xs font-medium">{t.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: Lévis"
+          value={formData.ville}
+          onChange={(e) => handleChange('ville', e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            slideErrors.ville
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-indigo-500'
+          }`}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Quartier
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: Desjardins"
+          value={formData.quartier}
+          onChange={(e) => handleChange('quartier', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Adresse
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: 123 rue Exemple"
+          value={formData.addresseComplete}
+          onChange={(e) => handleChange('addresseComplete', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+    </div>
+  );
+
+  const renderLocationSlideCommercial = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Titre (optionnel)
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: 6-plex Sainte-Foy"
+          value={formData.titre}
+          onChange={(e) => handleChange('titre', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Type de propriété *{' '}
+          {slideErrors.proprietyType && (
+            <span className="text-red-500">requis</span>
+          )}
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {propertyTypes.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => handleChange('proprietyType', t.value)}
+              className={`p-2 rounded-lg text-center transition border-2 ${
+                formData.proprietyType === t.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              <div className="text-lg">{t.icon}</div>
+              <div className="text-xs font-medium">{t.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: Québec"
+          value={formData.ville}
+          onChange={(e) => handleChange('ville', e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            slideErrors.ville
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-indigo-500'
+          }`}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Quartier
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: Ste-Foy"
+          value={formData.quartier}
+          onChange={(e) => handleChange('quartier', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Adresse
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: 456 Avenue Principale"
+          value={formData.addresseComplete}
+          onChange={(e) => handleChange('addresseComplete', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+    </div>
+  );
+
+  const renderAcquisitionSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Prix d'achat ($) *{' '}
+          {slideErrors.prixAchat && <span className="text-red-500">requis</span>}
+        </label>
+        <input
+          type="number"
+          placeholder="Ex: 350000"
+          value={formData.prixAchat}
+          onChange={(e) => handleChange('prixAchat', e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            slideErrors.prixAchat
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-indigo-500'
+          }`}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Année d'achat *{' '}
+            {slideErrors.anneeAchat && (
+              <span className="text-red-500">requis</span>
+            )}
+          </label>
+          <input
+            type="number"
+            min="1950"
+            max={new Date().getFullYear()}
+            value={formData.anneeAchat}
+            onChange={(e) =>
+              handleChange('anneeAchat', parseInt(e.target.value, 10) || '')
+            }
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+              slideErrors.anneeAchat
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-indigo-500'
+            }`}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Année construction *{' '}
+            {slideErrors.anneeConstruction && (
+              <span className="text-red-500">requis</span>
+            )}
+          </label>
+          <input
+            type="number"
+            min="1800"
+            max={new Date().getFullYear()}
+            value={formData.anneeConstruction}
+            onChange={(e) =>
+              handleChange(
+                'anneeConstruction',
+                parseInt(e.target.value, 10) || ''
+              )
+            }
+            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+              slideErrors.anneeConstruction
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-indigo-500'
+            }`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDimensionsSlideResidential = () => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface habitable (pi²)
+          </label>
+          <input
+            type="number"
+            value={formData.surfaceHabitee}
+            onChange={(e) => handleChange('surfaceHabitee', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface du lot (pi²)
+          </label>
+          <input
+            type="number"
+            value={formData.surfaceLot}
+            onChange={(e) => handleChange('surfaceLot', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Chambres
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.nombreChambres}
+            onChange={(e) =>
+              handleChange('nombreChambres', parseInt(e.target.value, 10) || 0)
+            }
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Salles de bain
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.nombreSallesBain}
+            onChange={(e) =>
+              handleChange(
+                'nombreSallesBain',
+                parseInt(e.target.value, 10) || 0
+              )
+            }
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Garage
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.garage}
+            onChange={(e) =>
+              handleChange('garage', parseInt(e.target.value, 10) || 0)
+            }
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDimensionsSlideCommercial = () => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface totale (pi²)
+          </label>
+          <input
+            type="number"
+            value={formData.surfaceTotale}
+            onChange={(e) => handleChange('surfaceTotale', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface locable (pi²)
+          </label>
+          <input
+            type="number"
+            value={formData.surfaceLocable}
+            onChange={(e) => handleChange('surfaceLocable', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Places de stationnement
+        </label>
+        <input
+          type="number"
+          value={formData.parking}
+          onChange={(e) =>
+            handleChange('parking', parseInt(e.target.value, 10) || 0)
+          }
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Accessibilité
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {accessibiliteOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleChange('accessibilite', opt.value)}
+              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
+                formData.accessibilite === opt.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              {opt.icon} {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSpecificSlideCommercial = () => {
+    const isImmeuble = formData.proprietyType === 'immeuble_revenus';
+    const isHotel = formData.proprietyType === 'hotel';
+    return (
+      <div className="space-y-4">
+        {isImmeuble && (
+          <>
+            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-sm mb-4">
+              <p className="font-semibold text-indigo-900">
+                📊 Immeuble à revenus (logements)
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Nombre d'unités
+                </label>
+                <input
+                  type="number"
+                  value={formData.nombreUnites}
+                  onChange={(e) =>
+                    handleChange(
+                      'nombreUnites',
+                      parseInt(e.target.value, 10) || 0
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Taux occupation (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.tauxOccupation}
+                  onChange={(e) =>
+                    handleChange(
+                      'tauxOccupation',
+                      parseInt(e.target.value, 10) || 0
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Loyer moyen/unité ($/mois)
+              </label>
+              <input
+                type="number"
+                value={formData.loyerMoyenParUnite}
+                onChange={(e) =>
+                  handleChange(
+                    'loyerMoyenParUnite',
+                    parseInt(e.target.value, 10) || 0
+                  )
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </>
+        )}
+
+        {isHotel && (
+          <>
+            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-sm mb-4">
+              <p className="font-semibold text-indigo-900">🏨 Hôtel</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Nombre de chambres
+                </label>
+                <input
+                  type="number"
+                  value={formData.nombreChambres}
+                  onChange={(e) =>
+                    handleChange(
+                      'nombreChambres',
+                      parseInt(e.target.value, 10) || 0
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Taux occupation (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.tauxOccupationHotel}
+                  onChange={(e) =>
+                    handleChange(
+                      'tauxOccupationHotel',
+                      parseInt(e.target.value, 10) || 0
+                    )
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Tarif moyen/nuit ($)
+              </label>
+              <input
+                type="number"
+                value={formData.tariffMoyenParNuit}
+                onChange={(e) =>
+                  handleChange(
+                    'tariffMoyenParNuit',
+                    parseInt(e.target.value, 10) || 0
+                  )
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </>
+        )}
+
+        {!isImmeuble && !isHotel && (
+          <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm">
+            <p className="font-semibold text-gray-800">
+              Aucun champ spécifique requis pour ce type commercial.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFinancialSlideCommercial = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Revenus bruts annuels ($) *{' '}
+          {slideErrors.revenuBrutAnnuel && (
+            <span className="text-red-500">requis</span>
+          )}
+        </label>
+        <input
+          type="number"
+          placeholder="Avant dépenses"
+          value={formData.revenuBrutAnnuel}
+          onChange={(e) => handleChange('revenuBrutAnnuel', e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            slideErrors.revenuBrutAnnuel
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-indigo-500'
+          }`}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Dépenses annuelles ($) *{' '}
+          {slideErrors.depensesAnnuelles && (
+            <span className="text-red-500">requis</span>
+          )}
+        </label>
+        <input
+          type="number"
+          placeholder="Taxes, maintenance, assurance..."
+          value={formData.depensesAnnuelles}
+          onChange={(e) => handleChange('depensesAnnuelles', e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            slideErrors.depensesAnnuelles
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-indigo-500'
+          }`}
+        />
+      </div>
+
+      {formData.revenuBrutAnnuel && formData.depensesAnnuelles && (
+        <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+          <p className="text-sm font-semibold text-green-900">
+            NOI:{' '}
+            {(
+              parseInt(formData.revenuBrutAnnuel, 10) -
+              parseInt(formData.depensesAnnuelles, 10)
+            ).toLocaleString('fr-CA')}
           </p>
+          <p className="text-xs text-green-800">
+            Ratio dépenses:{' '}
+            {(
+              (parseInt(formData.depensesAnnuelles, 10) /
+                parseInt(formData.revenuBrutAnnuel, 10)) *
+              100
+            ).toFixed(1)}
+            %
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderConditionSlide = () => (
+    <div className="space-y-4">
+      {evaluationType === 'residential' && (
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Sous-sol
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {typesUnderground.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => handleChange('sous_sol', t.value)}
+                className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
+                  formData.sous_sol === t.value
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+                }`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          État général *{' '}
+          {slideErrors.etatGeneral && (
+            <span className="text-red-500">requis</span>
+          )}
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {etatsGeneraux.map((etat) => (
+            <button
+              key={etat.value}
+              type="button"
+              onClick={() => handleChange('etatGeneral', etat.value)}
+              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
+                formData.etatGeneral === etat.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              {etat.icon} {etat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAmenitiesSlide = () => (
+    <div className="space-y-4">
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        Piscine
+      </label>
+      <div className="flex gap-2">
+        {[true, false].map((val) => (
           <button
-            onClick={() => setShowUpgradeModal(true)}
-            className="px-12 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-black text-lg rounded-xl hover:shadow-lg transform hover:-translate-y-1 transition-all"
+            key={String(val)}
+            type="button"
+            onClick={() => handleChange('piscine', val)}
+            className={`flex-1 py-2 rounded-lg transition border-2 font-medium ${
+              formData.piscine === val
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+            }`}
           >
-            💎 Upgrader maintenant
+            {val ? '✅ Oui' : '❌ Non'}
           </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Particularités du terrain
+        </label>
+        <input
+          type="text"
+          placeholder="Vue, boisé, coin tranquille..."
+          value={formData.terrain_detail}
+          onChange={(e) => handleChange('terrain_detail', e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+    </div>
+  );
+
+  const renderConditionCommercialSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          État général
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {etatsGeneraux.map((etat) => (
+            <button
+              key={etat.value}
+              type="button"
+              onClick={() => handleChange('etatGeneral', etat.value)}
+              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
+                formData.etatGeneral === etat.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+              }`}
+            >
+              {etat.icon} {etat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Rénovations effectuées
+        </label>
+        <div className="space-y-2">
+          {['toiture', 'systeme_hvac', 'electricite', 'plomberie', 'facade'].map(
+            (reno) => (
+              <label
+                key={reno}
+                className="flex items-center cursor-pointer text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.renovations?.includes(reno)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      handleChange('renovations', [
+                        ...(formData.renovations || []),
+                        reno,
+                      ]);
+                    } else {
+                      handleChange(
+                        'renovations',
+                        (formData.renovations || []).filter((r) => r !== reno)
+                      );
+                    }
+                  }}
+                  className="mr-2 w-4 h-4 cursor-pointer"
+                />
+                <span className="capitalize">
+                  {reno.replace('_', ' ')}
+                </span>
+              </label>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDetailsSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Notes additionnelles
+        </label>
+        <textarea
+          placeholder="Informations importantes..."
+          value={formData.notes_additionnelles}
+          onChange={(e) => handleChange('notes_additionnelles', e.target.value)}
+          rows={4}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+    </div>
+  );
+
+  // ------------ RESULT RENDERERS ------------
+
+  const renderHeroValuation = () => {
+    const est = selectedProperty.estimationActuelle || {};
+    return (
+      <div className="relative overflow-hidden rounded-2xl shadow-lg">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600" />
+        <div className="relative p-8 md:p-12 text-white">
+          <div className="mb-6">
+            <p className="text-sm md:text-base font-semibold opacity-90 mb-2">
+              📊 Valeur Estimée Actuelle
+            </p>
+            <h2 className="text-4xl md:text-5xl font-black">
+              {est.valeurMoyenne
+                ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
+                : 'N/A'}
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 gap-3 md:gap-4">
+            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg">
+              <p className="text-xs md:text-sm opacity-80">Valeur basse</p>
+              <p className="text-lg md:text-xl font-bold">
+                {est.valeurBasse
+                  ? `${est.valeurBasse.toLocaleString('fr-CA')} $`
+                  : 'N/A'}
+              </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg border-2 border-white/30">
+              <p className="text-xs md:text-sm opacity-80">Valeur moyenne</p>
+              <p className="text-lg md:text-xl font-bold">
+                {est.valeurMoyenne
+                  ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
+                  : 'N/A'}
+              </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg">
+              <p className="text-xs md:text-sm opacity-80">Valeur haute</p>
+              <p className="text-lg md:text-xl font-bold">
+                {est.valeurHaute
+                  ? `${est.valeurHaute.toLocaleString('fr-CA')} $`
+                  : 'N/A'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
-  }
+  };
 
-  // ============================================
-  // RENDU PRINCIPAL
-  // ============================================
+  // Résidentiel: analyse d’appréciation basée sur ta structure
+  const renderResidentialAppreciation = () => {
+    const analyse = selectedProperty.analyse || {};
+    return (
+      <div className="bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-300 rounded-2xl p-6 md:p-8 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-black text-cyan-900 mb-6 flex items-center gap-3">
+          📊 Appréciation & Performance
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {typeof analyse.appreciationTotale === 'number' && (
+            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
+              <p className="text-xs font-semibold text-cyan-600 uppercase">
+                Appréciation totale
+              </p>
+              <p className="text-2xl font-black text-cyan-700 mt-2">
+                {analyse.appreciationTotale.toLocaleString('fr-CA')} $
+              </p>
+            </div>
+          )}
+          {typeof analyse.appreciationAnnuelle === 'number' && (
+            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
+              <p className="text-xs font-semibold text-cyan-600 uppercase">
+                Appréciation/an
+              </p>
+              <p className="text-2xl font-black text-cyan-700 mt-2">
+                {analyse.appreciationAnnuelle.toLocaleString('fr-CA')} $
+              </p>
+            </div>
+          )}
+          {typeof analyse.pourcentageGain === 'number' && (
+            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
+              <p className="text-xs font-semibold text-cyan-600 uppercase">
+                % Gain
+              </p>
+              <p className="text-2xl font-black text-cyan-700 mt-2">
+                {analyse.pourcentageGain.toFixed(2)} %
+              </p>
+            </div>
+          )}
+          {typeof analyse.yearsToBreakEven === 'number' && (
+            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
+              <p className="text-xs font-semibold text-cyan-600 uppercase">
+                Années pour break-even
+              </p>
+              <p className="text-2xl font-black text-cyan-700 mt-2">
+                {analyse.yearsToBreakEven}
+              </p>
+            </div>
+          )}
+        </div>
+        {analyse.marketTrend && (
+          <div className="mt-4 pt-4 border-t border-cyan-200">
+            <p className="text-sm font-bold text-cyan-900 mb-2">
+              Tendance du marché:
+            </p>
+            <p className="text-lg font-black text-cyan-700 capitalize">
+              {analyse.marketTrend === 'haussier'
+                ? '📈 Haussière'
+                : analyse.marketTrend === 'baissier'
+                ? '📉 Baissière'
+                : '➡️ Stable'}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Commercial: analyse avec metriquesCommerciales, cap rate, NOI, etc.
+  const renderCommercialMetrics = () => {
+    const m = selectedProperty.metriquesCommerciales || {};
+    if (!m) return null;
+    return (
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-2xl p-6 md:p-8 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-black text-indigo-900 mb-6 flex items-center gap-3">
+          📈 Métriques Commerciales Clés
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {typeof m.capRate === 'number' && (
+            <div className="bg-white p-6 rounded-lg border-2 border-indigo-200 shadow-sm">
+              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-widest">
+                Cap Rate
+              </p>
+              <p className="text-4xl font-black text-indigo-700 mt-3">
+                {m.capRate.toFixed(2)} %
+              </p>
+            </div>
+          )}
+          {typeof m.noiAnnuel === 'number' && (
+            <div className="bg-white p-6 rounded-lg border-2 border-green-200 shadow-sm">
+              <p className="text-xs font-semibold text-green-600 uppercase tracking-widest">
+                NOI Annuel
+              </p>
+              <p className="text-3xl font-black text-green-700 mt-3">
+                {m.noiAnnuel.toLocaleString('fr-CA')} $
+              </p>
+            </div>
+          )}
+          {typeof m.cashOnCash === 'number' && (
+            <div className="bg-white p-6 rounded-lg border-2 border-purple-200 shadow-sm">
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-widest">
+                Cash-on-Cash
+              </p>
+              <p className="text-4xl font-black text-purple-700 mt-3">
+                {m.cashOnCash.toFixed(2)} %
+              </p>
+            </div>
+          )}
+          {typeof m.multiplicateurRevenu === 'number' && (
+            <div className="bg-white p-6 rounded-lg border-2 border-orange-200 shadow-sm">
+              <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest">
+                Multiplicateur Revenu
+              </p>
+              <p className="text-4xl font-black text-orange-700 mt-3">
+                {m.multiplicateurRevenu.toFixed(2)}x
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderResidentialQuartierAndComparables = () => {
+    const analyse = selectedProperty.analyse || {};
+    const comp = selectedProperty.comparable || {};
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {analyse.quartierAnalysis && (
+          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
+            <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
+              🎯 Analyse du Quartier
+            </h3>
+            <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
+              {analyse.quartierAnalysis}
+            </p>
+          </div>
+        )}
+
+        {comp.evaluationQualite && (
+          <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-2xl p-6 md:p-8 shadow-lg">
+            <h3 className="text-2xl md:text-3xl font-black text-purple-900 mb-4 flex items-center gap-3">
+              🏘️ Comparables & Qualité d’évaluation
+            </h3>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {comp.evaluationQualite}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderResidentialFacteursPrix = () => {
+    const f = selectedProperty.facteursPrix || {};
+    if (!f.augmentent && !f.diminuent && !f.neutre) return null;
+    return (
+      <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          🎯 Facteurs de Prix
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {f.augmentent?.length > 0 && (
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
+              <p className="font-black text-green-700 mb-3 text-sm uppercase">
+                ✅ Augmentent la valeur
+              </p>
+              <ul className="space-y-2">
+                {f.augmentent.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-green-600 font-bold">+</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {f.diminuent?.length > 0 && (
+            <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
+              <p className="font-black text-red-700 mb-3 text-sm uppercase">
+                ❌ Diminuent la valeur
+              </p>
+              <ul className="space-y-2">
+                {f.diminuent.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-red-600 font-bold">-</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {f.neutre?.length > 0 && (
+            <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
+              <p className="font-black text-gray-700 mb-3 text-sm uppercase">
+                ➖ Facteurs neutres
+              </p>
+              <ul className="space-y-2">
+                {f.neutre.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-gray-600 font-bold">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCommercialFacteursPrix = () => {
+    const f = selectedProperty.facteurs_prix || {};
+    if (!f.augmentent && !f.diminuent && !f.neutre) return null;
+    return (
+      <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          🎯 Facteurs de Prix
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {f.augmentent?.length > 0 && (
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
+              <p className="font-black text-green-700 mb-3 text-sm uppercase">
+                ✅ Augmentent la valeur
+              </p>
+              <ul className="space-y-2">
+                {f.augmentent.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-green-600 font-bold">+</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {f.diminuent?.length > 0 && (
+            <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
+              <p className="font-black text-red-700 mb-3 text-sm uppercase">
+                ❌ Diminuent la valeur
+              </p>
+              <ul className="space-y-2">
+                {f.diminuent.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-red-600 font-bold">-</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {f.neutre?.length > 0 && (
+            <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
+              <p className="font-black text-gray-700 mb-3 text-sm uppercase">
+                ➖ Facteurs neutres
+              </p>
+              <ul className="space-y-2">
+                {f.neutre.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-gray-600 font-bold">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderCommercialSecteurAndComparables = () => {
+    const analyse = selectedProperty.analyse || {};
+    const comp = selectedProperty.comparable || {};
+    return (
+      <div className="space-y-6">
+        {analyse.secteurAnalysis && (
+          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
+            <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
+              🎯 Analyse du Secteur
+            </h3>
+            <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
+              {analyse.secteurAnalysis}
+            </p>
+          </div>
+        )}
+
+        {comp.evaluation_qualite && (
+          <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-2xl p-6 md:p-8 shadow-lg">
+            <h3 className="text-2xl md:text-3xl font-black text-purple-900 mb-4 flex items-center gap-3">
+              🏘️ Comparables & Qualité d’évaluation
+            </h3>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {comp.evaluation_qualite}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderRecommendations = () => {
+    const r = selectedProperty.recommendations || {};
+    if (!r) return null;
+    return (
+      <div className="bg-gradient-to-br from-lime-50 to-green-50 border-2 border-lime-300 rounded-2xl p-6 md:p-8 shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-black text-lime-900 mb-6 flex items-center gap-3">
+          💡 Recommandations Stratégiques
+        </h3>
+        {r.ameliorationsValeur?.length > 0 && (
+          <div className="mb-6">
+            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
+              🔨 Améliorations pour augmenter la valeur
+            </p>
+            <ul className="space-y-2">
+              {r.ameliorationsValeur.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex gap-3 text-sm md:text-base text-gray-800"
+                >
+                  <span className="text-lime-600 font-bold flex-shrink-0">
+                    ✓
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {r.optimisationRevenu?.length > 0 && (
+          <div className="mb-6 pt-4 border-t border-lime-300">
+            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
+              💰 Optimisation des revenus
+            </p>
+            <ul className="space-y-2">
+              {r.optimisationRevenu.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex gap-3 text-sm md:text-base text-gray-800"
+                >
+                  <span className="text-lime-600 font-bold flex-shrink-0">
+                    $
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {r.reduceExpenses?.length > 0 && (
+          <div className="mb-6 pt-4 border-t border-lime-300">
+            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
+              📉 Réduction des dépenses
+            </p>
+            <ul className="space-y-2">
+              {r.reduceExpenses.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex gap-3 text-sm md:text-base text-gray-800"
+                >
+                  <span className="text-lime-600 font-bold flex-shrink-0">
+                    ✂️
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {r.strategie && (
+          <div className="mt-6 pt-4 border-t border-lime-300 bg-white p-4 rounded-lg">
+            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
+              📋 Stratégie complète
+            </p>
+            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {r.strategie}
+            </p>
+          </div>
+        )}
+
+        {r.timing && (
+          <div className="mt-4 bg-white p-4 rounded-lg border-2 border-amber-300">
+            <p className="font-bold text-amber-800 mb-3 text-sm uppercase tracking-widest">
+              ⏱️ Timing optimal
+            </p>
+            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {r.timing}
+            </p>
+          </div>
+        )}
+
+        {r.venteMeilleuresChances && (
+          <div className="mt-4 bg-white p-4 rounded-lg border-2 border-blue-300">
+            <p className="font-bold text-blue-800 mb-3 text-sm uppercase tracking-widest">
+              📅 Fenêtre de vente optimale
+            </p>
+            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {r.venteMeilleuresChances}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-8">
-      <LoadingSpinner 
-        isLoading={loading} 
-        messages={loadingMessages} 
+    <div className="space-y-6">
+      <LoadingSpinner
+        isLoading={loading}
+        messages={loadingMessages[evaluationType]}
+        estimatedTime={evaluationType === 'commercial' ? 60 : 25}
       />
 
-      {/* QUOTA INFO CARD */}
-      {quotaInfo && !selectedProperty && (
-        <div className={`p-6 rounded-xl border-2 transition-all ${
-          quotaInfo.remaining > 0
-            ? 'bg-emerald-50 border-emerald-300'
-            : 'bg-red-50 border-red-300'
-        }`}>
+      {/* QUOTA */}
+      {quotaInfo && (
+        <div
+          className={`p-6 rounded-xl border-2 ${
+            quotaInfo.remaining > 0
+              ? 'bg-emerald-50 border-emerald-300'
+              : 'bg-red-50 border-red-300'
+          }`}
+        >
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0 ? '📊 Évaluations restantes' : '❌ Quota atteint'}
+                {quotaInfo.remaining > 0
+                  ? '📊 Évaluations restantes'
+                  : '❌ Quota atteint'}
               </h3>
-              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
+              <p className="text-xs text-gray-600 mt-1">
+                Plan:{' '}
+                <span className="font-bold uppercase">{quotaInfo.plan}</span>
+              </p>
             </div>
             <span className="text-3xl font-black">
               {quotaInfo.remaining}/{quotaInfo.limit}
             </span>
           </div>
-
           <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
             <div
               className={`h-3 rounded-full transition-all ${
                 quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
               }`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
+              style={{
+                width: `${
+                  quotaInfo.limit > 0
+                    ? ((quotaInfo.limit - quotaInfo.current) /
+                        quotaInfo.limit) *
+                      100
+                    : 100
+                }%`,
+              }}
             />
           </div>
-
-          <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-            {quotaInfo.remaining > 0
-              ? `${quotaInfo.remaining} évaluation${quotaInfo.remaining > 1 ? 's' : ''} restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
-              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
-            }
-          </p>
-        </div>
-      )}
-
-      {/* BOUTON NOUVELLE ÉVALUATION */}
-      {!selectedProperty && !showForm && (
-        <div className="text-center">
-          <button
-            onClick={() => {
-              setShowForm(true);
-              setCurrentSlide(0);
-              setSlideErrors({});
-            }}
-            className="px-12 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400"
+          <p
+            className={`text-sm ${
+              quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'
+            }`}
           >
-            ➕ Nouvelle évaluation
-          </button>
+            {quotaInfo.remaining > 0
+              ? `${quotaInfo.remaining} évaluation${
+                  quotaInfo.remaining > 1 ? 's' : ''
+                } restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
+              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString(
+                  'fr-CA'
+                )}`}
+          </p>
+          {quotaInfo.plan === 'essai' &&
+            quotaInfo.remaining === 0 &&
+            !quotaInfo.isUnlimited && (
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(true)}
+                className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all"
+              >
+                ⬆️ Upgrader pour plus d'évaluations
+              </button>
+            )}
         </div>
       )}
 
-      {/* FORMULAIRE AVEC SLIDES */}
-      {showForm && !selectedProperty && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            
-            {/* HEADER DU FORMULAIRE */}
-            <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-8 py-6 text-white">
+      {/* TOGGLE TYPE */}
+      <div className="flex gap-4 p-4 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-xl border border-indigo-300">
+        {['residential', 'commercial'].map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => {
+              setEvaluationType(type);
+              setCurrentSlide(0);
+              setShowForm(false);
+              setSelectedProperty(null);
+            }}
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+              evaluationType === type
+                ? 'bg-white text-gray-900 shadow-lg border-2 border-indigo-500'
+                : 'bg-transparent text-gray-700 hover:text-gray-900'
+            } ${
+              quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            {type === 'residential' ? '🏠 Résidentiel' : '🏪 Commercial'}
+          </button>
+        ))}
+      </div>
+
+      {/* FORM MODAL */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-blue-600 px-8 py-8 border-b border-indigo-700/20">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h2 className="text-2xl font-black">{slides[currentSlide].icon} {slides[currentSlide].title}</h2>
-                  <p className="text-indigo-100 text-sm mt-1">{slides[currentSlide].description}</p>
+                  <h2 className="text-3xl font-black text-white mb-2">
+                    {slides[currentSlide].icon} {slides[currentSlide].title}
+                  </h2>
+                  <p className="text-indigo-100">
+                    {slides[currentSlide].description}
+                  </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowForm(false);
                     setCurrentSlide(0);
                     setSlideErrors({});
                   }}
-                  className="text-indigo-200 hover:text-white text-2xl font-bold transition-colors"
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition"
                 >
                   ✕
                 </button>
               </div>
-
-              {/* BARRE DE PROGRESSION */}
-              <div className="w-full bg-indigo-500/30 rounded-full h-2">
-                <div
-                  className="h-2 bg-white rounded-full transition-all duration-300"
-                  style={{ width: `${slideProgress}%` }}
-                />
-              </div>
-              <p className="text-indigo-100 text-xs mt-2">{currentSlide + 1} / {slides.length}</p>
-            </div>
-
-            {/* CONTENU DES SLIDES */}
-            <div className="overflow-y-auto flex-1">
-              <div className="px-8 py-8">
-                
-                {/* SLIDE 0: LOCALISATION */}
-                {currentSlide === 0 && (
-                  <div className="space-y-6">
-                    {/* CHAMP TITRE */}
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Titre de la propriété <span className="text-gray-400 text-xs">(optionnel)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.titre}
-                        onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
-                        placeholder="Ex: Belle maison au Plateau, Condo Griffintown, Triplex Vanier..."
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Type de propriété <span className="text-red-500">*</span></label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {propertyTypes.map(type => (
-                          <button
-                            key={type.value}
-                            onClick={() => {
-                              setFormData({ 
-                                ...formData, 
-                                proprietyType: type.value,
-                                nombreLogements: type.value === 'immeuble_revenus' ? 4 : formData.nombreLogements
-                              });
-                              setSlideErrors({...slideErrors, proprietyType: ''});
-                            }}
-                            className={`p-4 rounded-xl border-2 font-semibold transition-all text-center ${
-                              formData.proprietyType === type.value
-                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
-                            }`}
-                          >
-                            <span className="text-2xl block mb-1">{type.icon}</span>
-                            {type.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {formData.proprietyType === 'immeuble_revenus' && (
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Nombre de logements <span className="text-red-500">*</span></label>
-                        <input
-                          type="number"
-                          value={formData.nombreLogements}
-                          onChange={(e) => setFormData({ ...formData, nombreLogements: parseInt(e.target.value) || 4 })}
-                          min="4"
-                          max="200"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Ville <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.ville}
-                        onChange={(e) => {
-                          setFormData({ ...formData, ville: e.target.value });
-                          setSlideErrors({...slideErrors, ville: ''});
-                        }}
-                        placeholder="Ex: Montréal, Québec, Lévis..."
-                        className={`w-full p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
-                          slideErrors.ville ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {slideErrors.ville && <p className="text-red-500 text-xs mt-1">{slideErrors.ville}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Quartier <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <input
-                        type="text"
-                        value={formData.quartier}
-                        onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
-                        placeholder="Ex: Plateau, Griffintown, Outremont..."
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Adresse complète <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <input
-                        type="text"
-                        value={formData.addresseComplete}
-                        onChange={(e) => setFormData({ ...formData, addresseComplete: e.target.value })}
-                        placeholder="123 rue Example, Montréal..."
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* SLIDE 1: ACQUISITION */}
-                {currentSlide === 1 && (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Prix d'achat <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          value={formData.prixAchat}
-                          onChange={(e) => {
-                            setFormData({ ...formData, prixAchat: e.target.value });
-                            setSlideErrors({...slideErrors, prixAchat: ''});
-                          }}
-                          placeholder="500000"
-                          className={`flex-1 p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
-                            slideErrors.prixAchat ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        />
-                        <div className="flex items-center px-6 bg-indigo-50 border-2 border-indigo-300 rounded-lg text-indigo-700 font-black text-xl">
-                          $
-                        </div>
-                      </div>
-                      {slideErrors.prixAchat && <p className="text-red-500 text-xs mt-1">{slideErrors.prixAchat}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Année d'achat <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.anneeAchat}
-                        onChange={(e) => {
-                          setFormData({ ...formData, anneeAchat: parseInt(e.target.value) });
-                          setSlideErrors({...slideErrors, anneeAchat: ''});
-                        }}
-                        min="1950"
-                        max={new Date().getFullYear()}
-                        className={`w-full p-4 bg-white border-2 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${
-                          slideErrors.anneeAchat ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {slideErrors.anneeAchat && <p className="text-red-500 text-xs mt-1">{slideErrors.anneeAchat}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Année de construction <span className="text-red-500">*</span></label>
-                      <input
-                        type="number"
-                        value={formData.anneeConstruction}
-                        onChange={(e) => setFormData({ ...formData, anneeConstruction: parseInt(e.target.value) })}
-                        min="1850"
-                        max={new Date().getFullYear()}
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* SLIDE 2: DIMENSIONS */}
-                {currentSlide === 2 && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Surface habitée (pi²) <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                        <input
-                          type="number"
-                          value={formData.surfaceHabitee}
-                          onChange={(e) => setFormData({ ...formData, surfaceHabitee: e.target.value })}
-                          placeholder="2000"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Surface du lot (pi²) <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                        <input
-                          type="number"
-                          value={formData.surfaceLot}
-                          onChange={(e) => setFormData({ ...formData, surfaceLot: e.target.value })}
-                          placeholder="8000"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Chambres <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                        <input
-                          type="number"
-                          value={formData.nombreChambres}
-                          onChange={(e) => setFormData({ ...formData, nombreChambres: parseInt(e.target.value) })}
-                          min="1"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Salles de bain <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                        <input
-                          type="number"
-                          value={formData.nombreSallesBain}
-                          onChange={(e) => setFormData({ ...formData, nombreSallesBain: parseInt(e.target.value) })}
-                          min="1"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-3">Stationnements <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                        <input
-                          type="number"
-                          value={formData.stationnements}
-                          onChange={(e) => setFormData({ ...formData, stationnements: parseInt(e.target.value) || 0 })}
-                          min="0"
-                          max="10"
-                          className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-center font-bold text-lg"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SLIDE 3: CONDITION */}
-                {currentSlide === 3 && (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">État du sous-sol <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {typesUnderground.map(type => (
-                          <button
-                            key={type.value}
-                            onClick={() => setFormData({ ...formData, sous_sol: type.value })}
-                            className={`p-4 rounded-xl border-2 font-semibold transition-all text-center ${
-                              formData.sous_sol === type.value
-                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
-                            }`}
-                          >
-                            <span className="text-2xl block mb-1">{type.icon}</span>
-                            {type.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">État général de la propriété <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <div className="space-y-2">
-                        {etatsGeneraux.map(etat => (
-                          <button
-                            key={etat.value}
-                            onClick={() => setFormData({ ...formData, etatGeneral: etat.value })}
-                            className={`w-full p-4 rounded-xl border-2 font-semibold transition-all text-left flex items-center gap-3 ${
-                              formData.etatGeneral === etat.value
-                                ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                                : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
-                            }`}
-                          >
-                            <span className="text-2xl">{etat.icon}</span>
-                            {etat.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SLIDE 4: AMÉNAGEMENTS */}
-                {currentSlide === 4 && (
-                  <div className="space-y-6">
-                    <p className="text-gray-600 text-sm">Sélectionnez les aménagements premium de votre propriété <span className="text-gray-400 text-xs">(optionnel)</span></p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {amenagements.map(item => (
-                        <button
-                          key={item.key}
-                          onClick={() => setFormData({ ...formData, [item.key]: !formData[item.key] })}
-                          className={`p-4 rounded-xl border-2 font-semibold transition-all text-center flex flex-col items-center gap-2 ${
-                            formData[item.key]
-                              ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                              : 'border-gray-300 bg-white text-gray-700 hover:border-indigo-400'
-                          }`}
-                        >
-                          <span className="text-2xl">{item.icon}</span>
-                          <span className="text-xs">{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* SLIDE 5: DÉTAILS ADDITIONNELS */}
-                {currentSlide === 5 && (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Détails du terrain <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <textarea
-                        value={formData.terrain_detail}
-                        onChange={(e) => setFormData({ ...formData, terrain_detail: e.target.value })}
-                        placeholder="Terrain arrière, accès à l'eau, vue panoramique, dépendances..."
-                        rows="4"
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">Notes additionnelles <span className="text-gray-400 text-xs">(optionnel)</span></label>
-                      <textarea
-                        value={formData.notes_additionnelles}
-                        onChange={(e) => setFormData({ ...formData, notes_additionnelles: e.target.value })}
-                        placeholder="Rénovations récentes, améliorations futures envisagées, problèmes connus..."
-                        rows="4"
-                        className="w-full p-4 bg-white border-2 border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
-                      />
-                    </div>
-
-                    <div className="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-300">
-                      <p className="text-sm text-indigo-800">
-                        <span className="font-bold">💡 Conseil:</span> Plus d'informations = meilleure évaluation!
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* ERREUR D'API */}
-                {error && (
-                  <div className="p-4 bg-red-100 border-2 border-red-300 rounded-lg text-red-700 font-semibold">
-                    {error}
-                  </div>
-                )}
-
-                {quotaError && (
-                  <div className="p-4 bg-red-100 border-2 border-red-300 rounded-lg text-red-700 font-semibold">
-                    {quotaError}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* FOOTER: BOUTONS DE NAVIGATION */}
-            <div className="bg-gray-50 px-8 py-6 border-t-2 border-gray-200 flex gap-3 justify-between">
-              <button
-                onClick={goToPrevSlide}
-                disabled={currentSlide === 0}
-                className={`px-8 py-3 font-bold rounded-lg transition-all ${
-                  currentSlide === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                }`}
-              >
-                ← Précédent
-              </button>
-
-              <div className="flex gap-2">
-                {slides.map((_, idx) => (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-white/20 rounded-full h-2">
                   <div
-                    key={idx}
-                    className={`h-2 rounded-full transition-all ${
-                      idx === currentSlide ? 'bg-indigo-600 w-8' : 'bg-gray-300 w-2'
-                    }`}
+                    className="bg-white h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${slideProgress}%` }}
                   />
-                ))}
+                </div>
+                <span className="text-white text-sm font-medium whitespace-nowrap">
+                  {currentSlide + 1}/{slides.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="px-8 py-8">
+              <div className="mb-6">
+                {slides[currentSlide].id === 'location' &&
+                  renderLocationSlideResidential()}
+                {slides[currentSlide].id === 'location-com' &&
+                  renderLocationSlideCommercial()}
+                {(slides[currentSlide].id === 'acquisition' ||
+                  slides[currentSlide].id === 'acquisition-com') &&
+                  renderAcquisitionSlide()}
+                {slides[currentSlide].id === 'dimensions' &&
+                  renderDimensionsSlideResidential()}
+                {slides[currentSlide].id === 'dimensions-com' &&
+                  renderDimensionsSlideCommercial()}
+                {slides[currentSlide].id === 'condition' &&
+                  renderConditionSlide()}
+                {slides[currentSlide].id === 'condition-com' &&
+                  renderConditionCommercialSlide()}
+                {slides[currentSlide].id === 'amenities' &&
+                  renderAmenitiesSlide()}
+                {slides[currentSlide].id === 'specific-com' &&
+                  renderSpecificSlideCommercial()}
+                {slides[currentSlide].id === 'financial-com' &&
+                  renderFinancialSlideCommercial()}
+                {(slides[currentSlide].id === 'details' ||
+                  slides[currentSlide].id === 'details-com') &&
+                  renderDetailsSlide()}
               </div>
 
-              {currentSlide < slides.length - 1 ? (
-                <button
-                  onClick={goToNextSlide}
-                  className="px-8 py-3 font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
-                >
-                  Suivant →
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || quotaInfo.remaining <= 0}
-                  className={`px-8 py-3 font-bold rounded-lg transition-all ${
-                    loading || quotaInfo.remaining <= 0
-                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  }`}
-                >
-                  {loading ? '🔄 Évaluation...' : '✅ Évaluer'}
-                </button>
+              {error && (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-6 text-red-700 text-sm">
+                  <p className="font-semibold">❌ Erreur</p>
+                  <p>{error}</p>
+                </div>
+              )}
+
+              {Object.keys(slideErrors).length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg mb-6 text-orange-700 text-sm">
+                  <p className="font-semibold">⚠️ Champs obligatoires</p>
+                  <ul className="mt-2 space-y-1">
+                    {Object.entries(slideErrors).map(([field]) => {
+                      const labels = {
+                        ville: 'Ville',
+                        proprietyType: 'Type de propriété',
+                        prixAchat: "Prix d'achat",
+                        anneeAchat: "Année d'achat",
+                        anneeConstruction: 'Année de construction',
+                        etatGeneral: 'État général',
+                        revenuBrutAnnuel: 'Revenus bruts annuels',
+                        depensesAnnuelles: 'Dépenses annuelles',
+                      };
+                      return (
+                        <li key={field}>• {labels[field] || field}</li>
+                      );
+                    })}
+                  </ul>
+                </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* RÉSULTATS DE L'ÉVALUATION */}
-      {selectedProperty && selectedProperty.result && (
-        <div ref={resultRef} className="space-y-6">
-          {/* HERO SECTION AVEC TITRE */}
-          <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                {selectedProperty?.titre && (
-                  <h2 className="text-3xl font-black text-indigo-600 mb-2">{selectedProperty.titre}</h2>
-                )}
-                <h3 className="text-4xl font-black text-gray-900 mb-2">✅ Évaluation complète</h3>
-                <p className="text-gray-600 text-lg">Analyse détaillée par l'IA pour {selectedProperty?.ville}</p>
-              </div>
+            <div className="sticky bottom-0 bg-gray-50 px-8 py-6 border-t border-gray-200 flex gap-3">
+              {currentSlide > 0 && (
+                <button
+                  type="button"
+                  onClick={previousSlide}
+                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition"
+                  disabled={loading}
+                >
+                  ← Précédent
+                </button>
+              )}
               <button
-                onClick={() => setSelectedProperty(null)}
-                className="text-2xl font-bold text-gray-500 hover:text-gray-900 transition-colors"
+                type="button"
+                onClick={nextSlide}
+                disabled={loading}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ✕
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⟳</span> Traitement...
+                  </span>
+                ) : currentSlide === slides.length - 1 ? (
+                  '✅ Évaluer la propriété'
+                ) : (
+                  'Suivant →'
+                )}
               </button>
             </div>
           </div>
-
-          {/* PROPRIÉTÉ INFO */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Type</p>
-                <p className="text-lg font-black text-gray-900 mt-2">
-                  {formatPropertyType(selectedProperty?.proprietyType)}
-                </p>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Ville</p>
-                <p className="text-lg font-black text-gray-900 mt-2">{selectedProperty?.ville || 'N/A'}</p>
-              </div>
-              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Prix d'achat</p>
-                <p className="text-lg font-black text-green-600 mt-2">${formatCurrency(selectedProperty?.prixAchat)}</p>
-              </div>
-              <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">Année d'achat</p>
-                <p className="text-lg font-black text-gray-900 mt-2">{selectedProperty?.anneeAchat || 'N/A'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* VALEUR ESTIMÉE */}
-          <div className="bg-emerald-500 rounded-2xl p-8 text-white shadow-lg">
-            <p className="text-emerald-100 text-sm font-semibold uppercase tracking-widest">💰 Valeur estimée actuelle</p>
-            <p className="text-5xl font-black mt-3 mb-6">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurMoyenne)}</p>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white/20 rounded-xl p-4">
-                <p className="text-emerald-100 text-sm font-semibold">Valeur basse</p>
-                <p className="font-black text-xl mt-2">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurBasse)}</p>
-              </div>
-              <div className="bg-white/20 rounded-xl p-4">
-                <p className="text-emerald-100 text-sm font-semibold">Valeur haute</p>
-                <p className="font-black text-xl mt-2">${formatCurrency(selectedProperty?.result?.estimationActuelle?.valeurHaute)}</p>
-              </div>
-              <div className="bg-white/20 rounded-xl p-4">
-                <p className="text-emerald-100 text-sm font-semibold">Gain potentiel</p>
-                <p className="font-black text-xl mt-2">{selectedProperty?.result?.analyse?.pourcentageGain || 'N/A'}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* ANALYSE DU QUARTIER */}
-          {selectedProperty?.result?.analyse?.quartierAnalysis && (
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-              <h4 className="font-black text-2xl text-gray-900 mb-4">📍 Analyse du quartier</h4>
-              <p className="text-gray-700 leading-relaxed text-base">{selectedProperty.result.analyse.quartierAnalysis}</p>
-            </div>
-          )}
-
-          {/* ÉVALUATION COMPARABLE */}
-          {selectedProperty?.result?.comparable?.evaluationQualite && (
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-              <h4 className="font-black text-2xl text-gray-900 mb-4">📊 Comparables du marché</h4>
-              <p className="text-gray-700 leading-relaxed text-base">{selectedProperty.result.comparable.evaluationQualite}</p>
-            </div>
-          )}
-
-          {/* RECOMMANDATIONS */}
-          {selectedProperty?.result?.recommendations && (
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-              <h4 className="font-black text-2xl text-gray-900 mb-6">💡 Recommandations</h4>
-              <div className="space-y-4">
-                {selectedProperty.result.recommendations.strategie && (
-                  <div className="bg-blue-50 rounded-xl p-6 border-l-4 border-blue-500">
-                    <p className="font-black text-blue-900 mb-2">🎯 Stratégie d'investissement</p>
-                    <p className="text-gray-700 leading-relaxed">{selectedProperty.result.recommendations.strategie}</p>
-                  </div>
-                )}
-                {selectedProperty.result.recommendations.venteMeilleuresChances && (
-                  <div className="bg-green-50 rounded-xl p-6 border-l-4 border-green-500">
-                    <p className="font-black text-green-900 mb-2">📅 Meilleures chances de vente</p>
-                    <p className="text-gray-700 leading-relaxed">{selectedProperty.result.recommendations.venteMeilleuresChances}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* DÉTAILS SUPPLÉMENTAIRES */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {selectedProperty?.surfaceHabitee && (
-              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">📐 Surface habitée</p>
-                <p className="text-3xl font-black text-gray-900 mt-3">{formatCurrency(selectedProperty.surfaceHabitee)}</p>
-                <p className="text-gray-500 text-xs mt-1">pi²</p>
-              </div>
-            )}
-            {selectedProperty?.nombreChambres && (
-              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🛏️ Chambres</p>
-                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.nombreChambres}</p>
-              </div>
-            )}
-            {selectedProperty?.nombreSallesBain && (
-              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🚿 Salles de bain</p>
-                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.nombreSallesBain}</p>
-              </div>
-            )}
-            {selectedProperty?.stationnements !== undefined && selectedProperty?.stationnements >= 0 && (
-              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-200">
-                <p className="text-gray-600 text-xs font-semibold uppercase tracking-wide">🅿️ Stationnements</p>
-                <p className="text-3xl font-black text-gray-900 mt-3">{selectedProperty.stationnements}</p>
-              </div>
-            )}
-          </div>
-
-          {/* AMÉNAGEMENTS SÉLECTIONNÉS */}
-          {(selectedProperty?.piscine || selectedProperty?.terrasse || selectedProperty?.chauffageRadiant || 
-            selectedProperty?.climatisation || selectedProperty?.fireplace || selectedProperty?.sauna || 
-            selectedProperty?.cinema || selectedProperty?.salleSport) && (
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
-              <h4 className="font-black text-2xl text-gray-900 mb-6">✨ Aménagements premium</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {selectedProperty?.piscine && (
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 text-center">
-                    <span className="text-3xl block mb-2">🏊</span><span className="font-semibold text-gray-700">Piscine</span>
-                  </div>
-                )}
-                {selectedProperty?.terrasse && (
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-200 text-center">
-                    <span className="text-3xl block mb-2">🏡</span><span className="font-semibold text-gray-700">Terrasse</span>
-                  </div>
-                )}
-                {selectedProperty?.chauffageRadiant && (
-                  <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 text-center">
-                    <span className="text-3xl block mb-2">🌡️</span><span className="font-semibold text-gray-700">Chauffage radiant</span>
-                  </div>
-                )}
-                {selectedProperty?.climatisation && (
-                  <div className="bg-cyan-50 rounded-lg p-4 border border-cyan-200 text-center">
-                    <span className="text-3xl block mb-2">❄️</span><span className="font-semibold text-gray-700">Climatisation</span>
-                  </div>
-                )}
-                {selectedProperty?.fireplace && (
-                  <div className="bg-red-50 rounded-lg p-4 border border-red-200 text-center">
-                    <span className="text-3xl block mb-2">🔥</span><span className="font-semibold text-gray-700">Foyer</span>
-                  </div>
-                )}
-                {selectedProperty?.sauna && (
-                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 text-center">
-                    <span className="text-3xl block mb-2">🧖</span><span className="font-semibold text-gray-700">Sauna</span>
-                  </div>
-                )}
-                {selectedProperty?.cinema && (
-                  <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 text-center">
-                    <span className="text-3xl block mb-2">🎬</span><span className="font-semibold text-gray-700">Salle cinéma</span>
-                  </div>
-                )}
-                {selectedProperty?.salleSport && (
-                  <div className="bg-pink-50 rounded-lg p-4 border border-pink-200 text-center">
-                    <span className="text-3xl block mb-2">💪</span><span className="font-semibold text-gray-700">Salle sport</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* DELETE BUTTON */}
-          <div className="text-center pb-8">
-            <button
-              onClick={() => deleteProperty(selectedProperty.id)}
-              className="px-8 py-3 bg-red-600 text-white font-black rounded-lg hover:bg-red-700 transition-all"
-            >
-              🗑️ Supprimer cette évaluation
-            </button>
-          </div>
         </div>
       )}
 
-      {/* MESSAGE VIDE */}
-      {!selectedProperty && properties.length === 0 && !showForm && (
-        <div className="p-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 text-center">
-          <p className="text-gray-600 text-xl font-bold">Aucune évaluation pour le moment.</p>
-          <p className="text-gray-500 text-sm mt-3">Commencez par créer votre première évaluation! 🚀</p>
+      {/* CTA NO FORM */}
+      {!showForm && !selectedProperty && !loading && (
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto ${
+              loading || (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
+                ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
+            }`}
+          >
+            {loading
+              ? '🔄 Évaluation en cours...'
+              : quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited
+              ? '❌ Quota atteint'
+              : '🚀 Nouvelle évaluation'}
+          </button>
+        </div>
+      )}
+
+      {/* RESULTS */}
+      {selectedProperty && (
+        <div ref={resultRef} className="space-y-6 md:space-y-8">
+          {renderHeroValuation()}
+
+          {evaluationType === 'residential' && (
+            <>
+              {renderResidentialAppreciation()}
+              {renderResidentialQuartierAndComparables()}
+              {renderResidentialFacteursPrix()}
+            </>
+          )}
+
+          {evaluationType === 'commercial' && (
+            <>
+              {renderCommercialMetrics()}
+              {renderCommercialSecteurAndComparables()}
+              {renderCommercialFacteursPrix()}
+            </>
+          )}
+
+          {renderRecommendations()}
+
+          <div className="text-center py-6">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedProperty(null);
+                setShowForm(false);
+                setCurrentSlide(0);
+              }}
+              className="px-8 py-3 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-lg transition-colors"
+            >
+              ← Nouvelle évaluation
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -4530,58 +5635,6 @@ function PropertyValuationTab({
 // ============================================
 
 //--- ANIMATION HOME PAGE --- 
-
-function CounterAnimation({ end, suffix = '', duration = 2000 }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (!isVisible) return;
-
-    let startTime;
-    const animate = (timestamp) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-
-      if (typeof end === 'number') {
-        setCount(Math.floor(end * progress));
-      }
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    requestAnimationFrame(animate);
-  }, [isVisible, end, duration]);
-
-  const formatValue = () => {
-    if (typeof end === 'string') {
-      if (end.includes('%')) return `+${count}%`;
-      if (end.includes('★')) return `${(count / 10).toFixed(1)}★`;
-      if (end.includes('+')) return `${count.toLocaleString()}+`;
-      if (end.includes('M')) return `$${(count / 10).toFixed(1)}M+`;
-    }
-    return count.toLocaleString();
-  };
-
-  return <span ref={ref}>{formatValue()}</span>;
-}
 
 function AnimatedBlob() {
   return (
@@ -5288,7 +6341,6 @@ function HomePage() {
                   'Rapports personnalisés',
                   'Alertes marché hebdo',
                   'Support 24/7 prioritaire',
-                  'API access',
                   'Analyse portefeuille',
                 ],
                 highlighted: false,
