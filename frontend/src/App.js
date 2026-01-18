@@ -5963,11 +5963,11 @@ function HomePage() {
           <div className="relative z-10 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 mt-8 text-sm text-gray-600 mb-12">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">✅</span>
-              <span>Données Centris en direct</span>
+              <span>Données en direct</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">⚡</span>
-              <span>Résultats en moins d&apos;1 minute</span>
+              <span>Résultats en moins d&apos;une minute</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">🔒</span>
@@ -6053,7 +6053,7 @@ function HomePage() {
                 icon: '📊',
                 title: 'Évaluation Immobilière IA',
                 description:
-                  'Analyse complète de la valeur de vos propriétés basée sur données Centris vérifiées et comparables locaux',
+                  'Analyse complète de la valeur de vos propriétés basée sur données vérifiées et comparables locaux',
               },
               {
                 icon: '💰',
@@ -6071,7 +6071,7 @@ function HomePage() {
                 icon: '📈',
                 title: 'Analyses Comparables',
                 description:
-                  'Justification détaillée avec propriétés similaires réellement vendues/louées sur Centris',
+                  'Justification détaillée avec propriétés similaires réellement vendues/louées',
               },
               {
                 icon: '⚡',
@@ -6124,7 +6124,7 @@ function HomePage() {
                 </h3>
                 <p className="text-gray-700 mb-6 leading-relaxed text-sm sm:text-base">
                   Découvrez la vraie valeur marchande de vos propriétés avec une analyse IA complète
-                  basée sur données Centris en temps réel.
+                  basée sur données en temps réel.
                 </p>
 
                 <div className="space-y-3 mb-6 sm:mb-8">
@@ -6413,7 +6413,7 @@ function HomePage() {
             {[
               {
                 q: 'Quelle est la différence entre Évaluation et Optimisation?',
-                a: "Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données Centris.",
+                a: "Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données.",
               },
               {
                 q: 'Fonctionne-t-il pour propriétés commerciales?',
@@ -6421,7 +6421,7 @@ function HomePage() {
               },
               {
                 q: 'Comment OptimiPlex évalue-t-elle une propriété?',
-                a: 'Nous analysons comparables Centris, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.',
+                a: 'Nous analysons comparables, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.',
               },
               {
                 q: 'Quel est le taux de précision?',
