@@ -891,26 +891,28 @@ app.post('/api/property/valuation-estimator', checkQuota, async (req, res) => {
   try {
     const {
       userId,
-      proprietyType, // 'unifamilial', 'jumelee', 'duplex', 'triplex', '4plex', etc
+      proprietyType,
+      addresseComplete,
       ville,
       quartier,
-      addresseComplete,
+      codePostal,
       prixAchat,
       anneeAchat,
       anneeConstruction,
-      surfaceHabitee, // en pi²
-      surfaceLot, // en pi²
+      surfaceHabitee,
+      surfaceLot,
       nombreChambres,
       nombreSallesBain,
-      garage, // 0, 1, 2, 3+
-      sous_sol, // 'none', 'partial', 'finished', 'full'
-      etatGeneral, // 'excellent', 'bon', 'moyen', 'renovation'
-      renobations, // ex: ['toiture', 'fenetre', 'systeme chauffage'] - vide = aucune
+      garage,
+      sous_sol,
+      etatGeneral,
+      renobations,
       piscine,
-      terrain_detail, // ex: 'coin tranquille', 'vue eau', 'boisé'
+      terrain_detail,
       notes_additionnelles
     } = req.body;
 
+    // Validation
     if (!proprietyType || !ville || !prixAchat || !anneeAchat || !anneeConstruction) {
       return res.status(400).json({ 
         error: 'Paramètres obligatoires manquants',
@@ -918,97 +920,117 @@ app.post('/api/property/valuation-estimator', checkQuota, async (req, res) => {
       });
     }
 
-    console.log(`🏠 Évaluation: ${proprietyType} à ${ville}, acheté ${prixAchat}$ en ${anneeAchat}`);
-
-    // Calcul des années écoulées
-    const anneeActuelle = new Date().getFullYear();
+    const now = new Date();
+    const moisActuel = now.toLocaleString('fr-CA', { month: 'long' });
+    const anneeActuelle = now.getFullYear();
     const ansAchatEcoules = anneeActuelle - anneeAchat;
     const ageConstruction = anneeActuelle - anneeConstruction;
+    
+    // Logique saisonnière
+    let contexteSaisonnier = "Marché standard";
+    if (['décembre', 'janvier', 'février'].includes(moisActuel)) {
+        contexteSaisonnier = "Hiver (Inventaire bas, acheteurs sérieux uniquement)";
+    } else if (['mars', 'avril', 'mai', 'juin'].includes(moisActuel)) {
+        contexteSaisonnier = "Printemps (Saison de pointe, surenchère possible)";
+    } else if (['juillet', 'août'].includes(moisActuel)) {
+        contexteSaisonnier = "Été (Marché plus lent, vacances)";
+    }
 
-    // Prompt détaillé pour Claude
+    console.log(`🏠 Évaluation V4 (Strict): ${proprietyType} à ${ville}, Saison: ${moisActuel}`);
+
+    /**
+     * PROMPT "ZERO-BIAS" & "NO-FICTION"
+     */
     const valuationPrompt = `
-Vous êtes un évaluateur immobilier expert du marché québécois.
-Estimez la valeur marchande actuelle de cette propriété basée sur les données réelles du marché.
+Vous agissez en tant qu'évaluateur agréé (A.É.) senior membre de l'OEAQ.
+Votre mandat est d'évaluer la "Valeur Marchande Réelle" d'une propriété.
 
-INFORMATIONS DE LA PROPRIÉTÉ:
+CONTEXTE DE MARCHÉ:
+- Date: ${moisActuel} ${anneeActuelle}
+- Saison: ${contexteSaisonnier}
+- Localisation: ${ville}, ${quartier || ''} ${codePostal ? `(Secteur CP: ${codePostal})` : ''}
+
+CARACTÉRISTIQUES PHYSIQUES (BASE DE L'ÉVALUATION):
 - Type: ${proprietyType}
-- Localisation: ${ville}${quartier ? `, ${quartier}` : ''}
-- Adresse: ${addresseComplete || 'Non spécifiée'}
-- Prix d'achat: $${prixAchat}
-- Année d'achat: ${anneeAchat} (il y a ${ansAchatEcoules} ans)
-- Année de construction: ${anneeConstruction} (${ageConstruction} ans)
-- Surface habitable: ${surfaceHabitee || '?'} pi²
-- Surface du lot: ${surfaceLot || '?'} pi²
-- Chambres: ${nombreChambres || '?'}
-- Salles de bain: ${nombreSallesBain || '?'}
-- Garage: ${garage ? garage + ' stationnement(s)' : 'Aucun'}
-- Sous-sol: ${sous_sol || 'Non spécifié'}
-- État général: ${etatGeneral}
-- Rénovations effectuées: ${renobations && renobations.length > 0 ? renobations.join(', ') : 'Aucune'}
-- Piscine: ${piscine ? 'Oui' : 'Non'}
-- Particularités du terrain: ${terrain_detail || 'Aucune'}
-- Notes additionnelles: ${notes_additionnelles || 'Aucune'}
+- Adresse: ${addresseComplete || 'Non fournie'}
+- Âge: Construit en ${anneeConstruction} (${ageConstruction} ans)
+- Superficie: ${surfaceHabitee ? surfaceHabitee + ' pi² habitables' : 'Standard pour le type'}
+- Terrain: ${surfaceLot ? surfaceLot + ' pi²' : 'Standard'} (${terrain_detail || ''})
+- Configuration: ${nombreChambres || '?'} CC, ${nombreSallesBain || '?'} SDB
+- Stationnement: ${garage > 0 ? `Garage ${garage} place(s)` : 'Extérieur seulement'}
+- Sous-sol: ${sous_sol}
+- État Global: ${etatGeneral.toUpperCase()}
+- Rénovations: ${renobations && renobations.length > 0 ? renobations.join(', ') : 'Aucune rénovation majeure récente déclarée'}
+- Facteurs: ${piscine ? 'Piscine' : 'Pas de piscine'}
+- NOTES IMPORTANTES DU PROPRIÉTAIRE: "${notes_additionnelles || 'Aucune'}"
 
-TÂCHES:
-1. Analyser les données du marché immobilier québécois pour ce TYPE de propriété dans CETTE région
-2. Calculer une estimation de valeur marchande actuelle
-3. Comparer au prix d'achat et analyser l'appréciation
-4. Identifier les facteurs qui augmentent ou diminuent la valeur
-5. Fournir des recommandations pour maximiser la valeur
+--- SÉPARATION STRICTE DES TÂCHES ---
 
-REPONSE EN JSON STRICT:
+TÂCHE 1: ÉVALUATION MARCHANDE (IGNOREZ LE PRIX D'ACHAT)
+Basez-vous UNIQUEMENT sur les caractéristiques physiques ci-dessus et les données du marché (Centris/JLR).
+ATTENTION: Ne regardez PAS le prix d'achat fourni plus bas pour cette étape. Les prix d'achats passés sont souvent biaisés (vente de succession, surenchère covid, vente rapide). Votre évaluation doit être indépendante.
+
+TÂCHE 2: ANALYSE DE COMPARABLES
+Trouvez un profil de comparable RÉEL vendu récemment.
+INTERDICTION D'INVENTER UNE ADRESSE FICTIVE. Si vous n'avez pas l'adresse exacte d'un comparable vendu hier, décrivez le "Profil Type" vendu (ex: "Duplex standard secteur G1H, non rénové, vendu env. 450k$").
+
+TÂCHE 3: CALCUL DE RENTABILITÉ (DONNÉES FINANCIÈRES)
+Utilisez ces données UNIQUEMENT pour calculer le gain/perte, PAS pour influencer la valeur marchande:
+- Acheté en: ${anneeAchat} (Il y a ${ansAchatEcoules} ans)
+- Prix payé à l'époque: ${prixAchat}$
+
+FORMAT JSON STRICT:
 {
   "estimationActuelle": {
     "valeurBasse": [nombre],
-    "valeurMoyenne": [nombre],
+    "valeurMoyenne": [nombre - Valeur marchande objective],
     "valeurHaute": [nombre],
-    "fourchette": [numero, numero]
+    "confiance": "faible | moyenne | haute"
   },
   "analyse": {
-    "appreciationTotale": [nombre en $],
-    "appreciationAnnuelle": [nombre en $],
-    "pourcentageGain": [nombre sans %],
-    "yearsToBreakEven": [nombre ans, peut être négatif si déjà positif],
-    "marketTrend": "haussier | baissier | stable",
-    "quartierAnalysis": "description court du marché local"
+    "appreciationTotale": [nombre $ (Moyenne - Prix Achat)],
+    "appreciationAnnuelleMoyenne": [nombre $],
+    "pourcentageGainTotal": [nombre sans %],
+    "performanceMarche": "inférieure | égale | supérieure",
+    "marketTrend": "vendeur | acheteur | équilibré",
+    "analyseSecteur": "Analyse démographique et demande actuelle pour ${codePostal || ville}"
   },
   "facteursPrix": {
-    "augmentent": ["liste des facteurs positifs"],
-    "diminuent": ["liste des facteurs négatifs"],
-    "neutre": ["liste des facteurs stables"]
+    "positifs": ["Liste points forts"],
+    "negatifs": ["Liste points faibles"],
+    "incertitudes": ["Données manquantes critiques (ex: toit, fenêtres)"]
   },
   "recommendations": {
-    "ameliorationsValeur": ["rénovations recommandées pour augmenter valeur"],
-    "strategie": "courte description stratégie",
-    "venteMeilleuresChances": "description de meilleur timing/saison"
+    "renovationsRentables": ["Top 2 rénos payantes pour ce type de bien"],
+    "strategieVente": "Conseil basé sur la saison ${moisActuel}"
   },
   "comparable": {
-    "proprietesSimilaires": [nombre estimation],
-    "prixParPiCarre": [nombre $],
-    "evaluationQualite": "description qualité comparables"
+    "soldReference": "Description d'un profil de comparable vendu réel (Ex: 'Vente récente secteur X: Duplex similaire semi-rénové vendu 460k$'). NE PAS INVENTER D'ADRESSE.",
+    "prixPiedCarreEstime": [nombre]
   }
 }
 `;
 
-    // Appel Claude avec contexte immobilier
+    // Température encore plus basse pour réduire la créativité (fiction)
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 3000,
-      temperature: 0.3,
-      system: `Vous êtes un évaluateur immobilier expert du marché québécois avec 15+ ans d'expérience. 
-               Vous connaissez parfaitement les données Centris/MLS.
-               Vous répondez TOUJOURS avec du JSON valide et complet.
-               Jamais de texte avant ou après le JSON.`,
+      model: 'claude-sonnet-4-5-20250929', 
+      max_tokens: 3500,
+      temperature: 0.1, 
+      system: `Tu es un expert en évaluation immobilière (A.É.) au Québec. 
+               Rigueur absolue. Pas d'hallucination.
+               Si tu ne connais pas de vente spécifique récente, donne des statistiques de secteur agrégées plutôt que d'inventer une adresse.
+               Tu es sceptique face au prix d'achat fourni : tu évalues la brique et le marché d'abord.`,
       messages: [{ role: 'user', content: valuationPrompt }]
     });
 
     const valuationResult = parseClaudeJSON(response.content[0].text);
 
-    // Sauvegarder l'évaluation en Firestore
+    // --- Sauvegarde Firestore ---
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
       proprietyType,
       ville,
       quartier,
+      codePostal: codePostal || null,
       addresseComplete,
       prixAchat,
       anneeAchat,
@@ -1018,10 +1040,8 @@ REPONSE EN JSON STRICT:
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Mise à jour du quota
-    const now = new Date();
+    // --- Update Quota ---
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    
     await db.collection('users').doc(userId).update({
       'quotaTracking.count': admin.firestore.FieldValue.increment(1),
       'quotaTracking.month': currentMonth,

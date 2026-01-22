@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users,
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2,
   Megaphone,
   Target,
   List,
@@ -1449,7 +1449,9 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     );
   }
 
-  // Variables pour la modale (extraction sécurisée des données)
+  // ============================================
+  // RENDU MODALE (VUE DÉTAILLÉE)
+  // ============================================
   const renderModalContent = () => {
     if (!selectedAnalysis) return null;
 
@@ -1458,171 +1460,224 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const isValuation = type === 'valuation';
     const isCom = isCommercial(selectedAnalysis);
 
-    // Extraction robuste des données
+    // --- EXTRACTION DONNÉES UNIFIÉES (Supporte V1 et V2) ---
+    
+    // Facteurs
     const facteurs = result.facteursPrix || result.facteurs_prix || {};
+    const positifs = facteurs.positifs || facteurs.augmentent || [];
+    const negatifs = facteurs.negatifs || facteurs.diminuent || [];
+    const neutres = facteurs.neutre || [];
+    const incertitudes = facteurs.incertitudes || []; // NOUVEAU
+
+    // Comparables
     const comparable = result.comparable || {};
-    const qualiteEval = comparable.evaluationQualite || comparable.evaluation_qualite;
+    const soldRef = comparable.soldReference; // NOUVEAU
+    const compQualite = comparable.evaluationQualite || comparable.evaluation_qualite;
     
-    // Supporte les deux formats de clés pour les recommandations
+    // Recommandations
     const recs = result.recommendations || result.recommandation || {};
+    // Priorité aux nouvelles clés
+    const renovations = recs.renovationsRentables || recs.ameliorationsValeur || [];
+    const strategie = recs.strategieVente || recs.strategie;
+    const timing = recs.timing || recs.venteMeilleuresChances;
     
-    // Données spécifiques optimisation
-    const marketAnalysis = result.marketanalysis || {};
-    const marketingKit = result.marketingkit || {};
-    
-    // Données spécifiques évaluation
-    const metrics = result.metriquesCommerciales || {};
+    // Analyse
     const analyseData = result.analyse || {};
+    const textAnalysis = analyseData.analyseSecteur || analyseData.quartierAnalysis || analyseData.secteurAnalysis; // NOUVEAU prioritaire
     
-    // Texte d'analyse (quartier ou secteur)
-    const textAnalysis = analyseData.quartierAnalysis || analyseData.secteurAnalysis;
+    // Métriques Commerciales
+    const metrics = result.metriquesCommerciales || {};
 
     return (
       <div className="p-8 space-y-8">
-        {/* INFO PROPRIÉTÉ */}
+        {/* EN-TÊTE PROPRIÉTÉ */}
         <div className={`rounded-2xl p-6 border-2 ${isValuation ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'}`}>
-          <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
-            <span className="text-2xl">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> Propriété
-          </h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-gray-600 font-semibold mb-1">Titre</p>
-              <p className="text-gray-900 font-bold">{getPropertyLabel(selectedAnalysis)}</p>
+              <h4 className="font-black text-gray-900 text-xl mb-4 flex items-center gap-2">
+                <span className="text-2xl">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
+                {getPropertyLabel(selectedAnalysis)}
+              </h4>
+              <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+                <div className="flex items-center gap-1">
+                  <MapPin size={16} className="text-gray-500" />
+                  <span className="font-semibold">{selectedAnalysis.ville}</span>
+                  {selectedAnalysis.quartier && <span>• {selectedAnalysis.quartier}</span>}
+                  {selectedAnalysis.codePostal && <span>({selectedAnalysis.codePostal})</span>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Calendar size={16} className="text-gray-500" />
+                  <span>
+                    {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA', { dateStyle: 'long' }) || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold mb-1">Localisation</p>
-              <p className="text-gray-900 font-bold">{selectedAnalysis.ville}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold mb-1">Quartier</p>
-              <p className="text-gray-900 font-bold">{selectedAnalysis.quartier || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600 font-semibold mb-1">Date analyse</p>
-              <p className="text-gray-900 font-bold">
-                {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
-              </p>
+            <div className={`px-4 py-2 rounded-lg text-sm font-bold border ${isValuation ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
+              {isValuation ? 'ÉVALUATION' : 'OPTIMISATION'}
             </div>
           </div>
         </div>
 
-        {/* =================================================================================
-                                      SECTION ÉVALUATION 
-           ================================================================================= */}
+        {/* --- SECTION ÉVALUATION (RÉSIDENTIEL & COMMERCIAL) --- */}
         {isValuation && (
           <>
-            <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300">
-              <h4 className="font-black text-blue-900 text-lg mb-4">💎 Estimation de valeur</h4>
+            {/* 1. GRILLE DE PRIX */}
+            <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300 shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="font-black text-blue-900 text-lg flex items-center gap-2">
+                  <TrendingUp className="text-blue-700" /> Estimation de Valeur
+                </h4>
+                {result.estimationActuelle?.confiance && (
+                  <span className="text-xs font-bold uppercase tracking-wider bg-white/50 px-3 py-1 rounded-full text-blue-800">
+                    Confiance: {result.estimationActuelle.confiance}
+                  </span>
+                )}
+              </div>
+              
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-blue-700 font-semibold mb-2">Valeur moyenne</p>
-                  <p className="text-2xl font-black text-blue-700">
+                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200">
+                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Moyenne</p>
+                  <p className="text-2xl md:text-3xl font-black text-blue-900">
                     ${formatCurrency(result.estimationActuelle?.valeurMoyenne)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-blue-700 font-semibold mb-2">Fourchette basse</p>
-                  <p className="text-xl font-bold text-blue-600">
+                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
+                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Fourchette Basse</p>
+                  <p className="text-xl font-bold text-blue-800">
                     ${formatCurrency(result.estimationActuelle?.valeurBasse)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-blue-700 font-semibold mb-2">Fourchette haute</p>
-                  <p className="text-xl font-bold text-blue-600">
+                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
+                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Fourchette Haute</p>
+                  <p className="text-xl font-bold text-blue-800">
                     ${formatCurrency(result.estimationActuelle?.valeurHaute)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-blue-700 font-semibold mb-2">
-                    {isCom ? 'Cap Rate' : 'Appréciation'}
+                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
+                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">
+                    {isCom ? 'Cap Rate' : 'Gain/Perte'}
                   </p>
-                  <p className="text-2xl font-black text-blue-700">
+                  <p className={`text-xl font-black ${
+                    isCom 
+                      ? 'text-blue-900' 
+                      : (analyseData.pourcentageGain || analyseData.pourcentageGainTotal) >= 0 ? 'text-green-700' : 'text-red-600'
+                  }`}>
                     {isCom 
                       ? `${metrics.capRate?.toFixed(2) || '-'}%` 
-                      : `+${analyseData.pourcentageGain?.toFixed(1) || 0}%`
+                      : `${(analyseData.pourcentageGain || analyseData.pourcentageGainTotal || 0).toFixed(2)}%`
                     }
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* ANALYSE DÉTAILLÉE */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {analyseData.appreciationTotale !== undefined && (
-                  <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 mb-1">Appréciation Totale</p>
-                    <p className="text-2xl font-black text-green-600">${formatCurrency(analyseData.appreciationTotale)}</p>
+            {/* 2. ANALYSE DU MARCHÉ & SECTEUR */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Colonne Gauche: Indicateurs */}
+              <div className="space-y-4">
+                {(analyseData.appreciationTotale !== undefined) && (
+                  <div className={`p-4 rounded-xl border-l-4 ${analyseData.appreciationTotale >= 0 ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                    <p className="text-xs font-bold text-gray-500 uppercase">Appréciation Totale</p>
+                    <p className={`text-xl font-black ${analyseData.appreciationTotale >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {analyseData.appreciationTotale >= 0 ? '+' : ''}{formatCurrency(analyseData.appreciationTotale)}$
+                    </p>
                   </div>
                 )}
-                {analyseData.appreciationAnnuelle !== undefined && (
-                  <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 mb-1">Appréciation/An</p>
-                    <p className="text-2xl font-black text-blue-600">${formatCurrency(analyseData.appreciationAnnuelle)}</p>
-                  </div>
-                )}
+                
                 {analyseData.marketTrend && (
-                  <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 mb-1">Tendance Marché</p>
-                    <p className="text-lg font-black text-orange-600 capitalize">{analyseData.marketTrend}</p>
+                  <div className="p-4 rounded-xl border-l-4 bg-orange-50 border-orange-500">
+                    <p className="text-xs font-bold text-gray-500 uppercase">Tendance Marché</p>
+                    <p className="text-lg font-black text-orange-700 capitalize">
+                      {analyseData.marketTrend === 'acheteur' ? 'Favori Acheteur' : analyseData.marketTrend}
+                    </p>
+                  </div>
+                )}
+
+                {/* Info Comparable (NEW) */}
+                {comparable.prixPiedCarreEstime && (
+                  <div className="p-4 rounded-xl border-l-4 bg-purple-50 border-purple-500">
+                    <p className="text-xs font-bold text-gray-500 uppercase">Prix estimé / pi²</p>
+                    <p className="text-lg font-black text-purple-700">
+                      {comparable.prixPiedCarreEstime}$
+                    </p>
                   </div>
                 )}
               </div>
 
-              {textAnalysis && (
-                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
-                  <p className="text-sm font-bold text-indigo-900 mb-2">🎯 Analyse du {isCom ? 'Secteur' : 'Quartier'}</p>
-                  <p className="text-gray-800 leading-relaxed text-sm">{textAnalysis}</p>
-                </div>
-              )}
+              {/* Colonne Droite: Texte Analyse & Comparable Ref */}
+              <div className="md:col-span-2 space-y-4">
+                {textAnalysis && (
+                  <div className="bg-white p-5 rounded-xl border-2 border-gray-100">
+                    <h5 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                      <MapPin size={18} className="text-indigo-600" /> Analyse du Secteur
+                    </h5>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                      {textAnalysis}
+                    </p>
+                  </div>
+                )}
+
+                {soldRef && (
+                  <div className="bg-purple-50 p-5 rounded-xl border border-purple-200">
+                    <h5 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
+                      <Home size={18} /> Comparable de Référence
+                    </h5>
+                    <p className="text-sm text-purple-800 italic border-l-2 border-purple-300 pl-3">
+                      "{soldRef}"
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* MÉTRIQUES COMMERCIALES SUPPLÉMENTAIRES */}
-            {isCom && metrics.noiAnnuel !== undefined && (
-               <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
-                 <h4 className="font-black text-purple-900 text-lg mb-4">💹 Métriques Financières</h4>
-                 <div className="grid grid-cols-3 gap-4">
-                   <div>
-                     <p className="text-xs text-purple-700 font-semibold mb-1">NOI Annuel</p>
-                     <p className="text-xl font-bold text-purple-800">${formatCurrency(metrics.noiAnnuel)}</p>
-                   </div>
-                   {metrics.multiplicateurRevenu && (
-                     <div>
-                       <p className="text-xs text-purple-700 font-semibold mb-1">Mult. Revenu</p>
-                       <p className="text-xl font-bold text-purple-800">{metrics.multiplicateurRevenu.toFixed(2)}x</p>
-                     </div>
-                   )}
-                   {metrics.cashOnCash && (
-                     <div>
-                       <p className="text-xs text-purple-700 font-semibold mb-1">Cash-on-Cash</p>
-                       <p className="text-xl font-bold text-purple-800">{metrics.cashOnCash.toFixed(2)}%</p>
-                     </div>
-                   )}
-                 </div>
-               </div>
-            )}
-
-            {/* FACTEURS DE PRIX */}
-            {(facteurs.augmentent?.length > 0 || facteurs.diminuent?.length > 0) && (
-              <div>
-                <h4 className="font-black text-gray-900 text-lg mb-4">🎯 Facteurs de Prix</h4>
+            {/* 3. FACTEURS DÉTERMINANTS (Nouveau Design) */}
+            {(positifs.length > 0 || negatifs.length > 0 || incertitudes.length > 0) && (
+              <div className="space-y-4">
+                <h4 className="font-black text-gray-900 text-lg">🎯 Facteurs d'Influence</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {facteurs.augmentent?.length > 0 && (
-                    <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4">
-                      <p className="text-sm font-black text-green-700 mb-3">✅ Points Forts</p>
-                      <ul className="text-sm space-y-1">
-                        {facteurs.augmentent.map((item, idx) => (
-                          <li key={idx} className="text-gray-700 flex gap-2"><Check size={14} className="mt-1 text-green-600 shrink-0"/> {item}</li>
+                  
+                  {/* Incertitudes (NEW) - Affiché en premier si critique */}
+                  {incertitudes.length > 0 && (
+                    <div className="md:col-span-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-5">
+                      <h5 className="font-black text-amber-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
+                        <AlertTriangle size={18} /> Incertitudes & Risques
+                      </h5>
+                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {incertitudes.map((item, idx) => (
+                          <li key={idx} className="flex gap-2 text-sm text-amber-900 font-medium">
+                            <span className="text-amber-600 font-bold shrink-0">?</span> {item}
+                          </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {facteurs.diminuent?.length > 0 && (
-                    <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
-                      <p className="text-sm font-black text-red-700 mb-3">⚠️ Points Faibles</p>
-                      <ul className="text-sm space-y-1">
-                        {facteurs.diminuent.map((item, idx) => (
-                          <li key={idx} className="text-gray-700 flex gap-2"><X size={14} className="mt-1 text-red-600 shrink-0"/> {item}</li>
+
+                  {positifs.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+                      <h5 className="font-black text-green-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
+                        <Check size={18} /> Points Positifs
+                      </h5>
+                      <ul className="space-y-2">
+                        {positifs.map((item, idx) => (
+                          <li key={idx} className="flex gap-2 text-sm text-gray-700">
+                            <span className="text-green-600 font-bold shrink-0">+</span> {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {negatifs.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+                      <h5 className="font-black text-red-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
+                        <X size={18} /> Points Négatifs
+                      </h5>
+                      <ul className="space-y-2">
+                        {negatifs.map((item, idx) => (
+                          <li key={idx} className="flex gap-2 text-sm text-gray-700">
+                            <span className="text-red-600 font-bold shrink-0">-</span> {item}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1633,185 +1688,58 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </>
         )}
 
-        {/* =================================================================================
-                                      SECTION OPTIMISATION
-           ================================================================================= */}
+        {/* --- SECTION OPTIMISATION (COMMERCIAL/REVENUS) --- */}
         {!isValuation && (
-          <>
-            <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
-              <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Potentiel d'Optimisation</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer Optimal</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    ${formatCurrency(recs.loyeroptimal)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Mensuel</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    +${formatCurrency(recs.gainmensuel)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Annuel</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    +${formatCurrency(recs.gainannuel)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    {recs.confiance || 85}%
-                  </p>
-                </div>
+          <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
+            <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Potentiel d'Optimisation</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer Optimal</p>
+                <p className="text-2xl font-black text-emerald-700">
+                  ${formatCurrency(recs.loyeroptimal)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Mensuel</p>
+                <p className="text-2xl font-black text-emerald-700">
+                  +${formatCurrency(recs.gainmensuel)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Annuel</p>
+                <p className="text-2xl font-black text-emerald-700">
+                  +${formatCurrency(recs.gainannuel)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
+                <p className="text-2xl font-black text-emerald-700">
+                  {recs.confiance || 85}%
+                </p>
               </div>
             </div>
-
-            {/* ANALYSE MARCHÉ (Optimisation) */}
-            {marketAnalysis.mediane && (
-              <div className="bg-white rounded-2xl p-6 border-2 border-gray-200">
-                <h4 className="font-black text-gray-900 text-lg mb-4 flex items-center gap-2">
-                  📈 Analyse du Marché Local
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="bg-gray-50 p-3 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">Médiane Marché</p>
-                    <p className="font-bold text-gray-900">${formatCurrency(marketAnalysis.mediane)}</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">Taux Occupation</p>
-                    <p className="font-bold text-gray-900">{marketAnalysis.occupation}%</p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">Tendance 30j</p>
-                    <p className={`font-bold ${marketAnalysis.tendance30j >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {marketAnalysis.tendance30j > 0 ? '+' : ''}{marketAnalysis.tendance30j}%
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-xl">
-                    <p className="text-xs text-gray-500 mb-1">Listings Similaires</p>
-                    <p className="font-bold text-gray-900">{marketAnalysis.listingssimilaires}</p>
-                  </div>
-                </div>
-                {marketAnalysis.fourchette && (
-                  <div className="text-sm text-gray-600">
-                    <span className="font-semibold">Fourchette du marché :</span> ${formatCurrency(marketAnalysis.fourchette[0])} - ${formatCurrency(marketAnalysis.fourchette[1])}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* MARKETING KIT (Optimisation) */}
-            {marketingKit.titreannonce && (
-              <div className="bg-pink-50 rounded-2xl p-6 border-2 border-pink-200">
-                <h4 className="font-black text-pink-900 text-lg mb-4 flex items-center gap-2">
-                  📢 Kit Marketing
-                </h4>
-                <div className="space-y-4">
-                  <div className="bg-white p-4 rounded-xl border border-pink-100">
-                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase">Titre de l'annonce</p>
-                    <p className="font-bold text-gray-900">{marketingKit.titreannonce}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-pink-100">
-                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase">Description accrocheuse</p>
-                    <p className="text-gray-700 text-sm italic">"{marketingKit.descriptionaccroche}"</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-pink-100">
-                    <p className="text-xs text-pink-500 font-bold mb-1 uppercase flex items-center gap-1">
-                      👥 Profil locataire cible
-                    </p>
-                    <p className="text-gray-700 text-sm">{marketingKit.profillocataire}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
+          </div>
         )}
 
-        {/* =================================================================================
-                                      RECOMMANDATIONS STRATÉGIQUES
-           ================================================================================= */}
-        
-        {recs && (recs.ameliorationsValeur || recs.strategie || recs.operationnelle || recs.pointscles || recs.raisonnement) && (
+        {/* --- RECOMMANDATIONS & STRATÉGIE (COMMUN) --- */}
+        {(renovations.length > 0 || strategie || timing) && (
           <div className="space-y-6">
-            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3">
-              <span className="bg-yellow-100 p-2 rounded-xl text-2xl">💡</span> Recommandations Stratégiques
+            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3 border-t pt-6">
+              <span className="bg-yellow-100 p-2 rounded-xl text-2xl">💡</span> Stratégie & Recommandations
             </h4>
             
             <div className="grid grid-cols-1 gap-6">
-
-              {/* === RAISONNEMENT GLOBAL === */}
-              {recs.raisonnement && (
-                <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
-                  <p className="font-bold text-blue-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    🤖 Analyse & Raisonnement
-                  </p>
-                  <p className="text-gray-800 text-sm leading-relaxed">
-                    {recs.raisonnement}
-                  </p>
-                </div>
-              )}
               
-              {/* === OPTIMISATION : POINTS CLÉS === */}
-              {!isValuation && recs.pointscles && (
-                <div className="bg-emerald-50 rounded-2xl p-6 border-2 border-emerald-200">
-                  <p className="font-bold text-emerald-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    🎯 Points Clés
-                  </p>
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {recs.pointscles.map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
-                        <span className="text-emerald-500 font-bold mt-0.5 shrink-0">✓</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* === OPTIMISATION : JUSTIFICATION === */}
-              {!isValuation && recs.justification && (
-                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
-                  <p className="font-bold text-indigo-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    📝 Justification
-                  </p>
-                  <ul className="space-y-3">
-                    {recs.justification.map((item, i) => (
-                      <li key={i} className="text-sm text-indigo-800 flex gap-3 items-start">
-                        <span className="text-indigo-500 font-bold">•</span> {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* === OPTIMISATION : CONSIDÉRATIONS === */}
-              {!isValuation && recs.considerations && (
-                <div className="bg-red-50 rounded-2xl p-6 border-2 border-red-200">
-                  <p className="font-bold text-red-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    ⚠️ Considérations Importantes
-                  </p>
-                  <ul className="space-y-3">
-                    {recs.considerations.map((item, i) => (
-                      <li key={i} className="text-sm text-red-800 flex gap-3 items-start">
-                        <span className="text-red-500 font-bold">!</span> {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* === VALUATION : RENOVATIONS === */}
-              {recs.ameliorationsValeur?.length > 0 && (
+              {/* Rénovations Rentables (NEW) */}
+              {renovations.length > 0 && (
                 <div className="bg-orange-50 rounded-2xl p-6 border-2 border-orange-200">
-                  <p className="font-bold text-orange-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    🔨 Travaux Prioritaires
+                  <p className="font-bold text-orange-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <Building2 size={18} /> Rénovations à Haut ROI
                   </p>
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {recs.ameliorationsValeur.map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm text-gray-700 bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
-                        <span className="text-orange-500 font-bold mt-0.5 shrink-0">✓</span>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {renovations.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-800 bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
+                        <span className="text-orange-500 font-bold mt-0.5 shrink-0">🛠️</span>
                         <span className="leading-relaxed">{item}</span>
                       </li>
                     ))}
@@ -1819,63 +1747,33 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </div>
               )}
 
-              {/* === STRATÉGIE GLOBALE (Commun) === */}
-              {recs.strategie && (
-                <div className="bg-purple-50 rounded-2xl p-6 border-2 border-purple-200">
-                  <p className="font-bold text-purple-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    📈 Stratégie Globale
+              {/* Stratégie de Vente (NEW) */}
+              {strategie && (
+                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
+                  <p className="font-bold text-indigo-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <TrendingUp size={18} /> Stratégie Conseillée
                   </p>
-                  <p className="text-purple-800 text-sm leading-relaxed">{recs.strategie}</p>
+                  <p className="text-indigo-900 text-sm leading-relaxed whitespace-pre-line">
+                    {strategie}
+                  </p>
                 </div>
               )}
 
-              {/* === OPÉRATIONNEL (Commercial) === */}
-              {isCommercial && recs.operationnelle && (
-                <div className="bg-amber-50 rounded-2xl p-6 border-2 border-amber-200">
-                  <p className="font-bold text-amber-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    ⚙️ Optimisation Opérationnelle
-                  </p>
-                  <p className="text-amber-800 text-sm leading-relaxed">{recs.operationnelle}</p>
-                </div>
-              )}
-
-              {/* === TIMING & PROCHAINES ÉTAPES === */}
-              {(recs.timing || recs.venteMeilleuresChances || recs.prochainesetapes) && (
+              {/* Timing (NEW) */}
+              {timing && (
                 <div className="bg-gray-50 rounded-2xl p-6 border-2 border-gray-200">
-                  <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    🚀 Plan d'action
+                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <Calendar size={18} /> Timing Optimal
                   </p>
-                  
-                  {(recs.timing || recs.venteMeilleuresChances) && (
-                    <div className="flex gap-3 items-start mb-4 bg-white p-3 rounded-xl border border-gray-200">
-                      <span className="text-xl">⏱️</span>
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Timing Recommandé</p>
-                        <p className="text-sm font-medium text-gray-800">
-                          {recs.timing || recs.venteMeilleuresChances}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {recs.prochainesetapes && (
-                    <div>
-                      <p className="font-bold text-gray-700 mb-3 text-sm">Prochaines étapes :</p>
-                      <ul className="space-y-2">
-                        {recs.prochainesetapes.map((step, i) => (
-                          <li key={i} className="text-gray-600 flex gap-3 text-sm bg-white p-2 rounded-lg border border-gray-100">
-                            <span className="bg-gray-200 text-gray-700 font-bold w-6 h-6 flex items-center justify-center rounded-full text-xs shrink-0">{i+1}</span> 
-                            <span className="mt-0.5">{step}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <p className="text-gray-800 text-sm leading-relaxed">
+                    {timing}
+                  </p>
                 </div>
               )}
             </div>
           </div>
         )}
+
       </div>
     );
   };
@@ -2151,7 +2049,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </button>
             </div>
 
-            {/* CONTENU MODALE AVEC LOGIQUE ROBUSTE */}
+            {/* CONTENU MODALE DYNAMIQUE */}
             {renderModalContent()}
 
             <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex gap-3">
@@ -3702,6 +3600,7 @@ function PropertyValuationTab({
     proprietyType: 'unifamilial',
     ville: '',
     quartier: '',
+    codePostal: '',
     addresseComplete: '',
     prixAchat: '',
     anneeAchat: new Date().getFullYear() - 3,
@@ -3723,6 +3622,7 @@ function PropertyValuationTab({
     proprietyType: 'immeuble_revenus',
     ville: '',
     quartier: '',
+    codePostal: '',
     addresseComplete: '',
     prixAchat: '',
     anneeAchat: new Date().getFullYear() - 3,
@@ -3753,7 +3653,7 @@ function PropertyValuationTab({
       description: 'Où se situe votre propriété?',
       icon: '📍',
       required: ['ville', 'proprietyType'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
     },
     {
       id: 'acquisition',
@@ -3804,7 +3704,7 @@ function PropertyValuationTab({
       description: 'Où se situe votre propriété?',
       icon: '📍',
       required: ['ville', 'proprietyType'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'addresseComplete'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
     },
     {
       id: 'acquisition-com',
@@ -4156,17 +4056,31 @@ function PropertyValuationTab({
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Quartier
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Desjardins"
-          value={formData.quartier}
-          onChange={(e) => handleChange('quartier', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Quartier
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: Desjardins"
+              value={formData.quartier}
+              onChange={(e) => handleChange('quartier', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Code Postal
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: G6V 8T4"
+              value={formData.codePostal}
+              onChange={(e) => handleChange('codePostal', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
       </div>
 
       <div>
@@ -4242,17 +4156,31 @@ function PropertyValuationTab({
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Quartier
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Ste-Foy"
-          value={formData.quartier}
-          onChange={(e) => handleChange('quartier', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+      <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Quartier
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: Ste-Foy"
+              value={formData.quartier}
+              onChange={(e) => handleChange('quartier', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Code Postal
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: G1V 2M2"
+              value={formData.codePostal}
+              onChange={(e) => handleChange('codePostal', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
       </div>
 
       <div>
@@ -4864,15 +4792,23 @@ function PropertyValuationTab({
       <div className="relative overflow-hidden rounded-2xl shadow-lg">
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600" />
         <div className="relative p-8 md:p-12 text-white">
-          <div className="mb-6">
-            <p className="text-sm md:text-base font-semibold opacity-90 mb-2">
-              📊 Valeur Estimée Actuelle
-            </p>
-            <h2 className="text-4xl md:text-5xl font-black">
-              {est.valeurMoyenne
-                ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
-                : 'N/A'}
-            </h2>
+          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+             <div>
+                <p className="text-sm md:text-base font-semibold opacity-90 mb-2">
+                  📊 Valeur Estimée Actuelle
+                </p>
+                <h2 className="text-4xl md:text-5xl font-black">
+                  {est.valeurMoyenne
+                    ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
+                    : 'N/A'}
+                </h2>
+             </div>
+             {est.confiance && (
+                <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg self-start">
+                    <p className="text-xs opacity-80 uppercase font-bold tracking-wider">Confiance</p>
+                    <p className="font-bold text-lg capitalize">{est.confiance}</p>
+                </div>
+             )}
           </div>
           <div className="grid grid-cols-3 gap-3 md:gap-4">
             <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg">
@@ -4919,28 +4855,28 @@ function PropertyValuationTab({
               <p className="text-xs font-semibold text-cyan-600 uppercase">
                 Appréciation totale
               </p>
-              <p className="text-2xl font-black text-cyan-700 mt-2">
+              <p className={`text-2xl font-black mt-2 ${analyse.appreciationTotale >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
                 {analyse.appreciationTotale.toLocaleString('fr-CA')} $
               </p>
             </div>
           )}
-          {typeof analyse.appreciationAnnuelle === 'number' && (
+          {(typeof analyse.appreciationAnnuelle === 'number' || typeof analyse.appreciationAnnuelleMoyenne === 'number') && (
             <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
               <p className="text-xs font-semibold text-cyan-600 uppercase">
                 Appréciation/an
               </p>
-              <p className="text-2xl font-black text-cyan-700 mt-2">
-                {analyse.appreciationAnnuelle.toLocaleString('fr-CA')} $
+              <p className={`text-2xl font-black mt-2 ${(analyse.appreciationAnnuelle || analyse.appreciationAnnuelleMoyenne) >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
+                {(analyse.appreciationAnnuelle || analyse.appreciationAnnuelleMoyenne || 0).toLocaleString('fr-CA')} $
               </p>
             </div>
           )}
-          {typeof analyse.pourcentageGain === 'number' && (
+          {(typeof analyse.pourcentageGain === 'number' || typeof analyse.pourcentageGainTotal === 'number') && (
             <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
               <p className="text-xs font-semibold text-cyan-600 uppercase">
                 % Gain
               </p>
-              <p className="text-2xl font-black text-cyan-700 mt-2">
-                {analyse.pourcentageGain.toFixed(2)} %
+              <p className={`text-2xl font-black mt-2 ${(analyse.pourcentageGain || analyse.pourcentageGainTotal) >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
+                {(analyse.pourcentageGain || analyse.pourcentageGainTotal || 0).toFixed(2)} %
               </p>
             </div>
           )}
@@ -4955,18 +4891,32 @@ function PropertyValuationTab({
             </div>
           )}
         </div>
-        {analyse.marketTrend && (
-          <div className="mt-4 pt-4 border-t border-cyan-200">
-            <p className="text-sm font-bold text-cyan-900 mb-2">
-              Tendance du marché:
-            </p>
-            <p className="text-lg font-black text-cyan-700 capitalize">
-              {analyse.marketTrend === 'haussier'
-                ? '📈 Haussière'
-                : analyse.marketTrend === 'baissier'
-                ? '📉 Baissière'
-                : '➡️ Stable'}
-            </p>
+        {(analyse.marketTrend || analyse.performanceMarche) && (
+          <div className="mt-4 pt-4 border-t border-cyan-200 flex flex-wrap gap-4">
+            {analyse.marketTrend && (
+                <div>
+                    <p className="text-sm font-bold text-cyan-900 mb-1">
+                    Tendance du marché:
+                    </p>
+                    <p className="text-lg font-black text-cyan-700 capitalize">
+                    {analyse.marketTrend === 'haussier'
+                        ? '📈 Haussière'
+                        : analyse.marketTrend === 'baissier' || analyse.marketTrend === 'acheteur' // Le backend renvoie 'acheteur' parfois
+                        ? '📉 Baissière / Acheteur'
+                        : '➡️ Stable'}
+                    </p>
+                </div>
+            )}
+            {analyse.performanceMarche && (
+                <div>
+                    <p className="text-sm font-bold text-cyan-900 mb-1">
+                    Performance vs Marché:
+                    </p>
+                    <p className="text-lg font-black text-cyan-700 capitalize">
+                        {analyse.performanceMarche}
+                    </p>
+                </div>
+            )}
           </div>
         )}
       </div>
@@ -5033,25 +4983,43 @@ function PropertyValuationTab({
     const comp = selectedProperty.comparable || {};
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {analyse.quartierAnalysis && (
+        {(analyse.quartierAnalysis || analyse.analyseSecteur) && (
           <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
             <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
               🎯 Analyse du Quartier
             </h3>
             <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
-              {analyse.quartierAnalysis}
+              {analyse.analyseSecteur || analyse.quartierAnalysis}
             </p>
           </div>
         )}
 
-        {comp.evaluationQualite && (
+        {(comp.evaluationQualite || comp.soldReference) && (
           <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-2xl p-6 md:p-8 shadow-lg">
             <h3 className="text-2xl md:text-3xl font-black text-purple-900 mb-4 flex items-center gap-3">
-              🏘️ Comparables & Qualité d’évaluation
+              🏘️ Comparables
             </h3>
-            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {comp.evaluationQualite}
-            </p>
+            {comp.soldReference && (
+                <div className="mb-4 bg-white/50 p-3 rounded-lg border border-purple-200">
+                    <p className="text-xs font-bold text-purple-800 uppercase mb-1">Transaction de référence</p>
+                    <p className="text-sm text-gray-800 italic">"{comp.soldReference}"</p>
+                </div>
+            )}
+            {comp.evaluationQualite && (
+                 <div className="mb-4">
+                    <p className="text-xs font-bold text-purple-800 uppercase mb-1">Qualité</p>
+                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                    {comp.evaluationQualite}
+                    </p>
+                </div>
+            )}
+            {comp.prixPiedCarreEstime && (
+                <div className="mt-4 pt-4 border-t border-purple-200">
+                    <p className="text-sm font-bold text-purple-900">
+                        Prix au pi² estimé: <span className="text-lg">{comp.prixPiedCarreEstime} $</span>
+                    </p>
+                </div>
+            )}
           </div>
         )}
       </div>
@@ -5060,61 +5028,86 @@ function PropertyValuationTab({
 
   const renderResidentialFacteursPrix = () => {
     const f = selectedProperty.facteursPrix || {};
-    if (!f.augmentent && !f.diminuent && !f.neutre) return null;
+    // Supporte les deux formats de nommage (ancien vs nouveau prompt)
+    const positives = f.augmentent || f.positifs || [];
+    const negatives = f.diminuent || f.negatifs || [];
+    const neutrals = f.neutre || [];
+    const uncertainties = f.incertitudes || [];
+
+    if (!positives.length && !negatives.length && !neutrals.length && !uncertainties.length) return null;
+
     return (
       <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
         <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
           🎯 Facteurs de Prix
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {f.augmentent?.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {positives.length > 0 && (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
               <p className="font-black text-green-700 mb-3 text-sm uppercase">
                 ✅ Augmentent la valeur
               </p>
               <ul className="space-y-2">
-                {f.augmentent.map((item, idx) => (
+                {positives.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-green-600 font-bold">+</span>
+                    <span className="text-green-600 font-bold flex-shrink-0">+</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {f.diminuent?.length > 0 && (
+          {negatives.length > 0 && (
             <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
               <p className="font-black text-red-700 mb-3 text-sm uppercase">
                 ❌ Diminuent la valeur
               </p>
               <ul className="space-y-2">
-                {f.diminuent.map((item, idx) => (
+                {negatives.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-red-600 font-bold">-</span>
+                    <span className="text-red-600 font-bold flex-shrink-0">-</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {f.neutre?.length > 0 && (
+          {uncertainties.length > 0 && (
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-xl border-2 border-orange-300">
+              <p className="font-black text-orange-700 mb-3 text-sm uppercase">
+                ⚠️ Incertitudes / Risques
+              </p>
+              <ul className="space-y-2">
+                {uncertainties.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex gap-2 text-xs md:text-sm text-gray-800"
+                  >
+                    <span className="text-orange-600 font-bold flex-shrink-0">?</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {neutrals.length > 0 && (
             <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
               <p className="font-black text-gray-700 mb-3 text-sm uppercase">
                 ➖ Facteurs neutres
               </p>
               <ul className="space-y-2">
-                {f.neutre.map((item, idx) => (
+                {neutrals.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-gray-600 font-bold">•</span>
+                    <span className="text-gray-600 font-bold flex-shrink-0">•</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -5127,62 +5120,67 @@ function PropertyValuationTab({
   };
 
   const renderCommercialFacteursPrix = () => {
-    const f = selectedProperty.facteurs_prix || {};
-    if (!f.augmentent && !f.diminuent && !f.neutre) return null;
+    const f = selectedProperty.facteurs_prix || selectedProperty.facteursPrix || {}; // Support legacy name
+    const positives = f.augmentent || f.positifs || [];
+    const negatives = f.diminuent || f.negatifs || [];
+    const neutrals = f.neutre || [];
+    
+    if (!positives.length && !negatives.length && !neutrals.length) return null;
+    
     return (
       <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
         <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
           🎯 Facteurs de Prix
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {f.augmentent?.length > 0 && (
+          {positives.length > 0 && (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
               <p className="font-black text-green-700 mb-3 text-sm uppercase">
                 ✅ Augmentent la valeur
               </p>
               <ul className="space-y-2">
-                {f.augmentent.map((item, idx) => (
+                {positives.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-green-600 font-bold">+</span>
+                    <span className="text-green-600 font-bold flex-shrink-0">+</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {f.diminuent?.length > 0 && (
+          {negatives.length > 0 && (
             <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
               <p className="font-black text-red-700 mb-3 text-sm uppercase">
                 ❌ Diminuent la valeur
               </p>
               <ul className="space-y-2">
-                {f.diminuent.map((item, idx) => (
+                {negatives.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-red-600 font-bold">-</span>
+                    <span className="text-red-600 font-bold flex-shrink-0">-</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          {f.neutre?.length > 0 && (
+          {neutrals.length > 0 && (
             <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
               <p className="font-black text-gray-700 mb-3 text-sm uppercase">
                 ➖ Facteurs neutres
               </p>
               <ul className="space-y-2">
-                {f.neutre.map((item, idx) => (
+                {neutrals.map((item, idx) => (
                   <li
                     key={idx}
                     className="flex gap-2 text-xs md:text-sm text-gray-800"
                   >
-                    <span className="text-gray-600 font-bold">•</span>
+                    <span className="text-gray-600 font-bold flex-shrink-0">•</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -5199,13 +5197,13 @@ function PropertyValuationTab({
     const comp = selectedProperty.comparable || {};
     return (
       <div className="space-y-6">
-        {analyse.secteurAnalysis && (
+        {(analyse.secteurAnalysis || analyse.analyseSecteur) && (
           <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
             <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
               🎯 Analyse du Secteur
             </h3>
             <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
-              {analyse.secteurAnalysis}
+              {analyse.secteurAnalysis || analyse.analyseSecteur}
             </p>
           </div>
         )}
@@ -5227,18 +5225,24 @@ function PropertyValuationTab({
   const renderRecommendations = () => {
     const r = selectedProperty.recommendations || {};
     if (!r) return null;
+
+    // Mapping pour supporter les deux formats de réponse JSON
+    const renovations = r.ameliorationsValeur || r.renovationsRentables || [];
+    const strategy = r.strategie || r.strategieVente;
+
     return (
       <div className="bg-gradient-to-br from-lime-50 to-green-50 border-2 border-lime-300 rounded-2xl p-6 md:p-8 shadow-lg">
         <h3 className="text-2xl md:text-3xl font-black text-lime-900 mb-6 flex items-center gap-3">
           💡 Recommandations Stratégiques
         </h3>
-        {r.ameliorationsValeur?.length > 0 && (
+        
+        {renovations.length > 0 && (
           <div className="mb-6">
             <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
               🔨 Améliorations pour augmenter la valeur
             </p>
             <ul className="space-y-2">
-              {r.ameliorationsValeur.map((item, idx) => (
+              {renovations.map((item, idx) => (
                 <li
                   key={idx}
                   className="flex gap-3 text-sm md:text-base text-gray-800"
@@ -5295,13 +5299,13 @@ function PropertyValuationTab({
           </div>
         )}
 
-        {r.strategie && (
+        {strategy && (
           <div className="mt-6 pt-4 border-t border-lime-300 bg-white p-4 rounded-lg">
             <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
               📋 Stratégie complète
             </p>
             <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {r.strategie}
+              {strategy}
             </p>
           </div>
         )}
@@ -5336,7 +5340,7 @@ function PropertyValuationTab({
       <LoadingSpinner
         isLoading={loading}
         messages={loadingMessages[evaluationType]}
-        estimatedTime={evaluationType === 'commercial' ? 60 : 25}
+        estimatedTime={evaluationType === 'commercial' ? 60 : 40}
       />
 
       {/* QUOTA */}
