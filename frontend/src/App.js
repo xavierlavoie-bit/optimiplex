@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2,
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2, BarChart3, Percent, Briefcase, ArrowUpRight, ArrowDownRight, FileText, ListChecks, Filter, LayoutDashboard, PieChart,
   Megaphone,
   Target,
   List,
@@ -783,7 +783,7 @@ ${user?.email || 'contact'}`;
 
               <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
                 <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Besoin d'aide?</p>
-                <p className="text-xs md:text-sm text-gray-700">Contactez support@optimiplex.com ou utilisez le chat en bas à droite.</p>
+                <p className="text-xs md:text-sm text-gray-700">Contactez info@optimiplex.com ou utilisez le chat en bas à droite.</p>
               </div>
             </div>
           </div>
@@ -1264,6 +1264,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [deletingId, setDeletingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
+  
+  const [listFilter, setListFilter] = useState('all');
 
   // ============================================
   // CHARGER LES ANALYSES
@@ -1275,7 +1277,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         const db = getFirestore();
         const allData = [];
 
-        // Helper pour charger une collection de manière sécurisée
         const fetchCollection = async (collName, typeOverride) => {
           try {
             const ref = collection(db, 'users', user.uid, collName);
@@ -1284,7 +1285,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               allData.push({
                 id: doc.id,
                 collection: collName,
-                proprietype: typeOverride, // force le type si connu par la collection
+                proprietype: typeOverride,
                 ...doc.data()
               });
             });
@@ -1297,7 +1298,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         await fetchCollection('evaluations', 'residential');
         await fetchCollection('evaluations_commerciales', 'commercial');
 
-        // Trier par date décroissante
         const data = allData.sort((a, b) => {
           const dateA = a.createdAt?.toDate?.() || new Date(a.timestamp || 0);
           const dateB = b.createdAt?.toDate?.() || new Date(b.timestamp || 0);
@@ -1306,7 +1306,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
         setAnalyses(data);
 
-        // Calculer les stats
         let totalVal = 0;
         let totalGains = 0;
         let evaluationCount = 0;
@@ -1346,7 +1345,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   }, [user?.uid]);
 
   // ============================================
-  // ACTIONS (EDIT / DELETE)
+  // ACTIONS
   // ============================================
   const handleDelete = async (analysisId, collectionName, e) => {
     if (e) e.stopPropagation();
@@ -1355,9 +1354,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     setDeletingId(analysisId);
     try {
       const db = getFirestore();
-      // Fallback sur 'analyses' si collectionName est vide (pour compatibilité)
       await deleteDoc(doc(db, 'users', user.uid, collectionName || 'analyses', analysisId));
-      
       setAnalyses(prev => prev.filter(a => a.id !== analysisId));
       if (selectedAnalysis?.id === analysisId) setSelectedAnalysis(null);
     } catch (err) {
@@ -1390,7 +1387,12 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   // ============================================
   // UTILITAIRES D'AFFICHAGE
   // ============================================
-  const formatCurrency = (val) => val ? Math.round(val).toLocaleString('fr-CA') : '0';
+  const formatCurrency = (val) => val ? Math.round(Number(val)).toLocaleString('fr-CA') : '0';
+  
+  const formatPercent = (val) => {
+    if (val === undefined || val === null) return '-';
+    return `${Number(val).toFixed(2)}%`;
+  };
 
   const getAnalysisType = (analyse) => {
     if (analyse.result?.estimationActuelle?.valeurMoyenne) return 'valuation';
@@ -1404,46 +1406,42 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
            ['immeuble_revenus', 'hotel', 'depanneur', 'bureau', 'commerce', 'restaurant'].includes(type);
   };
 
+  const getResidentialPercentage = (analyse) => {
+    const data = analyse.result?.analyse || {};
+    const val = data.pourcentageGain ?? 
+                data.pourcentageGainTotal ?? 
+                data.appreciation ?? 
+                data.evolution ?? 
+                0;
+    return Number(val);
+  };
+
   const getPropertyIcon = (type) => {
     const t = (type || '').toLowerCase();
     const icons = {
-      unifamilial: '🏠',
-      jumelee: '🏘️',
-      duplex: '🏢',
-      triplex: '🏢',
-      '4plex': '🏗️',
-      condo: '🏙️',
-      immeuble_revenus: '🏗️',
-      hotel: '🏨',
-      depanneur: '🏪',
-      restaurant: '🍽️',
-      bureau: '📋',
-      commerce: '🛍️',
-      terrain_commercial: '🌳',
-      terrain: '🌳',
-      residential: '🏠',
-      commercial: '🏢'
+      unifamilial: '🏠', jumelee: '🏘️', duplex: '🏢', triplex: '🏢', '4plex': '🏗️',
+      condo: '🏙️', immeuble_revenus: '🏗️', hotel: '🏨', depanneur: '🏪',
+      restaurant: '🍽️', bureau: '📋', commerce: '🛍️', terrain_commercial: '🌳',
+      terrain: '🌳', residential: '🏠', commercial: '🏢'
     };
-    
     if (icons[t]) return icons[t];
-    
-    // Fallback logic
-    if (t.includes('hotel') || t.includes('commercial') || t.includes('revenu') || t.includes('bureau')) {
-      return '🏢';
-    }
+    if (t.includes('hotel') || t.includes('commercial') || t.includes('revenu') || t.includes('bureau')) return '🏢';
     return '🏠';
   };
 
-  const getPropertyLabel = (analyse) => {
-    return analyse.titre || analyse.typeappart || analyse.proprietetype || 'Propriété';
-  };
+  const getPropertyLabel = (analyse) => analyse.titre || analyse.typeappart || analyse.proprietetype || 'Propriété';
+
+  const filteredAnalyses = analyses.filter(a => {
+    if (listFilter === 'all') return true;
+    return getAnalysisType(a) === listFilter;
+  });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">🔄</div>
-          <p className="text-gray-600">Chargement de vos données...</p>
+          <p className="text-gray-600 font-medium">Chargement de votre univers...</p>
         </div>
       </div>
     );
@@ -1460,193 +1458,231 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const isValuation = type === 'valuation';
     const isCom = isCommercial(selectedAnalysis);
 
-    // --- EXTRACTION DONNÉES UNIFIÉES (Supporte V1 et V2) ---
-    
-    // Facteurs
+    const analyseData = result.analyse || {};
+    const metrics = result.metriquesCommerciales || {};
+    const comparable = result.comparable || {};
+    const secteurAnalysis = analyseData.secteurAnalysis || analyseData.quartierAnalysis || analyseData.analyseSecteur;
+    const qualiteAnalysis = comparable.evaluation_qualite || comparable.evaluationQualite;
+    const soldReference = comparable.soldReference;
     const facteurs = result.facteursPrix || result.facteurs_prix || {};
     const positifs = facteurs.positifs || facteurs.augmentent || [];
     const negatifs = facteurs.negatifs || facteurs.diminuent || [];
-    const neutres = facteurs.neutre || [];
-    const incertitudes = facteurs.incertitudes || []; // NOUVEAU
-
-    // Comparables
-    const comparable = result.comparable || {};
-    const soldRef = comparable.soldReference; // NOUVEAU
-    const compQualite = comparable.evaluationQualite || comparable.evaluation_qualite;
-    
-    // Recommandations
+    const incertitudes = facteurs.incertitudes || [];
     const recs = result.recommendations || result.recommandation || {};
-    // Priorité aux nouvelles clés
     const renovations = recs.renovationsRentables || recs.ameliorationsValeur || [];
+    const optRevenus = recs.optimisationRevenu || [];
+    const redDepenses = recs.reduceExpenses || [];
     const strategie = recs.strategieVente || recs.strategie;
     const timing = recs.timing || recs.venteMeilleuresChances;
-    
-    // Analyse
-    const analyseData = result.analyse || {};
-    const textAnalysis = analyseData.analyseSecteur || analyseData.quartierAnalysis || analyseData.secteurAnalysis; // NOUVEAU prioritaire
-    
-    // Métriques Commerciales
-    const metrics = result.metriquesCommerciales || {};
+    const marketAnalysis = result.marketanalysis || {};
+    const marketingKit = result.marketingkit || {};
+    const justification = recs.justification || recs.raisonnement || []; 
+    const pointsCles = recs.pointscles || [];
+    const prochainesEtabpes = recs.prochainesetapes || [];
+
+    const gainPct = getResidentialPercentage(selectedAnalysis);
 
     return (
-      <div className="p-8 space-y-8">
-        {/* EN-TÊTE PROPRIÉTÉ */}
-        <div className={`rounded-2xl p-6 border-2 ${isValuation ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'}`}>
-          <div className="flex items-start justify-between">
+      <div className="p-8 space-y-8 bg-gray-50/50">
+        
+        {/* EN-TÊTE PROPRIÉTÉ - STYLE VIBRANT */}
+        <div className={`rounded-2xl p-6 shadow-md border-2 ${
+          isCom ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' :
+          isValuation ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200' : 
+          'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
+        }`}>
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
-              <h4 className="font-black text-gray-900 text-xl mb-4 flex items-center gap-2">
-                <span className="text-2xl">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
-                {getPropertyLabel(selectedAnalysis)}
-              </h4>
-              <div className="flex flex-wrap gap-4 text-sm text-gray-700">
-                <div className="flex items-center gap-1">
-                  <MapPin size={16} className="text-gray-500" />
-                  <span className="font-semibold">{selectedAnalysis.ville}</span>
-                  {selectedAnalysis.quartier && <span>• {selectedAnalysis.quartier}</span>}
-                  {selectedAnalysis.codePostal && <span>({selectedAnalysis.codePostal})</span>}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar size={16} className="text-gray-500" />
-                  <span>
-                    {selectedAnalysis.createdAt?.toDate?.().toLocaleDateString('fr-CA', { dateStyle: 'long' }) || new Date(selectedAnalysis.timestamp).toLocaleDateString('fr-CA')}
-                  </span>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-4xl filter drop-shadow-md">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
+                <div>
+                  <h4 className="font-black text-gray-900 text-2xl leading-tight">{getPropertyLabel(selectedAnalysis)}</h4>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-1 font-medium">
+                    <MapPin size={16} className="text-gray-500" />
+                    <span>{selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`}</span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className={`px-4 py-2 rounded-lg text-sm font-bold border ${isValuation ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
-              {isValuation ? 'ÉVALUATION' : 'OPTIMISATION'}
+            <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide self-start shadow-sm border ${
+              isCom ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+              isValuation ? 'bg-blue-100 text-blue-700 border-blue-200' : 
+              'bg-emerald-100 text-emerald-700 border-emerald-200'
+            }`}>
+              {isCom ? '🏢 Commercial' : isValuation ? '🏠 Résidentiel' : '💰 Optimisation'}
             </div>
           </div>
         </div>
 
-        {/* --- SECTION ÉVALUATION (RÉSIDENTIEL & COMMERCIAL) --- */}
+        {/* --- SECTION ÉVALUATION --- */}
         {isValuation && (
           <>
-            {/* 1. GRILLE DE PRIX */}
-            <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-2xl p-6 border-2 border-blue-300 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h4 className="font-black text-blue-900 text-lg flex items-center gap-2">
-                  <TrendingUp className="text-blue-700" /> Estimation de Valeur
-                </h4>
-                {result.estimationActuelle?.confiance && (
-                  <span className="text-xs font-bold uppercase tracking-wider bg-white/50 px-3 py-1 rounded-full text-blue-800">
-                    Confiance: {result.estimationActuelle.confiance}
-                  </span>
-                )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Carte Principale Valeur */}
+              <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg border border-blue-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                
+                <div className="flex justify-between items-center mb-6 relative">
+                  <h4 className="font-black text-gray-900 flex items-center gap-2 text-lg">
+                    <span className="text-2xl">💎</span> Estimation de Valeur
+                  </h4>
+                  {result.estimationActuelle?.confiance && (
+                    <span className="text-xs font-bold uppercase tracking-wider bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">
+                       Confiance {result.estimationActuelle.confiance}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex flex-col md:flex-row gap-8 items-end relative">
+                  <div>
+                    <p className="text-sm text-gray-500 font-bold mb-1 uppercase">Valeur Moyenne</p>
+                    <p className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 tracking-tight">
+                      ${formatCurrency(result.estimationActuelle?.valeurMoyenne)}
+                    </p>
+                  </div>
+                  
+                  <div className="flex-1 w-full">
+                    {/* Visualisation Barre de Prix */}
+                    <div className="relative pt-6 pb-2">
+                       <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
+                         <span>📉 ${formatCurrency(result.estimationActuelle?.valeurBasse)}</span>
+                         <span>📈 ${formatCurrency(result.estimationActuelle?.valeurHaute)}</span>
+                       </div>
+                       <div className="h-4 bg-gray-100 rounded-full overflow-hidden relative shadow-inner">
+                         <div className="absolute left-[15%] right-[15%] top-0 bottom-0 bg-blue-200/50 rounded-full"></div>
+                         <div className="absolute left-[48%] top-0 bottom-0 w-1.5 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200">
-                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Moyenne</p>
-                  <p className="text-2xl md:text-3xl font-black text-blue-900">
-                    ${formatCurrency(result.estimationActuelle?.valeurMoyenne)}
-                  </p>
-                </div>
-                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
-                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Fourchette Basse</p>
-                  <p className="text-xl font-bold text-blue-800">
-                    ${formatCurrency(result.estimationActuelle?.valeurBasse)}
-                  </p>
-                </div>
-                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
-                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">Fourchette Haute</p>
-                  <p className="text-xl font-bold text-blue-800">
-                    ${formatCurrency(result.estimationActuelle?.valeurHaute)}
-                  </p>
-                </div>
-                <div className="bg-white/40 p-4 rounded-xl backdrop-blur-sm border border-blue-200/50">
-                  <p className="text-xs text-blue-800 font-bold uppercase mb-1">
-                    {isCom ? 'Cap Rate' : 'Gain/Perte'}
-                  </p>
-                  <p className={`text-xl font-black ${
-                    isCom 
-                      ? 'text-blue-900' 
-                      : (analyseData.pourcentageGain || analyseData.pourcentageGainTotal) >= 0 ? 'text-green-700' : 'text-red-600'
-                  }`}>
-                    {isCom 
-                      ? `${metrics.capRate?.toFixed(2) || '-'}%` 
-                      : `${(analyseData.pourcentageGain || analyseData.pourcentageGainTotal || 0).toFixed(2)}%`
-                    }
-                  </p>
-                </div>
+
+              {/* KPI Secondaires */}
+              <div className="space-y-4">
+                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center h-full text-center">
+                    <p className="text-xs text-gray-500 font-bold uppercase mb-2">
+                      {isCom ? 'Cap Rate Actuel' : 'Gain/Perte Potentiel'}
+                    </p>
+                    <p className={`text-4xl font-black ${
+                      isCom 
+                        ? 'text-indigo-600' 
+                        : gainPct >= 0 ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      {isCom 
+                        ? formatPercent(metrics.capRate)
+                        : `${gainPct > 0 ? '+' : ''}${gainPct.toFixed(2)}%`
+                      }
+                    </p>
+                    <p className="text-2xl mt-2">{isCom ? '🏢' : gainPct >= 0 ? '🚀' : '📉'}</p>
+                 </div>
               </div>
             </div>
 
-            {/* 2. ANALYSE DU MARCHÉ & SECTEUR */}
+            {/* --- DASHBOARD COMMERCIAL SPECIFIQUE --- */}
+            {isCom && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'RNE Annuel', val: `$${formatCurrency(metrics.noiAnnuel)}`, icon: '💵', color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                  { label: 'MRB', val: `${metrics.multiplicateurRevenu?.toFixed(2) || '-'} x`, icon: '📊', color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                  { label: 'Cash on Cash', val: formatPercent(metrics.cashOnCash), icon: '🔄', color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                  { label: 'Appréciation', val: `${(analyseData.appreciationTotale || 0) >= 0 ? '+' : ''}${formatCurrency(analyseData.appreciationTotale || analyseData.appreciationAnnuelle)}$`, icon: '📈', color: (analyseData.appreciationTotale || 0) >= 0 ? 'text-green-600' : 'text-red-600', bg: (analyseData.appreciationTotale || 0) >= 0 ? 'bg-green-50' : 'bg-red-50' },
+                ].map((stat, i) => (
+                  <div key={i} className={`${stat.bg} p-4 rounded-xl shadow-sm border border-opacity-50 border-gray-200`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xl">{stat.icon}</span>
+                      <p className="text-xs text-gray-600 font-bold uppercase">{stat.label}</p>
+                    </div>
+                    <p className={`text-xl font-black ${stat.color}`}>{stat.val}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* --- ANALYSE TEXTUELLE & CONTEXTE --- */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Colonne Gauche: Indicateurs */}
               <div className="space-y-4">
-                {(analyseData.appreciationTotale !== undefined) && (
-                  <div className={`p-4 rounded-xl border-l-4 ${analyseData.appreciationTotale >= 0 ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Appréciation Totale</p>
-                    <p className={`text-xl font-black ${analyseData.appreciationTotale >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                      {analyseData.appreciationTotale >= 0 ? '+' : ''}{formatCurrency(analyseData.appreciationTotale)}$
-                    </p>
+                {analyseData.marketTrend && (
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-2">Tendance Marché</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{analyseData.marketTrend === 'acheteur' ? '🛒' : '🔥'}</span>
+                      <p className="text-lg font-black text-gray-900 capitalize">
+                        {analyseData.marketTrend === 'acheteur' ? 'Favori Acheteur' : analyseData.marketTrend}
+                      </p>
+                    </div>
                   </div>
                 )}
                 
-                {analyseData.marketTrend && (
-                  <div className="p-4 rounded-xl border-l-4 bg-orange-50 border-orange-500">
-                    <p className="text-xs font-bold text-gray-500 uppercase">Tendance Marché</p>
-                    <p className="text-lg font-black text-orange-700 capitalize">
-                      {analyseData.marketTrend === 'acheteur' ? 'Favori Acheteur' : analyseData.marketTrend}
-                    </p>
-                  </div>
-                )}
-
-                {/* Info Comparable (NEW) */}
-                {comparable.prixPiedCarreEstime && (
-                  <div className="p-4 rounded-xl border-l-4 bg-purple-50 border-purple-500">
-                    <p className="text-xs font-bold text-gray-500 uppercase">Prix estimé / pi²</p>
-                    <p className="text-lg font-black text-purple-700">
-                      {comparable.prixPiedCarreEstime}$
-                    </p>
-                  </div>
-                )}
+                {/* Comparables Stats */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-4">
+                    {comparable.prixPiedCarreEstime ? 'Prix / pi² Estimé' : 'Métriques Comparables'}
+                  </p>
+                  
+                    {comparable.prixPiedCarreEstime ? (
+                       <div className="text-center py-2">
+                         <span className="text-3xl font-black text-purple-600">${comparable.prixPiedCarreEstime}</span>
+                         <span className="text-sm text-gray-500 font-bold"> / pi²</span>
+                       </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 text-sm font-bold">Moyen</span>
+                          <span className="font-black text-gray-900">${comparable.prix_moyen || comparable.prixMoyen}/pi²</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                           <div className="bg-gradient-to-r from-blue-400 to-indigo-500 h-full rounded-full" style={{ width: '60%' }}></div>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-400 font-mono">
+                          <span>Min: ${comparable.prix_min}</span>
+                          <span>Max: ${comparable.prix_max}</span>
+                        </div>
+                      </div>
+                    )}
+                </div>
               </div>
 
-              {/* Colonne Droite: Texte Analyse & Comparable Ref */}
+              {/* Texte Principal Droite */}
               <div className="md:col-span-2 space-y-4">
-                {textAnalysis && (
-                  <div className="bg-white p-5 rounded-xl border-2 border-gray-100">
-                    <h5 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                      <MapPin size={18} className="text-indigo-600" /> Analyse du Secteur
+                {secteurAnalysis && (
+                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    <h5 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-lg">
+                      📍 Analyse du Secteur
                     </h5>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                      {textAnalysis}
+                    <p className="text-sm text-gray-600 leading-relaxed text-justify">
+                      {secteurAnalysis}
                     </p>
                   </div>
                 )}
 
-                {soldRef && (
-                  <div className="bg-purple-50 p-5 rounded-xl border border-purple-200">
-                    <h5 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
-                      <Home size={18} /> Comparable de Référence
+                {(qualiteAnalysis || soldReference) && (
+                   <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
+                    <h5 className="font-black text-purple-900 mb-3 flex items-center gap-2 text-lg">
+                      {isCom ? '💼 Analyse Qualitative' : '🏡 Profil & Comparables'}
                     </h5>
-                    <p className="text-sm text-purple-800 italic border-l-2 border-purple-300 pl-3">
-                      "{soldRef}"
+                    <p className="text-sm text-purple-900 leading-relaxed italic text-justify">
+                      "{isCom ? qualiteAnalysis : soldReference}"
                     </p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* 3. FACTEURS DÉTERMINANTS (Nouveau Design) */}
+            {/* --- FACTEURS D'INFLUENCE (Emojis & Couleurs) --- */}
             {(positifs.length > 0 || negatifs.length > 0 || incertitudes.length > 0) && (
               <div className="space-y-4">
-                <h4 className="font-black text-gray-900 text-lg">🎯 Facteurs d'Influence</h4>
+                <h4 className="font-black text-gray-900 text-xl">🎯 Facteurs d'Influence</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
-                  {/* Incertitudes (NEW) - Affiché en premier si critique */}
                   {incertitudes.length > 0 && (
-                    <div className="md:col-span-2 bg-amber-50 border-2 border-amber-300 rounded-xl p-5">
-                      <h5 className="font-black text-amber-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
-                        <AlertTriangle size={18} /> Incertitudes & Risques
+                    <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-5">
+                      <h5 className="font-black text-amber-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        ⚠️ Incertitudes & Risques
                       </h5>
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {incertitudes.map((item, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-amber-900 font-medium">
-                            <span className="text-amber-600 font-bold shrink-0">?</span> {item}
+                            <span className="shrink-0">❓</span> {item}
                           </li>
                         ))}
                       </ul>
@@ -1654,14 +1690,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   )}
 
                   {positifs.length > 0 && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-                      <h5 className="font-black text-green-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
-                        <Check size={18} /> Points Positifs
+                    <div className="bg-white border border-green-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-green-50/50 to-white">
+                      <h5 className="font-black text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        ✅ Points Positifs
                       </h5>
                       <ul className="space-y-2">
                         {positifs.map((item, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-green-600 font-bold shrink-0">+</span> {item}
+                            <span className="text-green-500 font-bold shrink-0">+</span> {item}
                           </li>
                         ))}
                       </ul>
@@ -1669,14 +1705,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   )}
 
                   {negatifs.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-                      <h5 className="font-black text-red-800 mb-3 flex items-center gap-2 uppercase text-sm tracking-wider">
-                        <X size={18} /> Points Négatifs
+                    <div className="bg-white border border-red-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-red-50/50 to-white">
+                      <h5 className="font-black text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        ❌ Points Négatifs
                       </h5>
                       <ul className="space-y-2">
                         {negatifs.map((item, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-red-600 font-bold shrink-0">-</span> {item}
+                            <span className="text-red-500 font-bold shrink-0">-</span> {item}
                           </li>
                         ))}
                       </ul>
@@ -1688,342 +1724,425 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </>
         )}
 
-        {/* --- SECTION OPTIMISATION (COMMERCIAL/REVENUS) --- */}
+        {/* --- SECTION OPTIMISATION --- */}
         {!isValuation && (
-          <div className="bg-gradient-to-r from-emerald-100 to-green-100 rounded-2xl p-6 border-2 border-emerald-300">
-            <h4 className="font-black text-emerald-900 text-lg mb-4">💰 Potentiel d'Optimisation</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-emerald-700 font-semibold mb-2">Loyer Optimal</p>
-                <p className="text-2xl font-black text-emerald-700">
-                  ${formatCurrency(recs.loyeroptimal)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Mensuel</p>
-                <p className="text-2xl font-black text-emerald-700">
-                  +${formatCurrency(recs.gainmensuel)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-emerald-700 font-semibold mb-2">Gain Annuel</p>
-                <p className="text-2xl font-black text-emerald-700">
-                  +${formatCurrency(recs.gainannuel)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-emerald-700 font-semibold mb-2">Confiance IA</p>
-                <p className="text-2xl font-black text-emerald-700">
-                  {recs.confiance || 85}%
-                </p>
+          <div className="space-y-6">
+            
+            {/* 1. KPIs Financiers */}
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 shadow-sm border border-emerald-100">
+              <h4 className="font-black text-emerald-900 text-lg mb-6 flex items-center gap-2">
+                💰 Potentiel d'Optimisation
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-emerald-200/50">
+                <div className="px-4 first:pl-0">
+                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Loyer Optimal</p>
+                  <p className="text-3xl font-black text-emerald-800">${formatCurrency(recs.loyeroptimal)}</p>
+                </div>
+                <div className="px-4">
+                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Gain Annuel</p>
+                  <p className="text-3xl font-black text-emerald-800">+${formatCurrency(recs.gainannuel)}</p>
+                </div>
+                 <div className="px-4">
+                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Augmentation</p>
+                  <p className="text-3xl font-black text-emerald-800">{formatPercent(recs.pourcentageaugmentation)}</p>
+                </div>
+                <div className="px-4">
+                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Confiance IA</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🤖</span>
+                    <span className="font-black text-emerald-800 text-xl">{recs.confiance || 85}%</span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* 2. Analyse Marché & Raisonnement */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                {/* Stats Marché */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                  <h5 className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
+                    📊 Marché Locatif
+                  </h5>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 text-sm font-bold">Médiane Quartier</span>
+                      <span className="font-black text-gray-900 text-lg">${formatCurrency(marketAnalysis.mediane)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600 text-sm font-bold">Taux Occupation</span>
+                      <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{marketAnalysis.occupation}%</span>
+                    </div>
+                     <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                      <span className="text-gray-600 text-sm font-bold">Tendance (30j)</span>
+                      <span className={`font-black flex items-center gap-1 ${marketAnalysis.tendance30j >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {marketAnalysis.tendance30j > 0 ? '↗️' : '↘️'}
+                        {marketAnalysis.tendance30j}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Raisonnement */}
+              <div className="md:col-span-2">
+                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-full">
+                  <h5 className="font-black text-gray-900 mb-3 flex items-center gap-2">
+                    🎯 Analyse & Justification
+                  </h5>
+                  <p className="text-sm text-gray-600 leading-relaxed text-justify whitespace-pre-line">
+                    {recs.raisonnement || (Array.isArray(justification) ? justification.join('\n') : justification)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Marketing Kit */}
+            {marketingKit.titreannonce && (
+              <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-indigo-100 rounded-2xl p-1">
+                <div className="bg-white/80 backdrop-blur-md p-6 rounded-xl">
+                  <h4 className="font-black text-purple-900 text-lg mb-4 flex items-center gap-2">
+                    📣 Marketing Kit AI
+                  </h4>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
+                      <p className="text-xs text-purple-600 font-bold uppercase mb-1">Titre Suggéré</p>
+                      <p className="font-bold text-gray-900 text-lg">"{marketingKit.titreannonce}"</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
+                        <p className="text-xs text-purple-600 font-bold uppercase mb-2 flex items-center gap-1">
+                          📝 Accroche
+                        </p>
+                        <p className="text-sm text-gray-600 italic">"{marketingKit.descriptionaccroche}"</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
+                        <p className="text-xs text-purple-600 font-bold uppercase mb-2 flex items-center gap-1">
+                          👥 Profil Cible
+                        </p>
+                        <p className="text-sm text-gray-600">{marketingKit.profillocataire}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Plan d'action */}
+            {(prochainesEtabpes.length > 0 || pointsCles.length > 0) && (
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <h4 className="font-black text-gray-900 text-lg mb-6 flex items-center gap-2">
+                  📋 Plan d'Action
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {pointsCles.length > 0 && (
+                    <div>
+                      <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🔑 Stratégie Clé</h5>
+                      <ul className="space-y-3">
+                        {pointsCles.map((pt, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                            <span className="text-indigo-500 font-bold">•</span>
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {prochainesEtabpes.length > 0 && (
+                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+                      <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🚀 Prochaines Étapes</h5>
+                      <ul className="space-y-4">
+                        {prochainesEtabpes.map((step, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px]">
+                              {i + 1}
+                            </span>
+                            <span className="mt-0.5 font-medium">{step}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* --- RECOMMANDATIONS & STRATÉGIE (COMMUN) --- */}
-        {(renovations.length > 0 || strategie || timing) && (
-          <div className="space-y-6">
-            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3 border-t pt-6">
-              <span className="bg-yellow-100 p-2 rounded-xl text-2xl">💡</span> Stratégie & Recommandations
+        {/* --- STRATÉGIE (Commun Évaluation) --- */}
+        {isValuation && (renovations.length > 0 || strategie || timing) && (
+          <div className="space-y-6 pt-6 border-t border-gray-200">
+            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3">
+              <span className="bg-yellow-100 p-2 rounded-lg text-2xl">💡</span> 
+              Recommandations Stratégiques
             </h4>
             
             <div className="grid grid-cols-1 gap-6">
               
-              {/* Rénovations Rentables (NEW) */}
-              {renovations.length > 0 && (
-                <div className="bg-orange-50 rounded-2xl p-6 border-2 border-orange-200">
-                  <p className="font-bold text-orange-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    <Building2 size={18} /> Rénovations à Haut ROI
-                  </p>
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {renovations.map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 text-sm text-gray-800 bg-white p-3 rounded-xl border border-orange-100 shadow-sm">
-                        <span className="text-orange-500 font-bold mt-0.5 shrink-0">🛠️</span>
-                        <span className="leading-relaxed">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Stratégie de Vente (NEW) */}
               {strategie && (
-                <div className="bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-200">
-                  <p className="font-bold text-indigo-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    <TrendingUp size={18} /> Stratégie Conseillée
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-xs uppercase tracking-wide">
+                    📈 Stratégie Conseillée
                   </p>
-                  <p className="text-indigo-900 text-sm leading-relaxed whitespace-pre-line">
-                    {strategie}
-                  </p>
+                  <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line text-justify">{strategie}</p>
                 </div>
               )}
 
-              {/* Timing (NEW) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {renovations.length > 0 && (
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
+                      🛠️ Rénovations à Haut ROI
+                    </p>
+                    <ul className="space-y-3">
+                      {renovations.map((item, i) => (
+                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                           <span className="text-orange-500 font-bold shrink-0 mt-0.5">🔨</span>
+                           <span className="leading-snug">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {optRevenus.length > 0 && (
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
+                      💵 Augmentation Revenus
+                    </p>
+                    <ul className="space-y-3">
+                      {optRevenus.map((item, i) => (
+                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                          <span className="text-emerald-500 font-bold shrink-0 mt-0.5">💰</span>
+                          <span className="leading-snug">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {redDepenses.length > 0 && (
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
+                      📉 Réduction Dépenses
+                    </p>
+                    <ul className="space-y-3">
+                      {redDepenses.map((item, i) => (
+                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                          <span className="text-blue-500 font-bold shrink-0 mt-0.5">🔻</span>
+                          <span className="leading-snug">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
               {timing && (
-                <div className="bg-gray-50 rounded-2xl p-6 border-2 border-gray-200">
-                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                    <Calendar size={18} /> Timing Optimal
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-xs uppercase tracking-wide">
+                    ⏳ Timing Optimal
                   </p>
-                  <p className="text-gray-800 text-sm leading-relaxed">
-                    {timing}
-                  </p>
+                  <p className="text-gray-700 text-sm leading-relaxed text-justify">{timing}</p>
                 </div>
               )}
             </div>
           </div>
         )}
-
       </div>
     );
   };
 
   return (
-    <div className="space-y-8">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-black text-gray-900 mb-2">📊 Vue d'ensemble</h1>
-        <p className="text-gray-600 text-lg">Résumé de vos évaluations et optimisations immobilières</p>
-      </div>
-
-      {/* STATS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {/* CARD 1: Total Propriétés */}
-        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-semibold mb-2">Propriétés analysées</p>
-              <p className="text-4xl font-black text-indigo-600">{stats.totalProperties}</p>
-            </div>
-            <span className="text-4xl">🏠</span>
-          </div>
-          <p className="text-xs text-gray-500">
-            {stats.evaluations} éval. + {stats.optimizations} opt.
-          </p>
+    <div className="space-y-8 pb-12">
+      {/* HEADER AVEC EMOJI */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight mb-2 flex items-center gap-3">
+            <span className="text-4xl">🚀</span> Tableau de bord
+          </h1>
+          <p className="text-gray-500 text-lg">Gérez vos analyses et suivez la performance de votre parc.</p>
         </div>
-
-        {/* CARD 2: Valeur totale */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-semibold mb-2">Valeur totale estimée</p>
-              <p className="text-3xl font-black text-purple-600">
-                ${formatCurrency(stats.totalValuation)}
-              </p>
-            </div>
-            <span className="text-4xl">💎</span>
-          </div>
-          <p className="text-xs text-gray-500">{stats.evaluations} propriétés évaluées</p>
-        </div>
-
-        {/* CARD 3: Gains potentiels */}
-        <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-semibold mb-2">Gains annuels potentiels</p>
-              <p className="text-3xl font-black text-emerald-600">
-                +${formatCurrency(stats.totalGainsPotential)}
-              </p>
-            </div>
-            <span className="text-4xl">📈</span>
-          </div>
-          <p className="text-xs text-gray-500">{stats.optimizations} propriétés optimisées</p>
-        </div>
-
-        {/* CARD 4: Évaluations */}
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-semibold mb-2">Évaluations</p>
-              <p className="text-4xl font-black text-blue-600">{stats.evaluations}</p>
-            </div>
-            <span className="text-4xl">📋</span>
-          </div>
-          <button
-            onClick={() => setActiveTab('valuation')}
-            className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 mt-2"
-          >
-            Voir détails <ChevronRight size={14} />
-          </button>
-        </div>
-
-        {/* CARD 5: Optimisations */}
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border-2 border-amber-200 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-semibold mb-2">Optimisations</p>
-              <p className="text-4xl font-black text-amber-600">{stats.optimizations}</p>
-            </div>
-            <span className="text-4xl">💰</span>
-          </div>
-          <button
-            onClick={() => setActiveTab('optimization')}
-            className="text-xs text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1 mt-2"
-          >
-            Voir détails <ChevronRight size={14} />
-          </button>
+        <div className="flex gap-2">
+           <button onClick={() => setActiveTab('valuation')} className="px-5 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+             <span>📊</span> Nouvelle Évaluation
+           </button>
+           <button onClick={() => setActiveTab('optimization')} className="px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+             <span>💰</span> Nouvelle Optimisation
+           </button>
         </div>
       </div>
 
-      {/* QUICK START */}
+      {/* STATS CARDS - STYLE NEW GEN */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Propriétés', val: stats.totalProperties, icon: '🏘️', from: 'from-indigo-50', to: 'to-blue-50', border: 'border-indigo-100' },
+          { label: 'Valeur Totale', val: `$${formatCurrency(stats.totalValuation)}`, icon: '💎', from: 'from-blue-50', to: 'to-cyan-50', border: 'border-blue-100' },
+          { label: 'Gain Potentiel', val: `+$${formatCurrency(stats.totalGainsPotential)}`, icon: '📈', from: 'from-emerald-50', to: 'to-teal-50', border: 'border-emerald-100' },
+          { label: 'Analyses', val: stats.evaluations + stats.optimizations, icon: '📋', from: 'from-purple-50', to: 'to-fuchsia-50', border: 'border-purple-100' }
+        ].map((stat, i) => (
+          <div key={i} className={`bg-gradient-to-br ${stat.from} ${stat.to} p-5 rounded-2xl border ${stat.border} shadow-sm hover:shadow-md transition-all`}>
+            <div className="flex justify-between items-start mb-4">
+              <span className="text-4xl filter drop-shadow-sm">{stat.icon}</span>
+              {i === 2 && <span className="bg-white/50 backdrop-blur-sm text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-full border border-emerald-100">+12%</span>}
+            </div>
+            <div>
+              <p className="text-3xl font-black text-gray-900">{stat.val}</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">{stat.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* QUICK START SI VIDE */}
       {stats.totalProperties === 0 && (
-        <div className="bg-gradient-to-r from-indigo-100 via-blue-100 to-cyan-100 rounded-3xl p-8 border-2 border-indigo-300 text-center">
-          <h2 className="text-3xl font-black text-indigo-900 mb-3">🚀 Commencez dès maintenant!</h2>
-          <p className="text-indigo-800 text-lg mb-8 max-w-2xl mx-auto">
-            Analysez votre première propriété pour découvrir sa valeur réelle et optimiser vos revenus locatifs.
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-purple-50 rounded-3xl p-10 border border-indigo-100 text-center shadow-sm">
+          <div className="text-6xl mb-6 animate-bounce">👋</div>
+          <h2 className="text-3xl font-black text-gray-900 mb-3">Bienvenue sur votre espace !</h2>
+          <p className="text-gray-500 max-w-md mx-auto mb-8 text-lg">
+            Commencez par analyser votre première propriété pour découvrir sa valeur réelle et son potentiel d'optimisation.
           </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button
-              onClick={() => setActiveTab('valuation')}
-              className="px-8 py-4 bg-indigo-600 text-white font-black rounded-lg hover:bg-indigo-700 transition-all transform hover:-translate-y-1 shadow-lg"
-            >
-              📊 Faire une évaluation
-            </button>
-            <button
-              onClick={() => setActiveTab('optimization')}
-              className="px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 font-black rounded-lg hover:bg-indigo-50 transition-all transform hover:-translate-y-1"
-            >
-              💰 Optimiser mes loyers
-            </button>
-          </div>
+          <button onClick={() => setActiveTab('valuation')} className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 text-lg">
+            🚀 Lancer ma première analyse
+          </button>
         </div>
       )}
 
       {/* LISTE DES ANALYSES */}
       {stats.totalProperties > 0 && (
-        <div>
-          <h2 className="text-2xl font-black text-gray-900 mb-6">📋 Vos analyses récentes</h2>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black text-gray-900">Analyses Récentes</h2>
+            
+            {/* FILTRE LISTE */}
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+               <button 
+                onClick={() => setListFilter('all')}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 Tout
+               </button>
+               <button 
+                onClick={() => setListFilter('valuation')}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'valuation' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 Évaluations
+               </button>
+               <button 
+                onClick={() => setListFilter('optimization')}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'optimization' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 Optimisations
+               </button>
+            </div>
+          </div>
 
-          <div className="space-y-4">
-            {analyses.map((analyse) => {
+          <div className="space-y-3">
+            {filteredAnalyses.length === 0 ? (
+               <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                 <p className="text-gray-400">Aucune analyse correspondante trouvée.</p>
+               </div>
+            ) : filteredAnalyses.map((analyse) => {
               const analysisType = getAnalysisType(analyse);
               const isValuation = analysisType === 'valuation';
               const isOptimization = analysisType === 'optimization';
               const isEditing = editingId === analyse.id;
+              
+              const residentialGain = getResidentialPercentage(analyse);
+              
+              // Styles dynamiques basés sur le type
+              const cardBg = isValuation ? 'bg-gradient-to-r from-white to-blue-50/30' : 'bg-gradient-to-r from-white to-emerald-50/30';
+              const borderClass = isValuation ? 'border-l-blue-500' : 'border-l-emerald-500';
 
               return (
                 <div
                   key={analyse.id}
                   onClick={() => !isEditing && setSelectedAnalysis(analyse)}
-                  className={`rounded-2xl p-6 border-2 transition-all cursor-pointer ${
-                    isValuation
-                      ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400 hover:shadow-lg hover:-translate-y-1'
-                      : isOptimization
-                      ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200 hover:border-emerald-400 hover:shadow-lg hover:-translate-y-1'
-                      : 'bg-gray-50 border-gray-200 hover:shadow-lg hover:-translate-y-1'
-                  }`}
+                  className={`group ${cardBg} p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 ${borderClass}`}
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    {/* TYPE BADGE + TITLE */}
-                    <div className="md:col-span-3">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">{getPropertyIcon(analyse.proprietype || analyse.proprietetype)}</span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-black ${
-                          isValuation
-                            ? 'bg-blue-200 text-blue-800'
-                            : isOptimization
-                            ? 'bg-emerald-200 text-emerald-800'
-                            : 'bg-gray-200 text-gray-800'
-                        }`}>
-                          {isValuation ? '📊 Évaluation' : isOptimization ? '💰 Optimisation' : 'Analyse'}
-                        </span>
-                      </div>
-                      
-                      {isEditing ? (
-                        <div className="flex gap-2 items-center mb-2">
-                          <input
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            autoFocus
-                            className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg font-black text-gray-900 focus:outline-none focus:border-blue-500"
-                            placeholder="Entrez le titre..."
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleEditTitle(analyse.id, editingTitle, analyse.collection, e); }}
-                            className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-all"
-                          >
-                            <Check size={18} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditingTitle(''); }}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
-                          >
-                            <X size={18} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-2 group">
-                          <h3 className="font-black text-gray-900 text-lg flex-1">
-                            {getPropertyLabel(analyse)}
-                          </h3>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || ''); }}
-                            className="p-1 text-gray-400 group-hover:text-blue-600 hover:bg-blue-100 rounded transition-all opacity-0 group-hover:opacity-100"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                        </div>
-                      )}
-                      
-                      <p className="text-xs text-gray-600 mt-1">
-                        📍 {analyse.ville} {analyse.quartier && `• ${analyse.quartier}`}
-                      </p>
+                  <div className="flex items-center gap-4">
+                    {/* ICONE EMOJI GROS */}
+                    <div className="text-4xl filter drop-shadow-sm transition-transform group-hover:scale-110">
+                      {getPropertyIcon(analyse.proprietype || analyse.proprietetype)}
                     </div>
 
-                    {/* DETAILS RAPIDES */}
-                    {isValuation && (
-                      <>
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Valeur estimée</p>
-                          <p className="text-2xl font-black text-blue-600">
-                            ${formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne)}
-                          </p>
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">
-                             {isCommercial(analyse) ? 'Cap Rate' : 'Appréciation'}
-                          </p>
-                          <p className="text-2xl font-black text-blue-600">
-                            {isCommercial(analyse)
-                              ? `${analyse.result?.metriquesCommerciales?.capRate?.toFixed(2) || '-'}%`
-                              : `+${analyse.result?.analyse?.pourcentageGain?.toFixed(1) || 0}%`
-                            }
-                          </p>
-                        </div>
-                      </>
-                    )}
+                    {/* INFOS PRINCIPALES */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                         {isEditing ? (
+                          <div className="flex gap-2 items-center flex-1">
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              autoFocus
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-bold text-gray-900"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button onClick={(e) => { e.stopPropagation(); handleEditTitle(analyse.id, editingTitle, analyse.collection, e); }} className="p-1 text-green-600 hover:bg-green-50 rounded"><Check size={16} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-black text-gray-900 text-lg truncate group-hover:text-indigo-600 transition-colors">
+                              {getPropertyLabel(analyse)}
+                            </h3>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || ''); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 transition-all"><Edit2 size={14} /></button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 font-medium">
+                         <span className="flex items-center gap-1"><MapPin size={12}/> {analyse.ville}</span>
+                         <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                         <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp).toLocaleDateString('fr-CA')}</span>
+                      </div>
+                    </div>
 
-                    {isOptimization && (
-                      <>
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Loyer optimal</p>
-                          <p className="text-2xl font-black text-emerald-600">
-                            ${formatCurrency(analyse.result?.recommandation?.loyeroptimal)}
-                          </p>
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-gray-600 font-semibold mb-1">Gain annuel</p>
-                          <p className="text-2xl font-black text-emerald-600">
-                            +${formatCurrency(analyse.result?.recommandation?.gainannuel)}
-                          </p>
-                        </div>
-                      </>
-                    )}
+                    {/* KPIs RAPIDES */}
+                    <div className="hidden sm:flex items-center gap-8 mr-4">
+                       {isValuation ? (
+                         <>
+                           <div className="text-right">
+                             <p className="text-[10px] text-gray-400 font-bold uppercase">Valeur</p>
+                             <p className="font-black text-gray-900 text-lg">${formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne)}</p>
+                           </div>
+                           <div className="text-right w-24">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">{isCommercial(analyse) ? 'Cap Rate' : 'Gain/Perte'}</p>
+                              <p className={`font-black text-lg ${isCommercial(analyse) ? 'text-indigo-600' : residentialGain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {isCommercial(analyse) ? `${analyse.result?.metriquesCommerciales?.capRate?.toFixed(2) || '-'}%` : `${residentialGain > 0 ? '+' : ''}${residentialGain.toFixed(1)}%`}
+                              </p>
+                           </div>
+                         </>
+                       ) : (
+                          <>
+                           <div className="text-right">
+                             <p className="text-[10px] text-gray-400 font-bold uppercase">Loyer Cible</p>
+                             <p className="font-black text-gray-900 text-lg">${formatCurrency(analyse.result?.recommandation?.loyeroptimal)}</p>
+                           </div>
+                           <div className="text-right w-24">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Gain/An</p>
+                              <p className="font-black text-emerald-600 text-lg">+${formatCurrency(analyse.result?.recommandation?.gainannuel)}</p>
+                           </div>
+                         </>
+                       )}
+                    </div>
 
                     {/* ACTIONS */}
-                    <div className="md:col-span-3 flex items-center justify-end gap-2">
-                      <button
-                        onClick={(e) => handleDelete(analyse.id, analyse.collection, e)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
+                    <div className="flex items-center gap-2 pl-4 border-l border-gray-100">
+                      <button 
+                        onClick={(e) => handleDelete(analyse.id, analyse.collection, e)} 
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                         title="Supprimer"
                       >
-                        <Trash2 size={20} />
+                        <Trash2 size={18} />
                       </button>
-                      <button className="p-2 text-gray-400">
-                        <ChevronRight size={24} />
-                      </button>
+                      <div className="p-1 text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all">
+                        <ChevronRight size={20} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2033,38 +2152,38 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       )}
 
-      {/* MODALE DÉTAILS */}
+      {/* MODALE DÉTAILS - PRO + NEW GEN */}
       {selectedAnalysis && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-3xl z-10">
-              <h3 className="text-2xl font-black text-gray-900">
-                {getAnalysisType(selectedAnalysis) === 'valuation' ? '📊 Détails Évaluation' : '💰 Détails Optimisation'}
-              </h3>
-              <button
-                onClick={() => setSelectedAnalysis(null)}
-                className="text-3xl text-gray-400 hover:text-gray-600 font-bold"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
+            {/* Header Modale */}
+            <div className="bg-white border-b border-gray-100 px-8 py-5 flex items-center justify-between z-10">
+              <div>
+                <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                   {getAnalysisType(selectedAnalysis) === 'valuation' ? <span className="text-2xl">📊</span> : <span className="text-2xl">💰</span>}
+                   {getAnalysisType(selectedAnalysis) === 'valuation' ? 'Détails de l\'évaluation' : 'Détails de l\'optimisation'}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                 <button onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                    <Trash2 size={20} />
+                 </button>
+                 <div className="w-px h-6 bg-gray-200 mx-2"></div>
+                 <button onClick={() => setSelectedAnalysis(null)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all">
+                    <X size={24} />
+                 </button>
+              </div>
             </div>
 
-            {/* CONTENU MODALE DYNAMIQUE */}
-            {renderModalContent()}
+            {/* Content Scrollable */}
+            <div className="flex-1 overflow-y-auto">
+               {renderModalContent()}
+            </div>
 
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex gap-3">
-              <button
-                onClick={() => setSelectedAnalysis(null)}
-                className="flex-1 py-3 bg-gray-200 text-gray-800 rounded-lg font-bold hover:bg-gray-300 transition-all"
-              >
+            {/* Footer */}
+            <div className="bg-gray-50 border-t border-gray-200 px-8 py-4 flex justify-end gap-3">
+              <button onClick={() => setSelectedAnalysis(null)} className="px-6 py-3 bg-white border border-gray-300 text-gray-800 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm">
                 Fermer
-              </button>
-              <button
-                onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)}
-                disabled={deletingId === selectedAnalysis.id}
-                className="py-3 px-6 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-all disabled:opacity-50"
-              >
-                🗑️ Supprimer
               </button>
             </div>
           </div>
@@ -2075,7 +2194,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 }
 
 
-
 // ============================================
 // 🎯 OPTIMIZATION TAB (Code existant inchangé)
 // ============================================
@@ -2084,7 +2202,7 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h2 className="text-3xl font-black text-gray-900 mb-8">🎯 Optimiseur IA Pro</h2>
+      <h2 className="text-3xl font-black text-gray-900 mb-8">🎯 Optimiseur de Loyer</h2>
 
       {/* Sélecteur Résidentiel/Commercial */}
       <div className="mb-8">
@@ -4593,7 +4711,7 @@ function PropertyValuationTab({
       {formData.revenuBrutAnnuel && formData.depensesAnnuelles && (
         <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
           <p className="text-sm font-semibold text-green-900">
-            NOI:{' '}
+            RNE:{' '}
             {(
               parseInt(formData.revenuBrutAnnuel, 10) -
               parseInt(formData.depensesAnnuelles, 10)
@@ -4768,20 +4886,38 @@ function PropertyValuationTab({
   );
 
   const renderDetailsSlide = () => (
-    <div className="space-y-4">
+    <div className="space-y-6">
+  {/* AVIS IMPORTANT */}
+  <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
+    <div className="flex items-start gap-3">
+      {/* Assurez-vous d'avoir importé AlertTriangle ou Info de lucide-react */}
+      <div className="text-amber-600 mt-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Notes additionnelles
-        </label>
-        <textarea
-          placeholder="Informations importantes..."
-          value={formData.notes_additionnelles}
-          onChange={(e) => handleChange('notes_additionnelles', e.target.value)}
-          rows={4}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+        <p className="font-bold text-amber-900 text-sm">Qualité de l'analyse</p>
+        <p className="text-amber-800 text-sm mt-1 leading-relaxed">
+          Pour une analyse qui reflète le mieux la valeur réelle, il est crucial de fournir un <strong>maximum de détails</strong> sur la propriété. L'IA prend en compte chaque information (rénovations, état, matériaux) pour affiner son estimation.
+        </p>
       </div>
     </div>
+  </div>
+
+  {/* CHAMP DE SAISIE */}
+  <div>
+    <label className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+      Notes additionnelles
+      <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Recommandé</span>
+    </label>
+    <textarea
+      placeholder="Ex: Toiture refaite en 2022, cuisine haut de gamme, secteur très calme..."
+      value={formData.notes_additionnelles}
+      onChange={(e) => handleChange('notes_additionnelles', e.target.value)}
+      rows={5}
+      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm placeholder:text-gray-400"
+    />
+  </div>
+</div>
   );
 
   // ------------ RESULT RENDERERS ------------
@@ -4946,7 +5082,7 @@ function PropertyValuationTab({
           {typeof m.noiAnnuel === 'number' && (
             <div className="bg-white p-6 rounded-lg border-2 border-green-200 shadow-sm">
               <p className="text-xs font-semibold text-green-600 uppercase tracking-widest">
-                NOI Annuel
+                RNE Annuel
               </p>
               <p className="text-3xl font-black text-green-700 mt-3">
                 {m.noiAnnuel.toLocaleString('fr-CA')} $
