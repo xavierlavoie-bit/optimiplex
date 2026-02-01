@@ -626,9 +626,6 @@ function CreditsTab({ user, showUpgradeModal, setShowUpgradeModal }) {
                 <span className="text-indigo-600 font-bold">✓</span>
                 <span>Utilisables immédiatement</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-indigo-600 font-bold">✓</span>
-              </div>
             </div>
 
             <button
