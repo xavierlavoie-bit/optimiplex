@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2, BarChart3, Percent, Briefcase, ArrowUpRight, ArrowDownRight, FileText, ListChecks, Filter, LayoutDashboard, PieChart,
+import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2, BarChart3, Percent, Briefcase, ArrowUpRight, ArrowDownRight, FileText, ListChecks, Filter, LayoutDashboard, PieChart,
   Megaphone,
   Target,
   List,
@@ -100,7 +100,7 @@ const useWindowSize = () => {
 // ============================================
 // 2️⃣ MOBILE HEADER - TOP BAR MOBILE
 // ============================================
-function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo }) {
+function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, credits }) {
   const windowSize = useWindowSize();
   const isMobile = windowSize.width < 768;
 
@@ -116,16 +116,24 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo })
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4">
         <h1 className="text-lg font-black text-gray-900">OptimiPlex</h1>
         
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-lg transition hover:bg-gray-100"
-        >
-          {sidebarOpen ? (
-            <X size={24} className="text-gray-900" />
-          ) : (
-            <Menu size={24} className="text-gray-900" />
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* ✅ Affichage crédits mobile */}
+          <div className="flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-full text-xs font-bold text-indigo-700 border border-indigo-100">
+            <Coins size={14} />
+            <span>{credits || 0}</span>
+          </div>
+
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 rounded-lg transition hover:bg-gray-100"
+          >
+            {sidebarOpen ? (
+              <X size={24} className="text-gray-900" />
+            ) : (
+              <Menu size={24} className="text-gray-900" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu Overlay */}
@@ -145,7 +153,7 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo })
 // ============================================
 // 3️⃣ SIDEBAR RESPONSIVE - DESKTOP + MOBILE
 // ============================================
-function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout }) {
+function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits }) {
   const windowSize = useWindowSize();
   const isMobile = windowSize.width < 768;
 
@@ -193,6 +201,19 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
           ))}
         </nav>
 
+        {/* ✅ Affichage crédits Sidebar Desktop */}
+        {sidebarOpen && (
+          <div className="px-6 py-4">
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-3 border border-indigo-100">
+              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Crédits dispo</p>
+              <div className="flex items-center gap-2">
+                <Coins size={20} className="text-indigo-600" />
+                <span className="text-2xl font-black text-indigo-900">{credits || 0}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bottom Actions */}
         <div className="absolute bottom-6 left-0 right-0 px-4 space-y-3">
           <button
@@ -219,10 +240,16 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
         {/* User Info Mobile */}
         <div className="p-4 border-b border-gray-200">
           <p className="text-sm text-gray-600 truncate font-medium">{user?.email}</p>
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
-            <span className="text-xs font-semibold text-blue-700">
-              {planInfo[userPlan]?.name}
-            </span>
+          <div className="mt-2 flex items-center justify-between">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
+              <span className="text-xs font-semibold text-blue-700">
+                {planInfo[userPlan]?.name}
+              </span>
+            </div>
+            {/* ✅ Crédits Mobile Sidebar */}
+            <div className="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
+              <Coins size={14} /> {credits || 0}
+            </div>
           </div>
         </div>
 
@@ -273,7 +300,6 @@ function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
-
   const planInfo = {
     essai: { name: 'Essai', price: 'Gratuit', color: 'blue', priceId: null },
     pro: { name: 'Pro', price: '$29/mois', color: 'purple', priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID },
@@ -282,35 +308,24 @@ function DashboardLayout() {
   };
 
   useEffect(() => {
-  // Vérifie si l'utilisateur revient du paiement Stripe
-  const params = new URLSearchParams(window.location.search);
-  const success = params.get('success');
-  
-  if (success === 'true' && user) {
-    console.log('✅ Retour du paiement Stripe, rechargement des données...');
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const type = params.get('type');
     
-    // Recharge les données utilisateur depuis Firestore
-    const db = getFirestore();
-    const userDocRef = doc(db, 'users', user.uid);
-    
-    onSnapshot(userDocRef, (userDoc) => {
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setUserPlan(userData.plan || 'essai');
-        setUserProfile(userData);
+    if (success === 'true' && user) {
+      const db = getFirestore();
+      const userDocRef = doc(db, 'users', user.uid);
+      
+      if (type === 'credits') {
+        alert('✅ Crédits ajoutés avec succès !');
+      } else {
+        alert('✅ Votre plan a été mis à jour avec succès !');
       }
-    });
-
-    // Nettoie l'URL
-    window.history.replaceState({}, document.title, '/dashboard/profile');
-    
-    // Affiche un message de succès
-    alert('✅ Votre plan a été mis à jour avec succès!');
-    
-    // Nettoie le localStorage
-    localStorage.removeItem('pendingPlan');
-  }
-}, [user]);
+      
+      window.history.replaceState({}, document.title, '/dashboard/profile');
+      localStorage.removeItem('pendingPlan');
+    }
+  }, [user]);
 
   useEffect(() => {
     let unsubscribeAuth = null;
@@ -330,13 +345,14 @@ function DashboardLayout() {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserPlan(userData.plan || 'essai');
-            setUserProfile(userData);
+            setUserProfile(userData); // Contient creditsBalance
             setPlanLoaded(true);
           } else {
             const initialData = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               plan: 'essai',
+              creditsBalance: 0,
               createdAt: serverTimestamp()
             };
             setDoc(userDocRef, initialData, { merge: true });
@@ -375,23 +391,17 @@ function DashboardLayout() {
     navigate('/');
   };
 
-  const displayName = userProfile?.displayName || user?.email?.split('@')[0] || 'Utilisateur';
-  const displayRole = userProfile?.role === 'courtier' ? 'Courtier Immobilier' : 
-                      userProfile?.role === 'proprio' ? 'Propriétaire' : 
-                      userProfile?.role === 'investisseur' ? 'Investisseur' : 'Membre';
-
  return (
   <div className="min-h-screen bg-gray-50">
-    {/* 1️⃣ MOBILE HEADER */}
     <MobileHeader 
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
       user={user}
       userPlan={userPlan}
       planInfo={planInfo}
+      credits={userProfile?.creditsBalance || 0} // ✅ Passer les crédits
     />
 
-    {/* 2️⃣ RESPONSIVE SIDEBAR */}
     <ResponsiveSidebar
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
@@ -401,11 +411,10 @@ function DashboardLayout() {
       userPlan={userPlan}
       planInfo={planInfo}
       onLogout={handleLogout}
+      credits={userProfile?.creditsBalance || 0} // ✅ Passer les crédits
     />
 
-    {/* 3️⃣ MAIN CONTENT - DESKTOP AVEC MARGIN */}
     <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300`}>
-      {/* TOP HEADER - ton header actuel */}
       <header className="border-b border-gray-200 bg-white80 backdrop-blur-sm sticky top-0 z-30 hidden md:block">
         <div className="px-8 py-5 flex items-center justify-between">
           <h1 className="text-2xl font-black text-gray-900">
@@ -414,9 +423,12 @@ function DashboardLayout() {
           <div className="flex items-center space-x-6">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-gray-900">{userProfile?.displayName || user?.email?.split('@')[0]}</p>
-              <p className="text-xs text-indigo-600 font-semibold">
-                {userProfile?.role === 'courtier' ? 'Courtier Immobilier' : userProfile?.role === 'proprio' ? 'Propriétaire' : userProfile?.role === 'investisseur' ? 'Investisseur' : 'Membre'}
-              </p>
+              
+              {/* ✅ Affichage Crédits Header Desktop */}
+              <div className="flex items-center justify-end gap-2 text-indigo-600 text-sm font-bold mt-0.5">
+                <Coins size={14} />
+                <span>{userProfile?.creditsBalance || 0} crédits</span>
+              </div>
             </div>
             <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 border border-indigo-700 text-white shadow-md">
               <span className="font-bold text-sm">{planInfo[userPlan]?.name}</span>
@@ -425,52 +437,46 @@ function DashboardLayout() {
         </div>
       </header>
 
-      {/* PLAN BANNER - ton banner actuel */}
       {activeTab !== 'profile' && (
         <div className="px-4 sm:px-8 py-6">
-    <div className="relative rounded-2xl overflow-hidden shadow-lg">
-      {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500"></div>
-      
-      {/* Decorative Elements */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
-      <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36"></div>
+          <div className="relative rounded-2xl overflow-hidden shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36"></div>
 
-      {/* Content */}
-      <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 z-10">
-        
-        {/* Left Section - Plan Info */}
-        <div className="flex-1">
-          <p className="text-white/70 text-sm font-semibold mb-2 uppercase tracking-wide">Plan actuel</p>
-          <h2 className="text-3xl sm:text-4xl font-black text-white mb-2">
-            {planInfo[userPlan]?.name}
-          </h2>
-          <p className="text-white/90 text-lg font-bold">
-            {planInfo[userPlan]?.price}
-          </p>
-        </div>
+            <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 z-10">
+              <div className="flex-1">
+                <p className="text-white/70 text-sm font-semibold mb-2 uppercase tracking-wide">Plan actuel</p>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-3xl sm:text-4xl font-black text-white mb-2">
+                    {planInfo[userPlan]?.name}
+                  </h2>
+                  {/* ✅ Badge Crédits Banner */}
+                  {(userProfile?.creditsBalance || 0) > 0 && (
+                    <span className="bg-white/20 backdrop-blur px-3 py-1 rounded-full text-white text-sm font-bold flex items-center gap-1 border border-white/30">
+                      <Coins size={14} /> {userProfile.creditsBalance} Crédits
+                    </span>
+                  )}
+                </div>
+                <p className="text-white/90 text-lg font-bold">
+                  {planInfo[userPlan]?.price}
+                </p>
+              </div>
 
-        {/* Right Section - CTA Button */}
-        {userPlan !== 'premium' && (
-          <button 
-            onClick={() => setShowUpgradeModal(true)} 
-            className="w-full sm:w-auto px-8 py-4 bg-white text-indigo-600 font-black rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 transform hover:-translate-y-1"
-          >
-            🚀 Upgrader
-          </button>
-        )}
-
-        {userPlan === 'premium' && (
-          <div className="w-full sm:w-auto px-8 py-4 bg-white/20 backdrop-blur-sm text-white font-bold rounded-xl border border-white/30 text-center">
-            ✨ Plan Premium actif
+              {userPlan !== 'premium' && (
+                <button 
+                  onClick={() => setShowUpgradeModal(true)} 
+                  className="w-full sm:w-auto px-8 py-4 bg-white text-indigo-600 font-black rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 transform hover:-translate-y-1"
+                >
+                  🚀 Upgrader / Crédits
+                </button>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
-  </div>
+        </div>
       )}
 
-      {/* TABS CONTENT - ton contenu actuel */}
+      {/* Tabs Content */}
       <div className="px-8 py-6 pb-20">
         {activeTab === 'overview' && <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />}
         {activeTab === 'optimization' && <OptimizationTab userPlan={userPlan} user={user} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
@@ -479,12 +485,175 @@ function DashboardLayout() {
       </div>
     </div>
 
-    {/* UPGRADE MODAL - ton modal actuel */}
+    {/* Upgrade Modal */}
     {showUpgradeModal && (
-      <UpgradeModal user={user} userPlan={userPlan} planInfo={planInfo} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />
+      <UpgradeModal 
+        user={user} 
+        userPlan={userPlan} 
+        planInfo={planInfo} 
+        setUserPlan={setUserPlan} 
+        showUpgradeModal={showUpgradeModal} 
+        setShowUpgradeModal={setShowUpgradeModal} 
+      />
     )}
   </div>
 );
+}
+
+
+// ⭐ CREDITS TAB COMPONENT
+function CreditsTab({ user, showUpgradeModal, setShowUpgradeModal }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const creditPlans = [
+    {
+      name: 'Découverte',
+      credits: 3,
+      priceId: process.env.REACT_APP_STRIPE_DECOUVERTE_PRICE_ID,
+      price: '4.99',
+      color: 'from-blue-100 to-blue-200',
+      borderColor: 'border-blue-400',
+      bgColor: 'bg-blue-50',
+      badge: '💎 Budget'
+    },
+    {
+      name: 'Chasseur',
+      credits: 15,
+      priceId: process.env.REACT_APP_STRIPE_CHASSEUR_PRICE_ID,
+      price: '19.99',
+      color: 'from-indigo-100 to-indigo-200',
+      borderColor: 'border-indigo-400',
+      bgColor: 'bg-indigo-50',
+      badge: '⭐ Populaire',
+      popular: true
+    },
+    {
+      name: 'Investisseur',
+      credits: 99,
+      priceId: process.env.REACT_APP_STRIPE_INVESTISSEUR_PRICE_ID,
+      price: '79.99',
+      color: 'from-purple-100 to-purple-200',
+      borderColor: 'border-purple-400',
+      bgColor: 'bg-purple-50',
+      badge: '👑 Illimité'
+    }
+  ];
+
+  const handleBuyCredits = async (plan) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/stripe/create-checkout-session-credits`,
+        {
+          userId: user?.uid,
+          userEmail: user?.email,
+          creditsPlan: plan.name.toLowerCase(),
+          priceId: plan.priceId
+        }
+      );
+
+      if (response.data.sessionUrl) {
+        // Rediriger vers Stripe Checkout
+        window.location.href = response.data.sessionUrl;
+      }
+    } catch (err) {
+      console.error('Erreur achat crédits:', err);
+      setError(err.response?.data?.error || 'Erreur lors de la création de la session');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-2xl font-black text-gray-900 mb-2">Acheter des Crédits</h3>
+        <p className="text-gray-600">
+          Les crédits vous permettent de faire des analyses supplémentaires après avoir atteint votre quota mensuel.
+        </p>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {creditPlans.map((plan, idx) => (
+          <div
+            key={idx}
+            className={`
+              relative rounded-2xl border-2 p-6 transition-all 
+              ${plan.popular ? 'ring-2 ring-indigo-500 shadow-xl scale-105' : 'shadow-lg'}
+              bg-white ${plan.borderColor}
+            `}
+          >
+            {/* Popular Badge */}
+            {plan.popular && (
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold">
+                  {plan.badge}
+                </span>
+              </div>
+            )}
+
+            <div className={`bg-gradient-to-br ${plan.color} rounded-xl p-4 mb-4 text-center`}>
+              <p className="text-sm font-bold text-gray-600 mb-1">Crédits</p>
+              <p className="text-4xl font-black text-gray-900">{plan.credits}</p>
+            </div>
+
+            <h4 className="text-lg font-bold text-gray-900 mb-2">{plan.name}</h4>
+
+            <div className="mb-4">
+              <p className="text-3xl font-black text-indigo-600">
+                ${plan.price}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                ${(parseFloat(plan.price) / plan.credits).toFixed(2)}/crédit
+              </p>
+            </div>
+
+            <div className="mb-6 space-y-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-indigo-600 font-bold">✓</span>
+                <span>{plan.credits} analyses</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-indigo-600 font-bold">✓</span>
+                <span>Utilisables immédiatement</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-indigo-600 font-bold">✓</span>
+                <span>Valides 12 mois</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleBuyCredits(plan)}
+              disabled={loading}
+              className={`
+                w-full py-3 px-4 rounded-xl font-bold text-white transition-all
+                ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg'}
+              `}
+            >
+              {loading ? 'Chargement...' : 'Acheter maintenant'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-300 rounded-xl p-4">
+        <p className="text-sm text-blue-900">
+          <span className="font-bold">💡 Comment ça marche :</span> Chaque crédit vous donne une analyse supplémentaire. 
+          Lorsque vous atteignez votre quota mensuel, vous pouvez utiliser vos crédits pour continuer.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ============================================
@@ -492,6 +661,9 @@ function DashboardLayout() {
 // ============================================
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [activeTab, setActiveTab] = useState('credits'); // ⭐ Crédits en premier!
+  const [creditsLoading, setCreditsLoading] = useState(false);
+  const [creditsError, setCreditsError] = useState(null);
 
   if (!showUpgradeModal) return null;
 
@@ -513,7 +685,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       name: 'Pro', 
       price: '$29/mois', 
       features: [
-        '5 analyses résidentiel/mois',
+        '20 analyses résidentiel/mois',
         'Résidentiel + extras',
         'Support email',
         'Rapports détaillés'
@@ -551,11 +723,83 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     }
   ];
 
+  // ⭐ PLANS DE CRÉDITS
+  const creditPlans = [
+    {
+      name: 'decouverte',
+      displayName: 'Découverte',
+      credits: 5,
+      priceId: process.env.REACT_APP_STRIPE_DECOUVERTE_PRICE_ID,
+      price: '4.99',
+      color: 'from-blue-100 to-blue-200',
+      borderColor: 'border-blue-400',
+      bgColor: 'bg-blue-50',
+      badge: '💎 Budget',
+      textColor: 'text-blue-900',
+      buttonColor: 'bg-blue-600 hover:bg-blue-700'
+    },
+    {
+      name: 'chasseur',
+      displayName: 'Chasseur',
+      credits: 25,
+      priceId: process.env.REACT_APP_STRIPE_CHASSEUR_PRICE_ID,
+      price: '19.99',
+      color: 'from-indigo-100 to-indigo-200',
+      borderColor: 'border-indigo-400',
+      bgColor: 'bg-indigo-50',
+      badge: '⭐ Populaire',
+      textColor: 'text-indigo-900',
+      buttonColor: 'bg-indigo-600 hover:bg-indigo-700',
+      popular: true
+    },
+    {
+      name: 'investisseur',
+      displayName: 'Investisseur',
+      credits: 150,
+      priceId: process.env.REACT_APP_STRIPE_INVESTISSEUR_PRICE_ID,
+      price: '79.99',
+      color: 'from-purple-100 to-purple-200',
+      borderColor: 'border-purple-400',
+      bgColor: 'bg-purple-50',
+      badge: '👑 Illimité',
+      textColor: 'text-purple-900',
+      buttonColor: 'bg-purple-600 hover:bg-purple-700'
+    }
+  ];
+
   const isDowngrade = (key) => {
     if (key === 'essai' && userPlan !== 'essai') return true;
     if (key === 'pro' && (userPlan === 'growth' || userPlan === 'entreprise')) return true;
     if (key === 'growth' && userPlan === 'entreprise') return true;
     return false;
+  };
+
+  // ⭐ HANDLER ACHAT CRÉDITS
+  const handleBuyCredits = async (plan) => {
+    try {
+      setCreditsLoading(true);
+      setCreditsError(null);
+
+      const response = await axios.post(
+        `${typeof APIBASEURL !== 'undefined' ? API_BASE_URL : 'http://localhost:5001'}/api/stripe/create-checkout-session-credits`,
+        {
+          userId: user?.uid,
+          userEmail: user?.email,
+          creditsPlan: plan.name,
+          priceId: plan.priceId
+        }
+      );
+
+      if (response.data.sessionUrl) {
+        // Rediriger vers Stripe Checkout
+        window.location.href = response.data.sessionUrl;
+      }
+    } catch (err) {
+      console.error('Erreur achat crédits:', err);
+      setCreditsError(err.response?.data?.error || 'Erreur lors de la création de la session');
+    } finally {
+      setCreditsLoading(false);
+    }
   };
 
   const handleContactEnterprise = () => {
@@ -619,145 +863,280 @@ ${user?.email || 'contact'}`;
 
         {/* CONTENT */}
         <div className="px-4 md:px-8 py-6 md:py-8">
-          {/* PLANS GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
-            {plans.map(({ key, name, price, features, icon, color, recommended }) => {
-              const isPlanDowngrade = isDowngrade(key);
-              const isCurrentPlan = userPlan === key;
+          
+          {/* ⭐ TABS NAVIGATION */}
+          <div className="flex gap-2 mb-8 border-b border-gray-300">
+            {/* TAB CRÉDITS */}
+            <button
+              onClick={() => setActiveTab('credits')}
+              className={`
+                px-6 py-3 font-bold border-b-4 transition-all whitespace-nowrap
+                ${activeTab === 'credits' 
+                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50' 
+                  : 'border-transparent text-gray-600 hover:text-gray-900'}
+              `}
+            >
+              🎯 Crédits
+            </button>
 
-              const colorClasses = {
-                blue: {
-                  bg: 'bg-blue-50',
-                  border: 'border-blue-200',
-                  active: 'bg-blue-100 border-blue-400 shadow-lg shadow-blue-200',
-                  button: 'bg-blue-600 hover:bg-blue-700'
-                },
-                purple: {
-                  bg: 'bg-purple-50',
-                  border: 'border-purple-200',
-                  active: 'bg-purple-100 border-purple-400 shadow-lg shadow-purple-200',
-                  button: 'bg-purple-600 hover:bg-purple-700'
-                },
-                indigo: {
-                  bg: 'bg-indigo-50',
-                  border: 'border-indigo-200',
-                  active: 'bg-indigo-100 border-indigo-400 shadow-lg shadow-indigo-200',
-                  button: 'bg-indigo-600 hover:bg-indigo-700'
-                },
-                amber: {
-                  bg: 'bg-amber-50',
-                  border: 'border-amber-200',
-                  active: 'bg-amber-100 border-amber-400 shadow-lg shadow-amber-200',
-                  button: 'bg-amber-600 hover:bg-amber-700'
-                }
-              };
-
-              const colors = colorClasses[color];
-
-              return (
-                <div
-                  key={key}
-                  className={`relative p-4 md:p-6 rounded-xl border-2 transition-all ${
-                    isCurrentPlan
-                      ? `${colors.active}`
-                      : isPlanDowngrade
-                      ? `${colors.bg} ${colors.border} opacity-60 cursor-not-allowed`
-                      : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md cursor-pointer`
-                  }`}
-                  onClick={() => !isPlanDowngrade && !isCurrentPlan && setSelectedPlan(key)}
-                >
-                  {/* RECOMMENDED BADGE */}
-                  {recommended && (
-                    <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg">
-                      RECOMMANDÉ ⭐
-                    </div>
-                  )}
-
-                  {/* ICON & NAME */}
-                  <div className="mb-4">
-                    <div className="text-3xl md:text-4xl mb-2">{icon}</div>
-                    <h4 className="text-lg md:text-xl font-black text-gray-900">{name}</h4>
-                  </div>
-
-                  {/* PRICE */}
-                  <p className={`text-xl md:text-2xl font-black mb-4`}>
-                    <span className={`text-${color}-600`}>{price}</span>
-                  </p>
-
-                  {/* FEATURES */}
-                  <ul className="space-y-2 text-xs md:text-sm text-gray-700 mb-6">
-                    {features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✓</span>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* ACTION BUTTON */}
-                  {isCurrentPlan ? (
-                    <div className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold text-center shadow-md text-sm md:text-base`}>
-                      Plan actuel ✅
-                    </div>
-                  ) : isPlanDowngrade ? (
-                    <div className="w-full py-2 md:py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-center font-semibold text-xs md:text-sm shadow-md">
-                      🔒 Downgrade via annulation
-                    </div>
-                  ) : key === 'entreprise' ? (
-                    <button
-                      onClick={handleContactEnterprise}
-                      className="w-full py-2 md:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-600 transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0"
-                    >
-                      📧 Contacter
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedPlan(key)}
-                      className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0`}
-                    >
-                      Choisir
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            {/* TAB PLANS */}
+            <button
+              onClick={() => setActiveTab('plans')}
+              className={`
+                px-6 py-3 font-bold border-b-4 transition-all whitespace-nowrap
+                ${activeTab === 'plans' 
+                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50' 
+                  : 'border-transparent text-gray-600 hover:text-gray-900'}
+              `}
+            >
+              📊 Plans
+            </button>
           </div>
 
-          {/* CHECKOUT SECTION */}
-          {selectedPlan && selectedPlan !== 'entreprise' && !isDowngrade(selectedPlan) && userPlan !== selectedPlan && (
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-xl p-6 md:p-8 shadow-lg">
-              <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-4">
-                ✅ Confirmer votre upgrade vers {plans.find(p => p.key === selectedPlan)?.name}
-              </h3>
-              
-              <div className="mb-6 p-4 bg-white rounded-lg border border-indigo-200">
-                <p className="text-sm md:text-base text-gray-700 mb-3">
-                  <span className="font-bold">Récapitulatif:</span>
+          {/* ⭐ TAB CONTENU: CRÉDITS */}
+          {activeTab === 'credits' && (
+            <div className="space-y-6 mb-8">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">Acheter des Crédits</h3>
+                <p className="text-gray-600">
+                  Les crédits vous permettent de faire des analyses supplémentaires après avoir atteint votre quota mensuel.
                 </p>
-                <ul className="text-sm md:text-base space-y-2 text-gray-800">
-                  <li>• Plan: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.name}</span></li>
-                  <li>• Email: <span className="font-bold">{user?.email}</span></li>
-                  <li>• Prix: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.price}</span></li>
-                </ul>
               </div>
 
-              <div className="flex flex-col md:flex-row gap-3">
-                <button
-                  onClick={() => setSelectedPlan(null)}
-                  className="flex-1 py-2 md:py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold rounded-lg transition-colors text-sm md:text-base"
-                >
-                  ← Retour
-                </button>
-                <div className="flex-1">
-                  <StripeCheckoutButton
-                    plan={selectedPlan}
-                    planInfo={planInfo}
-                    user={user}
-                    setUserPlan={setUserPlan}
-                    setShowUpgradeModal={setShowUpgradeModal}
-                  />
+              {creditsError && (
+                <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold">
+                  {creditsError}
                 </div>
+              )}
+
+              {/* PLANS DE CRÉDITS GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {creditPlans.map((plan, idx) => (
+                  <div
+                    key={idx}
+                    className={`
+                      relative rounded-2xl border-2 p-6 transition-all shadow-lg
+                      ${plan.popular ? 'ring-2 ring-indigo-500 shadow-2xl scale-105 md:scale-100' : ''}
+                      bg-white ${plan.borderColor}
+                    `}
+                  >
+                    {/* Popular Badge */}
+                    {plan.popular && (
+                      <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg">
+                          {plan.badge}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Header avec crédits */}
+                    <div className={`bg-gradient-to-br ${plan.color} rounded-xl p-4 mb-4 text-center`}>
+                      <p className="text-sm font-bold text-gray-700 mb-1">Crédits</p>
+                      <p className="text-4xl font-black text-gray-900">{plan.credits}</p>
+                    </div>
+
+                    {/* Nom du plan */}
+                    <h4 className="text-lg font-bold text-gray-900 mb-2">{plan.displayName}</h4>
+
+                    {/* Prix */}
+                    <div className="mb-4">
+                      <p className="text-3xl font-black text-indigo-600">
+                        ${plan.price}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        ${(parseFloat(plan.price) / plan.credits).toFixed(2)}/crédit
+                      </p>
+                    </div>
+
+                    {/* Bénéfices */}
+                    <div className="mb-6 space-y-2 text-sm text-gray-700">
+                      <div className="flex items-center gap-2">
+                        <span className="text-indigo-600 font-bold">✓</span>
+                        <span>{plan.credits} analyses</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-indigo-600 font-bold">✓</span>
+                        <span>Utilisables immédiatement</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-indigo-600 font-bold">✓</span>
+                        <span>Valides 12 mois</span>
+                      </div>
+                    </div>
+
+                    {/* Bouton d'achat */}
+                    <button
+                      onClick={() => handleBuyCredits(plan)}
+                      disabled={creditsLoading}
+                      className={`
+                        w-full py-3 px-4 rounded-xl font-bold text-white transition-all shadow-lg
+                        ${creditsLoading 
+                          ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                          : `${plan.buttonColor} hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0`
+                        }
+                      `}
+                    >
+                      {creditsLoading ? '⏳ Chargement...' : '🛒 Acheter maintenant'}
+                    </button>
+                  </div>
+                ))}
               </div>
+
+              {/* INFO BOX */}
+              <div className="bg-blue-50 border border-blue-300 rounded-xl p-4 mt-6">
+                <p className="text-sm text-blue-900">
+                  <span className="font-bold">💡 Comment ça marche :</span> Chaque crédit vous donne une analyse supplémentaire. 
+                  Lorsque vous atteignez votre quota mensuel, vous pouvez utiliser vos crédits pour continuer. 
+                  Les crédits ne s'expirent pas et se cumulent d'un mois à l'autre.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ⭐ TAB CONTENU: PLANS */}
+          {activeTab === 'plans' && (
+            <div className="space-y-8">
+              {/* PLANS GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                {plans.map(({ key, name, price, features, icon, color, recommended }) => {
+                  const isPlanDowngrade = isDowngrade(key);
+                  const isCurrentPlan = userPlan === key;
+
+                  const colorClasses = {
+                    blue: {
+                      bg: 'bg-blue-50',
+                      border: 'border-blue-200',
+                      active: 'bg-blue-100 border-blue-400 shadow-lg shadow-blue-200',
+                      button: 'bg-blue-600 hover:bg-blue-700'
+                    },
+                    purple: {
+                      bg: 'bg-purple-50',
+                      border: 'border-purple-200',
+                      active: 'bg-purple-100 border-purple-400 shadow-lg shadow-purple-200',
+                      button: 'bg-purple-600 hover:bg-purple-700'
+                    },
+                    indigo: {
+                      bg: 'bg-indigo-50',
+                      border: 'border-indigo-200',
+                      active: 'bg-indigo-100 border-indigo-400 shadow-lg shadow-indigo-200',
+                      button: 'bg-indigo-600 hover:bg-indigo-700'
+                    },
+                    amber: {
+                      bg: 'bg-amber-50',
+                      border: 'border-amber-200',
+                      active: 'bg-amber-100 border-amber-400 shadow-lg shadow-amber-200',
+                      button: 'bg-amber-600 hover:bg-amber-700'
+                    }
+                  };
+
+                  const colors = colorClasses[color];
+
+                  return (
+                    <div
+                      key={key}
+                      className={`relative p-4 md:p-6 rounded-xl border-2 transition-all ${
+                        isCurrentPlan
+                          ? `${colors.active}`
+                          : isPlanDowngrade
+                          ? `${colors.bg} ${colors.border} opacity-60 cursor-not-allowed`
+                          : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md cursor-pointer`
+                      }`}
+                      onClick={() => !isPlanDowngrade && !isCurrentPlan && setSelectedPlan(key)}
+                    >
+                      {/* RECOMMENDED BADGE */}
+                      {recommended && (
+                        <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg">
+                          RECOMMANDÉ ⭐
+                        </div>
+                      )}
+
+                      {/* ICON & NAME */}
+                      <div className="mb-4">
+                        <div className="text-3xl md:text-4xl mb-2">{icon}</div>
+                        <h4 className="text-lg md:text-xl font-black text-gray-900">{name}</h4>
+                      </div>
+
+                      {/* PRICE */}
+                      <p className={`text-xl md:text-2xl font-black mb-4`}>
+                        <span className={`text-${color}-600`}>{price}</span>
+                      </p>
+
+                      {/* FEATURES */}
+                      <ul className="space-y-2 text-xs md:text-sm text-gray-700 mb-6">
+                        {features.map((feature, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✓</span>
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* ACTION BUTTON */}
+                      {isCurrentPlan ? (
+                        <div className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold text-center shadow-md text-sm md:text-base`}>
+                          Plan actuel ✅
+                        </div>
+                      ) : isPlanDowngrade ? (
+                        <div className="w-full py-2 md:py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-center font-semibold text-xs md:text-sm shadow-md">
+                          🔒 Downgrade via annulation
+                        </div>
+                      ) : key === 'entreprise' ? (
+                        <button
+                          onClick={handleContactEnterprise}
+                          className="w-full py-2 md:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-600 transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0"
+                        >
+                          📧 Contacter
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedPlan(key)}
+                          className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0`}
+                        >
+                          Choisir
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* CHECKOUT SECTION */}
+              {selectedPlan && selectedPlan !== 'entreprise' && !isDowngrade(selectedPlan) && userPlan !== selectedPlan && (
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-xl p-6 md:p-8 shadow-lg">
+                  <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-4">
+                    ✅ Confirmer votre upgrade vers {plans.find(p => p.key === selectedPlan)?.name}
+                  </h3>
+                  
+                  <div className="mb-6 p-4 bg-white rounded-lg border border-indigo-200">
+                    <p className="text-sm md:text-base text-gray-700 mb-3">
+                      <span className="font-bold">Récapitulatif:</span>
+                    </p>
+                    <ul className="text-sm md:text-base space-y-2 text-gray-800">
+                      <li>• Plan: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.name}</span></li>
+                      <li>• Email: <span className="font-bold">{user?.email}</span></li>
+                      <li>• Prix: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.price}</span></li>
+                    </ul>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <button
+                      onClick={() => setSelectedPlan(null)}
+                      className="flex-1 py-2 md:py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold rounded-lg transition-colors text-sm md:text-base"
+                    >
+                      ← Retour
+                    </button>
+                    <div className="flex-1">
+                      <StripeCheckoutButton
+                        plan={selectedPlan}
+                        planInfo={planInfo}
+                        user={user}
+                        setUserPlan={setUserPlan}
+                        setShowUpgradeModal={setShowUpgradeModal}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -782,6 +1161,16 @@ ${user?.email || 'contact'}`;
               </div>
 
               <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Les crédits s'expirent?</p>
+                <p className="text-xs md:text-sm text-gray-700">Non! Vos crédits n'expirent pas et se cumulent. Vous pouvez les utiliser quand vous le souhaitez.</p>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
+                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Puis-je combiner crédits et plan?</p>
+                <p className="text-xs md:text-sm text-gray-700">Absolument! Une fois votre quota mensuel atteint, vous pouvez utiliser vos crédits.</p>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
                 <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Besoin d'aide?</p>
                 <p className="text-xs md:text-sm text-gray-700">Contactez info@optimiplex.com ou utilisez le chat en bas à droite.</p>
               </div>
@@ -798,6 +1187,7 @@ ${user?.email || 'contact'}`;
     </div>
   );
 }
+
 
 
 
@@ -2245,14 +2635,18 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
 // ============================================
 function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [loading, setLoading] = useState(false);
+  
+  // ✅ État étendu pour inclure les crédits
   const [quotaInfo, setQuotaInfo] = useState({
     remaining: 0,
     limit: 1,
     current: 0,
     plan: 'essai',
     resetDate: new Date(),
-    isUnlimited: false
+    isUnlimited: false,
+    credits: 0 // Nouveau champ pour stocker les crédits
   });
+  
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -2267,128 +2661,65 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN
-  const PLAN_LIMITS = {
-    essai: 1,
-    pro: 5,
-    growth: 999,
-    entreprise: 999
-  };
+  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
 
   const [formData, setFormData] = useState({
-    titre: '',
-    ville: '',
-    quartier: '',
-    typeappart: '312',
-    etat: 'renove',
-    loyeractuel: 1400,
-    meuble: false,
-    balcon: false,
-    garage: false,
-    animaux: false,
-    climatise: false,
-    chauffage: false,
-    stationnement: false,
-    laverie: false,
-    gym: false,
-    piscine: false
+    titre: '', ville: '', quartier: '', typeappart: '312', etat: 'renove', loyeractuel: 1400,
+    meuble: false, balcon: false, garage: false, animaux: false, climatise: false,
+    chauffage: false, stationnement: false, laverie: false, gym: false, piscine: false
   });
 
   const [customVille, setCustomVille] = useState('');
   const [showCustomVille, setShowCustomVille] = useState(false);
+  
   const villeOptions = ['Montréal', 'Québec', 'Lévis', 'Laval', 'Longueuil', 'Gatineau', 'Sherbrooke', 'Autre'];
-
   const appartOptions = [
-    { value: '112', label: '1 1/2 (Studio)' },
-    { value: '312', label: '3 1/2' },
-    { value: '412', label: '4 1/2' },
-    { value: '512', label: '5 1/2' },
-    { value: '612', label: '6 1/2' }
+    { value: '112', label: '1 1/2 (Studio)' }, { value: '312', label: '3 1/2' },
+    { value: '412', label: '4 1/2' }, { value: '512', label: '5 1/2' }, { value: '612', label: '6 1/2' }
+  ];
+  const etatOptions = [
+    { value: 'renove', label: '✨ Rénové' }, { value: 'bon', label: '🏡 Bon état' },
+    { value: 'neuf', label: '🆕 Neuf' }, { value: 'arenover', label: '🔨 À rénover' }
   ];
 
   const getApartmentLabel = (typeValue) => {
-    const labels = {
-      '112': '1 1/2',
-      '312': '3 1/2',
-      '412': '4 1/2',
-      '512': '5 1/2',
-      '612': '6 1/2'
-    };
+    const labels = { '112': '1 1/2', '312': '3 1/2', '412': '4 1/2', '512': '5 1/2', '612': '6 1/2' };
     return labels[typeValue] || typeValue;
   };
 
-  const etatOptions = [
-    { value: 'renove', label: '✨ Rénové' },
-    { value: 'bon', label: '🏡 Bon état' },
-    { value: 'neuf', label: '🆕 Neuf' },
-    { value: 'arenover', label: '🔨 À rénover' }
-  ];
-
-  // ✅ CHARGER LE QUOTA DEPUIS FIRESTORE
+  // ✅ CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
     const loadQuota = async () => {
       try {
-        if (!user?.uid) {
-          console.log('❌ Pas d\'utilisateur connecté');
-          return;
-        }
-
-        // 🔥 Récupérer les données depuis Firestore directement
+        if (!user?.uid) return;
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
 
-        if (!userDoc.exists()) {
-          console.log('❌ Utilisateur non trouvé dans Firestore');
-          return;
-        }
+        if (!userDoc.exists()) return;
 
         const userData = userDoc.data();
-        console.log('📊 Données utilisateur Firestore:', userData);
-
-        // 📋 Récupérer le plan et les limites
         const userPlanNow = userData.plan || 'essai';
-        const planLimit = PLAN_LIMITS[userPlanNow] || PLAN_LIMITS['essai'];
+        const planLimit = PLAN_LIMITS[userPlanNow] || 1;
+        
+        // ✅ RECUPERATION DES CREDITS
+        const creditsBalance = userData.creditsBalance || 0;
 
-        // 📅 Vérifier si le mois a changé et réinitialiser si nécessaire
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
         let quotaCount = 0;
-        let resetDate = new Date();
+        let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
         if (userData.quotaTracking) {
           const trackingMonth = userData.quotaTracking.month || '';
-
           if (trackingMonth === currentMonth) {
-            // Même mois - utiliser le count actuel
             quotaCount = userData.quotaTracking.count || 0;
-            resetDate = userData.quotaTracking.resetAt?.toDate ? userData.quotaTracking.resetAt.toDate() : new Date(userData.nextResetDate);
+            if (userData.quotaTracking.resetAt?.toDate) resetDate = userData.quotaTracking.resetAt.toDate();
           } else {
-            // Mois différent - réinitialiser
-            console.log('🔄 Réinitialisation du quota (nouveau mois)');
+            // Nouveau mois détecté, on considère le compteur à 0 pour l'affichage local
             quotaCount = 0;
-
-            // Calculer la date de réinitialisation (premier jour du mois prochain)
-            resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-            // Mettre à jour Firestore
-            await updateDoc(doc(db, 'users', user.uid), {
-              'quotaTracking.count': 0,
-              'quotaTracking.month': currentMonth,
-              'quotaTracking.resetAt': resetDate
-            });
           }
-        } else {
-          // Pas de tracking existant - initialiser
-          resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-          await updateDoc(doc(db, 'users', user.uid), {
-            'quotaTracking.count': 0,
-            'quotaTracking.month': currentMonth,
-            'quotaTracking.resetAt': resetDate
-          });
         }
 
-        // 📊 Calculer remaining et updated
         const remaining = Math.max(0, planLimit - quotaCount);
 
         setQuotaInfo({
@@ -2397,56 +2728,40 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           current: quotaCount,
           plan: userPlanNow,
           resetDate: resetDate,
-          isUnlimited: planLimit >= 999
+          isUnlimited: planLimit >= 999,
+          credits: creditsBalance // ✅ Stockage des crédits
         });
 
-        console.log('✅ Quota chargé:', {
-          plan: userPlanNow,
-          current: quotaCount,
-          limit: planLimit,
-          remaining: remaining,
-          resetDate: resetDate.toLocaleDateString('fr-CA')
-        });
       } catch (error) {
         console.error('❌ Erreur chargement quota:', error);
-        setQuotaInfo({
-          remaining: 1,
-          limit: 1,
-          current: 0,
-          plan: 'essai',
-          resetDate: new Date(),
-          isUnlimited: false
-        });
       }
     };
 
-    if (user?.uid) {
-      loadQuota();
-    }
+    if (user?.uid) loadQuota();
   }, [user?.uid]);
 
-  // ✅ SCROLL AUTOMATIQUE VERS LES RÉSULTATS
+  // Scroll automatique
   useEffect(() => {
     if (result && resultRef.current) {
-      setTimeout(() => {
-        resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
+      setTimeout(() => resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
   }, [result]);
 
   const handleSubmit = async () => {
     const apartmentLabel = getApartmentLabel(formData.typeappart);
-    const villeFinale = showCustomVille && customVille.trim()
-      ? customVille.trim()
-      : formData.ville;
+    const villeFinale = showCustomVille && customVille.trim() ? customVille.trim() : formData.ville;
 
     if (!villeFinale || !formData.loyeractuel || formData.loyeractuel < 1) {
       setError('🚨 Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
-      setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint! Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`);
+    // ✅ VÉRIFICATION PRINCIPALE : A-t-il le droit de générer ?
+    // Condition : Quota illimité OU Quota restant > 0 OU Crédits > 0
+    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
+    
+    if (!hasAccess) {
+      setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint et aucun crédit disponible (Solde: ${quotaInfo.credits}).`);
       return;
     }
 
@@ -2470,19 +2785,20 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         { userId: user.uid, ...analysisData }
       );
 
-      console.log('🎉 Réponse API complète:', response.data);
+      // ✅ MISE À JOUR OPTIMISTE DU UI
+      // Le backend fait le vrai travail, mais on met à jour l'affichage tout de suite pour l'utilisateur
+      if (!quotaInfo.isUnlimited) {
+        if (quotaInfo.remaining > 0) {
+           // On a utilisé le quota mensuel
+           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
+        } else {
+           // On a utilisé un crédit
+           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        }
+      }
 
-      // 📝 Mettre à jour le quota dans Firestore
+      // Sauvegarde optionnelle dans Firestore (déjà gérée par le backend normalement, mais garde pour l'historique front)
       const db = getFirestore();
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-      await updateDoc(doc(db, 'users', user.uid), {
-        'quotaTracking.count': increment(1),
-        'quotaTracking.month': currentMonth
-      });
-
-      // Sauvegarder l'analyse
       if (user) {
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
         await addDoc(analysesRef, {
@@ -2494,27 +2810,22 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           createdAt: serverTimestamp()
         });
       }
-
-      // ✅ Mettre à jour le quota localement
-      setQuotaInfo(prev => ({
-        ...prev,
-        current: prev.current + 1,
-        remaining: Math.max(0, prev.remaining - 1)
-      }));
-
+      
       setResult(response.data);
+
     } catch (err) {
-      console.error('❌ Erreur complète:', err);
+      console.error('❌ Erreur:', err);
+      // Gestion spécifique erreur 429 (Quota backend)
       if (err.response?.status === 429) {
         setQuotaError(`🔒 ${err.response.data.error}`);
-        setQuotaInfo({
-          current: err.response.data.current,
-          limit: err.response.data.limit,
-          remaining: 0,
-          plan: quotaInfo.plan,
-          resetDate: new Date(err.response.data.resetDate),
-          isUnlimited: false
-        });
+        // Mise à jour forcée des infos quota si le backend renvoie les nouvelles valeurs
+        if(err.response.data) {
+             setQuotaInfo(prev => ({
+                 ...prev,
+                 remaining: err.response.data.remaining || 0,
+                 credits: err.response.data.credits || 0
+             }));
+        }
       } else {
         setError('Erreur: ' + (err.response?.data?.error || err.message));
       }
@@ -2523,71 +2834,81 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     }
   };
 
-  // ✅ FONCTION POUR AFFICHER CORRECTEMENT LES GAINS/PERTES
   const getDifferenceDisplay = () => {
     if (!result || !result.recommandation) return null;
-    
     const difference = result.recommandation.loyeroptimal - formData.loyeractuel;
-    const differenceMensuelle = Math.round(difference);
-    const differenceAnnuelle = Math.round(difference * 12);
-
     return {
-      mensuelle: differenceMensuelle,
-      annuelle: differenceAnnuelle,
+      mensuelle: Math.round(difference),
+      annuelle: Math.round(difference * 12),
       isPositive: difference >= 0,
       isBetter: difference >= 0
     };
   };
 
+  // ✅ LOGIQUE DU BOUTON DISABLED
+  // Désactivé si : chargement OU (pas illimité ET pas de quota restant ET pas de crédits)
+  const isButtonDisabled = loading || (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+
   return (
     <div className="space-y-8">
-      <LoadingSpinner 
-  isLoading={loading} 
-  messages={loadingMessages}
-  estimatedTime={25}
-/>
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={25} />
 
-      {/* ✅ QUOTA INFO CARD */}
+      {/* ✅ CARTE INFO QUOTA AVEC CRÉDITS */}
       {quotaInfo && (
         <div className={`p-6 rounded-xl border-2 ${
-          quotaInfo.remaining > 0
+          quotaInfo.remaining > 0 || quotaInfo.credits > 0 || quotaInfo.isUnlimited
             ? 'bg-emerald-50 border-emerald-300'
             : 'bg-red-50 border-red-300'
         }`}>
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0 ? '📊 Analyses restantes' : '❌ Quota atteint'}
+                {quotaInfo.remaining > 0 || quotaInfo.isUnlimited 
+                  ? '📊 Analyses mensuelles restantes' 
+                  : quotaInfo.credits > 0 
+                    ? '💎 Utilisation de crédits' 
+                    : '❌ Quota épuisé'}
               </h3>
               <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
             </div>
-            <span className="text-3xl font-black">
-              {quotaInfo.remaining}/{quotaInfo.limit}
-            </span>
+            <div className="text-right">
+               <span className="text-3xl font-black">
+                {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}
+              </span>
+            </div>
           </div>
 
           <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
             <div
-              className={`h-3 rounded-full transition-all ${
-                quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
-              }`}
+              className={`h-3 rounded-full transition-all ${quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
               style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
             />
           </div>
 
-          <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-            {quotaInfo.remaining > 0
-              ? `${quotaInfo.remaining} analyse${quotaInfo.remaining > 1 ? 's' : ''} restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
-              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
-            }
-          </p>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+              {quotaInfo.remaining > 0
+                ? `${quotaInfo.remaining} incluse(s) dans l'abonnement`
+                : `Quota mensuel atteint. Reset: ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
+              }
+            </p>
+            
+            {/* ✅ Badge Crédits Disponibles */}
+            {quotaInfo.credits > 0 && (
+              <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm border border-indigo-200 shadow-sm">
+                <Coins size={16} />
+                <span>{quotaInfo.credits} Crédits Extra</span>
+              </div>
+            )}
+          </div>
 
-          {quotaInfo.plan === 'essai' && quotaInfo.remaining === 0 && (
+          {/* Bouton d'achat si bloqué */}
+          {isButtonDisabled && (
             <button
               onClick={() => setShowUpgradeModal(true)}
-              className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all"
+              className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
             >
-              ⬆️ Upgrader pour plus d'analyses
+              ⬆️ Acheter des crédits ou Upgrader
             </button>
           )}
         </div>
@@ -2684,7 +3005,6 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               }
             }}
             onBlur={(e) => {
-              // Quand on quitte le champ, on met une valeur par défaut si vide
               if (!formData.loyeractuel || formData.loyeractuel === 0 || formData.loyeractuel === '') {
                 setFormData({ ...formData, loyeractuel: 1400 });
               }
@@ -2758,17 +3078,17 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       )}
 
       {/* BOUTON ANALYSER */}
-      <div className="text-center">
+      <div className="text-center mt-6">
         <button
           onClick={handleSubmit}
-          disabled={loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
+          disabled={isButtonDisabled}
           className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto
-            ${loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
+            ${isButtonDisabled
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
         >
-          {loading ? '🔄 Analyse en cours...' : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited ? '❌ Quota atteint' : '🚀 Analyser'}
+          {loading ? '🔄 Analyse en cours...' : isButtonDisabled ? '❌ Quota & Crédits épuisés' : '🚀 Analyser'}
         </button>
       </div>
 
@@ -2958,14 +3278,18 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 // ============================================
 function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
   const [loading, setLoading] = useState(false);
+  
+  // ✅ État étendu pour inclure les crédits
   const [quotaInfo, setQuotaInfo] = useState({
     remaining: 0,
     limit: 0,
     current: 0,
     plan: 'essai',
     resetDate: new Date(),
-    isUnlimited: false
+    isUnlimited: false,
+    credits: 0 // Nouveau champ pour les crédits
   });
+  
   const [quotaError, setQuotaError] = useState(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -2980,13 +3304,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  // 📊 DÉFINITION DES LIMITES DE QUOTA PAR PLAN (Aligné avec PropertyValuationTab)
-  const PLAN_LIMITS = {
-    essai: 1,
-    pro: 5,
-    growth: 999,
-    entreprise: 999
-  };
+  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
 
   const [formData, setFormData] = useState({
     titre: '',
@@ -3016,38 +3334,29 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     { value: 'retail', label: '🛍️ Retail' }
   ];
 
-  // ✅ CHARGER LE QUOTA DEPUIS FIRESTORE
+  // ✅ CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
     const loadQuota = async () => {
       try {
-        if (!user?.uid) {
-          console.log('❌ Pas d\'utilisateur connecté');
-          return;
-        }
-
+        if (!user?.uid) return;
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-        if (!userDoc.exists()) {
-          console.log('❌ Utilisateur non trouvé dans Firestore');
-          return;
-        }
+        if (!userDoc.exists()) return;
 
         const userData = userDoc.data();
-        // console.log('📊 Données utilisateur Firestore:', userData);
-
         const userPlanNow = userData.plan || 'essai';
-        const planLimit = PLAN_LIMITS[userPlanNow] || PLAN_LIMITS['essai'];
+        const planLimit = PLAN_LIMITS[userPlanNow] || 1;
+        
+        // ✅ Récupération des crédits
+        const creditsBalance = userData.creditsBalance || 0;
 
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
         let quotaCount = 0;
         let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
         if (userData.quotaTracking) {
           const trackingMonth = userData.quotaTracking.month || '';
-
           if (trackingMonth === currentMonth) {
             quotaCount = userData.quotaTracking.count || 0;
             if (userData.quotaTracking.resetAt?.toDate) {
@@ -3056,9 +3365,8 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               resetDate = new Date(userData.nextResetDate);
             }
           } else {
-            console.log('🔄 Réinitialisation du quota (nouveau mois)');
+            // Nouveau mois, reset compteur pour affichage local
             quotaCount = 0;
-            // Mise à jour si mois différent (optionnel ici, fait au submit généralement, mais bon pour l'affichage)
           }
         }
 
@@ -3070,50 +3378,41 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           current: quotaCount,
           plan: userPlanNow,
           resetDate: resetDate,
-          isUnlimited: planLimit >= 999
+          isUnlimited: planLimit >= 999,
+          credits: creditsBalance // ✅ Stockage
         });
 
       } catch (error) {
         console.error('❌ Erreur chargement quota:', error);
-        setQuotaInfo({
-          remaining: 0,
-          limit: 0,
-          current: 0,
-          plan: 'essai',
-          resetDate: new Date(),
-          isUnlimited: false
-        });
       }
     };
 
-    if (user?.uid) {
-      loadQuota();
-    }
+    if (user?.uid) loadQuota();
   }, [user?.uid]);
 
-  // ✅ SCROLL AUTOMATIQUE VERS LES RÉSULTATS
+  // Scroll automatique
   useEffect(() => {
     if (result && resultRef.current) {
-      setTimeout(() => {
-        resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
+      setTimeout(() => resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
   }, [result]);
 
   const handleSubmit = async () => {
-    
     if (!formData.ville) {
       setError('🚨 Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited) {
-      setQuotaError(`🔒 Quota ${quotaInfo.plan} atteint! Réinitialisation ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`);
+    if (formData.surfacepiedcarre < 100 || formData.prixactuelpiedcarre < 5) {
+      setError('Veuillez remplir tous les champs correctement');
       return;
     }
 
-    if (formData.surfacepiedcarre < 100 || formData.prixactuelpiedcarre < 5) {
-      setError('Veuillez remplir tous les champs correctement');
+    // ✅ VÉRIFICATION PRINCIPALE : Quota OU Crédits
+    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
+
+    if (!hasAccess) {
+      setQuotaError(`🔒 Quota épuisé et aucun crédit disponible.`);
       return;
     }
 
@@ -3136,20 +3435,20 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         { userId: user.uid, ...analysisData }
       );
 
-      console.log('🎉 Réponse API complète:', response.data);
+      // ✅ MISE À JOUR OPTIMISTE DU QUOTA/CRÉDITS
+      if (!quotaInfo.isUnlimited) {
+        if (quotaInfo.remaining > 0) {
+           // Déduction du quota mensuel
+           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
+        } else {
+           // Déduction des crédits
+           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        }
+      }
 
+      // Sauvegarde optionnelle dans Firestore pour l'historique frontend
       const db = getFirestore();
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-      // Mise à jour du quota côté client pour synchro immédiate (optionnel si le backend le fait aussi)
-      await updateDoc(doc(db, 'users', user.uid), {
-        'quotaTracking.count': increment(1),
-        'quotaTracking.month': currentMonth
-      });
-
       if (user) {
-        // Enregistrement dans une collection distincte ou 'analyses'
         const analysesRef = collection(db, 'users', user.uid, 'analyses');
         await addDoc(analysesRef, {
           ...analysisData,
@@ -3161,23 +3460,20 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         });
       }
 
-      setQuotaInfo(prev => ({
-        ...prev,
-        current: prev.current + 1,
-        remaining: Math.max(0, prev.remaining - 1)
-      }));
-
       setResult(response.data);
+
     } catch (err) {
       console.error('❌ Erreur complète:', err);
+      // Gestion erreur quota venant du backend (double sécurité)
       if (err.response?.status === 429) {
         setQuotaError(`🔒 ${err.response.data.error}`);
-        // Mise à jour force du quota si l'API renvoie les infos
-        if (err.response.data.resetDate) {
+        // Mise à jour si le backend renvoie les nouvelles valeurs
+        if (err.response.data) {
              setQuotaInfo(prev => ({
                 ...prev,
-                remaining: 0,
-                resetDate: new Date(err.response.data.resetDate)
+                remaining: err.response.data.remaining || 0,
+                credits: err.response.data.credits || 0, // Si le backend renvoie ça
+                resetDate: err.response.data.resetDate ? new Date(err.response.data.resetDate) : prev.resetDate
              }));
         }
       } else {
@@ -3188,6 +3484,10 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     }
   };
 
+  // ✅ LOGIQUE DU BOUTON DISABLED
+  // Désactivé si : chargement OU (pas illimité ET pas de quota restant ET pas de crédits)
+  const isButtonDisabled = loading || (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+
   return (
     <div className="space-y-8">
       <LoadingSpinner 
@@ -3196,71 +3496,65 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         estimatedTime={25}
       />
 
-      {/* ✅ QUOTA INFO CARD - Style PropertyValuationTab */}
+      {/* ✅ QUOTA INFO CARD AVEC CRÉDITS */}
       {quotaInfo && (
-        <div
-          className={`p-6 rounded-xl border-2 ${
-            quotaInfo.remaining > 0
-              ? 'bg-emerald-50 border-emerald-300'
-              : 'bg-red-50 border-red-300'
-          }`}
-        >
+        <div className={`p-6 rounded-xl border-2 ${
+          quotaInfo.remaining > 0 || quotaInfo.credits > 0 || quotaInfo.isUnlimited
+            ? 'bg-emerald-50 border-emerald-300'
+            : 'bg-red-50 border-red-300'
+        }`}>
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0
+                {quotaInfo.remaining > 0 || quotaInfo.isUnlimited 
                   ? '📊 Analyses commerciales restantes'
-                  : '❌ Quota atteint'}
+                  : quotaInfo.credits > 0 
+                    ? '💎 Utilisation de crédits' 
+                    : '❌ Quota épuisé'}
               </h3>
-              <p className="text-xs text-gray-600 mt-1">
-                Plan:{' '}
-                <span className="font-bold uppercase">{quotaInfo.plan}</span>
-              </p>
+              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
             </div>
-            <span className="text-3xl font-black">
-              {quotaInfo.remaining}/{quotaInfo.limit}
-            </span>
+            <div className="text-right">
+               <span className="text-3xl font-black">
+                {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}
+              </span>
+            </div>
           </div>
+
+          {/* Barre de progression */}
           <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
             <div
-              className={`h-3 rounded-full transition-all ${
-                quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
-              }`}
-              style={{
-                width: `${
-                  quotaInfo.limit > 0
-                    ? ((quotaInfo.limit - quotaInfo.current) /
-                        quotaInfo.limit) *
-                      100
-                    : 100
-                }%`,
-              }}
+              className={`h-3 rounded-full transition-all ${quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
+              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
             />
           </div>
-          <p
-            className={`text-sm ${
-              quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'
-            }`}
-          >
-            {quotaInfo.remaining > 0
-              ? `${quotaInfo.remaining} analyse${
-                  quotaInfo.remaining > 1 ? 's' : ''
-                } restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
-              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString(
-                  'fr-CA'
-                )}`}
-          </p>
-          {quotaInfo.plan === 'essai' &&
-            quotaInfo.remaining === 0 &&
-            !quotaInfo.isUnlimited && (
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(true)}
-                className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all"
-              >
-                ⬆️ Upgrader pour plus d'analyses
-              </button>
+
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+              {quotaInfo.remaining > 0
+                ? `${quotaInfo.remaining} incluse(s) dans l'abonnement`
+                : `Quota mensuel atteint. Reset: ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
+              }
+            </p>
+            
+            {/* ✅ Badge Crédits Disponibles */}
+            {quotaInfo.credits > 0 && (
+              <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm border border-indigo-200 shadow-sm">
+                <Coins size={16} />
+                <span>{quotaInfo.credits} Crédits Extra</span>
+              </div>
             )}
+          </div>
+
+          {/* Bouton d'achat si bloqué */}
+          {isButtonDisabled && (
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+            >
+              ⬆️ Acheter des crédits ou Upgrader
+            </button>
+          )}
         </div>
       )}
 
@@ -3278,8 +3572,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.titre}
             onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
             placeholder="Ex: Bureau Centre-ville, Retail Laurier..."
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
 
@@ -3288,8 +3581,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           <select
             value={formData.typecommercial}
             onChange={(e) => setFormData({ ...formData, typecommercial: e.target.value })}
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             {typeCommercialOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3303,8 +3595,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.quartier}
             onChange={(e) => setFormData({ ...formData, quartier: e.target.value })}
             placeholder="Centre-ville, Plateau, Griffintown..."
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
 
@@ -3315,8 +3606,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.ville}
             onChange={(e) => setFormData({ ...formData, ville: e.target.value })}
             placeholder="Ex: Montréal, Québec, Lévis..."
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
 
@@ -3327,8 +3617,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             value={formData.surfacepiedcarre}
             onChange={(e) => setFormData({ ...formData, surfacepiedcarre: parseInt(e.target.value) || 2000 })}
             min="100"
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
 
@@ -3341,10 +3630,9 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
               onChange={(e) => setFormData({ ...formData, prixactuelpiedcarre: parseFloat(e.target.value) || 18 })}
               step="0.5"
               min="5"
-              disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-              className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
             />
-            <div className="flex items-center px-4 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold disabled:opacity-50">
+            <div className="flex items-center px-4 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold">
               $/pi²
             </div>
           </div>
@@ -3355,8 +3643,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           <select
             value={formData.visibilite}
             onChange={(e) => setFormData({ ...formData, visibilite: e.target.value })}
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           >
             {visibiliteOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3372,8 +3659,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             onChange={(e) => setFormData({ ...formData, termebailans: parseInt(e.target.value) || 3 })}
             min="1"
             max="10"
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
 
@@ -3388,14 +3674,13 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             ].map(item => (
               <label
                 key={item.key}
-                className={`flex items-center p-3 bg-indigo-100 rounded-lg cursor-pointer hover:bg-indigo-200 transition-colors border border-indigo-300 ${quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className="flex items-center p-3 bg-indigo-100 rounded-lg cursor-pointer hover:bg-indigo-200 transition-colors border border-indigo-300"
               >
                 <input
                   type="checkbox"
                   checked={formData[item.key]}
                   onChange={(e) => setFormData({ ...formData, [item.key]: e.target.checked })}
-                  disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
-                  className="w-4 h-4 text-indigo-600 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-4 h-4 text-indigo-600 rounded"
                 />
                 <span className="ml-2 text-xs font-semibold text-indigo-700">{item.label}</span>
               </label>
@@ -3411,20 +3696,20 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       )}
 
       {/* BOUTON ANALYSER */}
-      <div className="text-center">
+      <div className="text-center mt-6">
         <button
           onClick={handleSubmit}
-          disabled={loading || (quotaInfo && quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)}
+          disabled={isButtonDisabled}
           className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto
-            ${loading || (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
+            ${isButtonDisabled
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
         >
           {loading 
             ? '🔄 Analyse en cours...' 
-            : quotaInfo?.remaining <= 0 && !quotaInfo?.isUnlimited 
-              ? '❌ Quota atteint' 
+            : isButtonDisabled 
+              ? '❌ Quota & Crédits épuisés' 
               : '🏢 Analyser Commercial'}
         </button>
       </div>
@@ -3432,7 +3717,6 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       {/* RÉSULTATS */}
       {result && (
         <div ref={resultRef} className="space-y-8 mt-8">
-          {/* HEADER RÉSUMÉ */}
           <div className="p-8 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-2xl border-2 border-emerald-300 text-center shadow-lg">
             <h3 className="text-4xl font-black text-emerald-900 mb-2">
               ${(result.recommandation?.loyeroptimal || 0).toFixed(2)}/pi²/an
@@ -3463,6 +3747,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
             </div>
           </div>
 
+          {/* ... (Affichage des autres sections de résultats) ... */}
           {/* JUSTIFICATION */}
           {result.recommandation?.justification && Array.isArray(result.recommandation.justification) && result.recommandation.justification.length > 0 && (
             <div className="p-6 bg-blue-100 rounded-xl border border-blue-300">
@@ -3671,6 +3956,7 @@ function PropertyValuationTab({
 
   const isSubmittingRef = useRef(false);
 
+  // ✅ État quota avec crédits
   const [quotaInfo, setQuotaInfo] = useState({
     remaining: 0,
     limit: 1,
@@ -3678,6 +3964,7 @@ function PropertyValuationTab({
     plan: 'essai',
     resetDate: new Date(),
     isUnlimited: false,
+    credits: 0 // Nouveau champ
   });
 
   const [error, setError] = useState('');
@@ -3961,8 +4248,15 @@ function PropertyValuationTab({
   };
 
   const submitEvaluation = async () => {
+    // ✅ VÉRIFICATION PRINCIPALE : Quota OU Crédits
+    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
 
-    if (isSubmittingRef.current) return; // Si déjà en cours, on annule
+    if (!hasAccess) {
+      setError("Quota épuisé et pas de crédits disponibles.");
+      return;
+    }
+
+    if (isSubmittingRef.current) return; 
     isSubmittingRef.current = true;
     
     try {
@@ -4041,6 +4335,16 @@ function PropertyValuationTab({
       }
 
       const result = await resp.json();
+
+      // ✅ MISE À JOUR OPTIMISTE
+      if (!quotaInfo.isUnlimited) {
+        if (quotaInfo.remaining > 0) {
+           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
+        } else {
+           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        }
+      }
+
       setSelectedProperty(result);
       setShowForm(false);
       setCurrentSlide(0);
@@ -4075,7 +4379,7 @@ function PropertyValuationTab({
     setSlideProgress(((currentSlide + 1) / slides.length) * 100);
   }, [currentSlide, slides.length]);
 
-  // quota load
+  // ✅ CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
     const loadQuota = async () => {
       try {
@@ -4083,35 +4387,52 @@ function PropertyValuationTab({
         const db = getFirestore();
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (!userDoc.exists()) return;
-        const data = userDoc.data();
-        const plan = data.plan || 'essai';
-        const limit = PLAN_LIMITS[plan] || PLAN_LIMITS.essai;
+
+        const userData = userDoc.data();
+        const userPlanNow = userData.plan || 'essai';
+        const planLimit = PLAN_LIMITS[userPlanNow] || 1;
+        
+        // ✅ Récupération des crédits
+        const creditsBalance = userData.creditsBalance || 0;
 
         const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(
-          now.getMonth() + 1
-        ).padStart(2, '0')}`;
-        let count = 0;
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        let quotaCount = 0;
         let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        if (data.quotaTracking) {
-          const trackingMonth = data.quotaTracking.month || '';
-          count = data.quotaTracking.count || 0;
-          if (trackingMonth !== currentMonth) count = 0;
+
+        if (userData.quotaTracking) {
+          const trackingMonth = userData.quotaTracking.month || '';
+          if (trackingMonth === currentMonth) {
+            quotaCount = userData.quotaTracking.count || 0;
+            if (userData.quotaTracking.resetAt?.toDate) {
+              resetDate = userData.quotaTracking.resetAt.toDate();
+            } else if (userData.nextResetDate) {
+              resetDate = new Date(userData.nextResetDate);
+            }
+          } else {
+            // Nouveau mois, reset compteur pour affichage local
+            quotaCount = 0;
+          }
         }
-        const remaining = Math.max(0, limit - count);
+
+        const remaining = Math.max(0, planLimit - quotaCount);
+
         setQuotaInfo({
-          remaining,
-          limit,
-          current: count,
-          plan,
-          resetDate,
-          isUnlimited: limit === 999,
+          remaining: remaining,
+          limit: planLimit,
+          current: quotaCount,
+          plan: userPlanNow,
+          resetDate: resetDate,
+          isUnlimited: planLimit >= 999,
+          credits: creditsBalance // ✅ Stockage
         });
-      } catch (e) {
-        console.error(e);
+
+      } catch (error) {
+        console.error('❌ Erreur chargement quota:', error);
       }
     };
-    loadQuota();
+
+    if (user?.uid) loadQuota();
   }, [user?.uid]);
 
   // ------------ SLIDE RENDERERS ------------
@@ -5471,6 +5792,8 @@ function PropertyValuationTab({
     );
   };
 
+  const isButtonDisabled = loading || (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+
   return (
     <div className="space-y-6">
       <LoadingSpinner
@@ -5479,71 +5802,32 @@ function PropertyValuationTab({
         estimatedTime={evaluationType === 'commercial' ? 60 : 40}
       />
 
-      {/* QUOTA */}
+      {/* ✅ QUOTA CARD AVEC CRÉDITS */}
       {quotaInfo && (
-        <div
-          className={`p-6 rounded-xl border-2 ${
-            quotaInfo.remaining > 0
-              ? 'bg-emerald-50 border-emerald-300'
-              : 'bg-red-50 border-red-300'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0
-                  ? '📊 Évaluations restantes'
-                  : '❌ Quota atteint'}
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">
-                Plan:{' '}
-                <span className="font-bold uppercase">{quotaInfo.plan}</span>
-              </p>
-            </div>
-            <span className="text-3xl font-black">
-              {quotaInfo.remaining}/{quotaInfo.limit}
-            </span>
+        <div className={`p-6 rounded-xl border-2 ${
+          !isButtonDisabled ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'
+        }`}>
+          <div className="flex justify-between items-center mb-2">
+             <h3 className="font-bold text-lg">
+               {!isButtonDisabled ? '📊 Évaluations disponibles' : '❌ Quota atteint'}
+             </h3>
+             <span className="text-2xl font-black">{quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}</span>
           </div>
-          <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
-            <div
-              className={`h-3 rounded-full transition-all ${
-                quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'
-              }`}
-              style={{
-                width: `${
-                  quotaInfo.limit > 0
-                    ? ((quotaInfo.limit - quotaInfo.current) /
-                        quotaInfo.limit) *
-                      100
-                    : 100
-                }%`,
-              }}
-            />
+          
+          <div className="flex justify-between items-center">
+             <span className="text-sm">{quotaInfo.remaining} dans le plan</span>
+             {quotaInfo.credits > 0 && (
+               <span className="flex items-center gap-1 font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full">
+                 <Coins size={14} /> {quotaInfo.credits} Crédits
+               </span>
+             )}
           </div>
-          <p
-            className={`text-sm ${
-              quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'
-            }`}
-          >
-            {quotaInfo.remaining > 0
-              ? `${quotaInfo.remaining} évaluation${
-                  quotaInfo.remaining > 1 ? 's' : ''
-                } restante${quotaInfo.remaining > 1 ? 's' : ''} ce mois`
-              : `Réinitialisation ${quotaInfo.resetDate.toLocaleDateString(
-                  'fr-CA'
-                )}`}
-          </p>
-          {quotaInfo.plan === 'essai' &&
-            quotaInfo.remaining === 0 &&
-            !quotaInfo.isUnlimited && (
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(true)}
-                className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all"
-              >
-                ⬆️ Upgrader pour plus d'évaluations
-              </button>
-            )}
+
+          {isButtonDisabled && (
+             <button onClick={() => setShowUpgradeModal(true)} className="mt-4 w-full py-2 bg-indigo-600 text-white rounded font-bold">
+               Acheter des crédits
+             </button>
+          )}
         </div>
       )}
 
@@ -5559,13 +5843,13 @@ function PropertyValuationTab({
               setShowForm(false);
               setSelectedProperty(null);
             }}
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            disabled={isButtonDisabled}
             className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
               evaluationType === type
                 ? 'bg-white text-gray-900 shadow-lg border-2 border-indigo-500'
                 : 'bg-transparent text-gray-700 hover:text-gray-900'
             } ${
-              quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited
+              isButtonDisabled
                 ? 'opacity-50 cursor-not-allowed'
                 : ''
             }`}
@@ -5711,17 +5995,15 @@ function PropertyValuationTab({
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            disabled={quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited}
+            disabled={isButtonDisabled}
             className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto ${
-              loading || (quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited)
+              isButtonDisabled
                 ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
                 : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
             }`}
           >
-            {loading
-              ? '🔄 Évaluation en cours...'
-              : quotaInfo.remaining <= 0 && !quotaInfo.isUnlimited
-              ? '❌ Quota atteint'
+            {isButtonDisabled
+              ? '❌ Quota épuisé'
               : '🚀 Nouvelle évaluation'}
           </button>
         </div>
