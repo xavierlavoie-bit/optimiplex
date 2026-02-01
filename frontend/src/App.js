@@ -628,7 +628,6 @@ function CreditsTab({ user, showUpgradeModal, setShowUpgradeModal }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-indigo-600 font-bold">✓</span>
-                <span>Valides 12 mois</span>
               </div>
             </div>
 
@@ -960,7 +959,6 @@ ${user?.email || 'contact'}`;
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-indigo-600 font-bold">✓</span>
-                        <span>Valides 12 mois</span>
                       </div>
                     </div>
 
