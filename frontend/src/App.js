@@ -505,13 +505,15 @@ function DashboardLayout() {
 // ⬆️ MODAL UPGRADE avec STRIPE
 // ============================================
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [activeTab, setActiveTab] = useState('credits'); // ⭐ Crédits en premier!
+  // On utilise subLoading pour savoir quel plan est en train de charger (stocke la 'key' du plan)
+  const [subLoading, setSubLoading] = useState(null);
+  const [activeTab, setActiveTab] = useState('credits'); 
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [creditsError, setCreditsError] = useState(null);
 
   if (!showUpgradeModal) return null;
 
+  // ⭐ CORRECTION: Ajout des priceId manquants
   const plans = [
     { 
       key: 'essai', 
@@ -524,11 +526,14 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       ],
       icon: '🎯',
       color: 'blue'
+      // Pas de priceId car gratuit
     },
     { 
       key: 'pro', 
       name: 'Pro', 
-      price: '$29/mois', 
+      price: '$29/mois',
+      // 👇 AJOUT CRITIQUE ICI
+      priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
       features: [
         '20 analyses résidentiel/mois',
         'Résidentiel + extras',
@@ -541,7 +546,9 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     { 
       key: 'growth', 
       name: 'Growth', 
-      price: '$69/mois', 
+      price: '$69/mois',
+      // 👇 AJOUT CRITIQUE ICI
+      priceId: process.env.REACT_APP_STRIPE_GROWTH_PRICE_ID,
       features: [
         'Analyses illimitées',
         'Résidentiel + Commercial',
@@ -565,6 +572,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       ],
       icon: '👑',
       color: 'amber'
+      // Pas de priceId car contact manuel
     }
   ];
 
@@ -619,6 +627,45 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     return false;
   };
 
+  // ⭐ HANDLER ABONNEMENT (NOUVEAU - Direct Checkout)
+  const handleSubscribe = async (planKey) => {
+    try {
+      setSubLoading(planKey); // Active le loader sur ce bouton spécifique
+      
+      const selectedPlan = plans.find(p => p.key === planKey);
+      
+      // Sécurité : Vérifier si le priceId existe
+      if (!selectedPlan?.priceId) {
+        alert("Configuration manquante : L'ID de prix Stripe n'est pas configuré pour ce plan.");
+        console.error(`PriceID manquant pour le plan: ${planKey}`);
+        setSubLoading(null);
+        return;
+      }
+
+      // On utilise le endpoint standard pour créer une session d'abonnement
+      const response = await axios.post(
+        `${typeof APIBASEURL !== 'undefined' ? API_BASE_URL : 'http://localhost:5001'}/api/stripe/create-checkout-session`, 
+        {
+          userId: user?.uid,
+          userEmail: user?.email,
+          plan: planKey, 
+          priceId: selectedPlan.priceId // On envoie l'ID récupéré du tableau plans
+        }
+      );
+
+      if (response.data.sessionUrl || response.data.url) {
+        window.location.href = response.data.sessionUrl || response.data.url;
+      }
+    } catch (err) {
+      console.error('Erreur souscription:', err);
+      // Affichage de l'erreur brute si disponible pour débogage
+      const errorMessage = err.response?.data?.error || "Une erreur est survenue lors de la redirection.";
+      alert(errorMessage);
+    } finally {
+      setSubLoading(null);
+    }
+  };
+
   // ⭐ HANDLER ACHAT CRÉDITS
   const handleBuyCredits = async (plan) => {
     try {
@@ -636,7 +683,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       );
 
       if (response.data.sessionUrl) {
-        // Rediriger vers Stripe Checkout
         window.location.href = response.data.sessionUrl;
       }
     } catch (err) {
@@ -842,6 +888,7 @@ ${user?.email || 'contact'}`;
                 {plans.map(({ key, name, price, features, icon, color, recommended }) => {
                   const isPlanDowngrade = isDowngrade(key);
                   const isCurrentPlan = userPlan === key;
+                  const isLoadingThisPlan = subLoading === key;
 
                   const colorClasses = {
                     blue: {
@@ -880,9 +927,8 @@ ${user?.email || 'contact'}`;
                           ? `${colors.active}`
                           : isPlanDowngrade
                           ? `${colors.bg} ${colors.border} opacity-60 cursor-not-allowed`
-                          : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md cursor-pointer`
+                          : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md`
                       }`}
-                      onClick={() => !isPlanDowngrade && !isCurrentPlan && setSelectedPlan(key)}
                     >
                       {/* RECOMMENDED BADGE */}
                       {recommended && (
@@ -930,54 +976,17 @@ ${user?.email || 'contact'}`;
                         </button>
                       ) : (
                         <button
-                          onClick={() => setSelectedPlan(key)}
-                          className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0`}
+                          onClick={() => handleSubscribe(key)}
+                          disabled={subLoading !== null} // Désactive tous les boutons si un chargement est en cours
+                          className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0 ${isLoadingThisPlan || subLoading ? 'opacity-90' : ''}`}
                         >
-                          Choisir
+                          {isLoadingThisPlan ? '⏳ Redirection...' : 'Choisir'}
                         </button>
                       )}
                     </div>
                   );
                 })}
               </div>
-
-              {/* CHECKOUT SECTION */}
-              {selectedPlan && selectedPlan !== 'entreprise' && !isDowngrade(selectedPlan) && userPlan !== selectedPlan && (
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-xl p-6 md:p-8 shadow-lg">
-                  <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-4">
-                    ✅ Confirmer votre upgrade vers {plans.find(p => p.key === selectedPlan)?.name}
-                  </h3>
-                  
-                  <div className="mb-6 p-4 bg-white rounded-lg border border-indigo-200">
-                    <p className="text-sm md:text-base text-gray-700 mb-3">
-                      <span className="font-bold">Récapitulatif:</span>
-                    </p>
-                    <ul className="text-sm md:text-base space-y-2 text-gray-800">
-                      <li>• Plan: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.name}</span></li>
-                      <li>• Email: <span className="font-bold">{user?.email}</span></li>
-                      <li>• Prix: <span className="font-bold">{plans.find(p => p.key === selectedPlan)?.price}</span></li>
-                    </ul>
-                  </div>
-
-                  <div className="flex flex-col md:flex-row gap-3">
-                    <button
-                      onClick={() => setSelectedPlan(null)}
-                      className="flex-1 py-2 md:py-3 bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold rounded-lg transition-colors text-sm md:text-base"
-                    >
-                      ← Retour
-                    </button>
-                    <div className="flex-1">
-                      <StripeCheckoutButton
-                        plan={selectedPlan}
-                        planInfo={planInfo}
-                        user={user}
-                        setUserPlan={setUserPlan}
-                        setShowUpgradeModal={setShowUpgradeModal}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
