@@ -513,7 +513,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
   if (!showUpgradeModal) return null;
 
-  // ⭐ CORRECTION: Ajout des priceId manquants
   const plans = [
     { 
       key: 'essai', 
@@ -532,7 +531,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       key: 'pro', 
       name: 'Pro', 
       price: '$29/mois',
-      // 👇 AJOUT CRITIQUE ICI
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
       features: [
         '20 analyses résidentiel/mois',
@@ -547,7 +545,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       key: 'growth', 
       name: 'Growth', 
       price: '$69/mois',
-      // 👇 AJOUT CRITIQUE ICI
       priceId: process.env.REACT_APP_STRIPE_GROWTH_PRICE_ID,
       features: [
         'Analyses illimitées',
@@ -627,14 +624,13 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     return false;
   };
 
-  // ⭐ HANDLER ABONNEMENT (NOUVEAU - Direct Checkout)
+  // ⭐ HANDLER ABONNEMENT (CORRIGÉ avec API_URL)
   const handleSubscribe = async (planKey) => {
     try {
-      setSubLoading(planKey); // Active le loader sur ce bouton spécifique
+      setSubLoading(planKey);
       
       const selectedPlan = plans.find(p => p.key === planKey);
       
-      // Sécurité : Vérifier si le priceId existe
       if (!selectedPlan?.priceId) {
         alert("Configuration manquante : L'ID de prix Stripe n'est pas configuré pour ce plan.");
         console.error(`PriceID manquant pour le plan: ${planKey}`);
@@ -642,14 +638,14 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
         return;
       }
 
-      // On utilise le endpoint standard pour créer une session d'abonnement
+      // Utilisation de API_URL au lieu de la logique ternaire instable
       const response = await axios.post(
-        `${typeof APIBASEURL !== 'undefined' ? API_BASE_URL : 'http://localhost:5001'}/api/stripe/create-checkout-session`, 
+        `${API_BASE_URL}/api/stripe/create-checkout-session`, 
         {
           userId: user?.uid,
           userEmail: user?.email,
           plan: planKey, 
-          priceId: selectedPlan.priceId // On envoie l'ID récupéré du tableau plans
+          priceId: selectedPlan.priceId
         }
       );
 
@@ -658,7 +654,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       }
     } catch (err) {
       console.error('Erreur souscription:', err);
-      // Affichage de l'erreur brute si disponible pour débogage
       const errorMessage = err.response?.data?.error || "Une erreur est survenue lors de la redirection.";
       alert(errorMessage);
     } finally {
@@ -666,14 +661,15 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     }
   };
 
-  // ⭐ HANDLER ACHAT CRÉDITS
+  // ⭐ HANDLER ACHAT CRÉDITS (CORRIGÉ avec API_URL)
   const handleBuyCredits = async (plan) => {
     try {
       setCreditsLoading(true);
       setCreditsError(null);
 
+      // Utilisation de API_URL au lieu de la logique ternaire instable
       const response = await axios.post(
-        `${typeof APIBASEURL !== 'undefined' ? API_BASE_URL : 'http://localhost:5001'}/api/stripe/create-checkout-session-credits`,
+        `${API_BASE_URL}/api/stripe/create-checkout-session-credits`,
         {
           userId: user?.uid,
           userEmail: user?.email,
