@@ -732,7 +732,7 @@ ANALYSE CIBLE :
 `;
 
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2500,
       temperature: 0.2,
       system: getSystemPrompt('residential'),
@@ -822,7 +822,7 @@ Réponds uniquement avec un JSON valide et complet.
     // CORRECTION : Augmentation de max_tokens de 2500 à 8000
     // L'analyse commerciale est verbeuse, 2500 tokens coupait le JSON au milieu.
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8000, // Augmenté pour éviter le JSON tronqué
       temperature: 0.1,
       system: getSystemPrompt('commercial'),
@@ -988,7 +988,7 @@ FORMAT JSON STRICT:
 
     // Température encore plus basse pour réduire la créativité (fiction)
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929', 
+      model: 'claude-sonnet-4-6', 
       max_tokens: 3500,
       temperature: 0.1, 
       system: `Tu es un expert en évaluation immobilière (A.É.) au Québec. 
@@ -1287,7 +1287,7 @@ REPONSE EN JSON STRICT (pas de texte avant/après):
     // ============================================
 
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 0.3,
       system: `Vous êtes un évaluateur immobilier expert québécois avec 15+ ans d'expérience en commercial.
