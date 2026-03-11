@@ -3,14 +3,11 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 // App.jsx - OPTIMIPLEX avec STRIPE INTÉGRÉ
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2, Home, Building, DollarSign, TrendingUp, Users, MapPin, Calendar, AlertTriangle, Building2, BarChart3, Percent, Briefcase, ArrowUpRight, ArrowDownRight, FileText, ListChecks, Filter, LayoutDashboard, PieChart,
-  Megaphone,
-  Target,
-  List,
-  AlertCircle } from 'lucide-react';
+import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, 
+  } from 'lucide-react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -40,6 +37,7 @@ import {
   increment
 } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
+import ReactMarkdown from 'react-markdown';
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
 
@@ -161,6 +159,7 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
     { id: 'overview', label: '📈 Vue d\'ensemble' },
     { id: 'optimization', label: '⚡ Optimiseur' },
     { id: 'valuation', label: '📊 Évaluation' },
+    { id: 'chat', label: '💬Chat IA' },
     { id: 'profile', label: '👤 Mon Profil' },
   ];
 
@@ -418,7 +417,8 @@ function DashboardLayout() {
       <header className="border-b border-gray-200 bg-white80 backdrop-blur-sm sticky top-0 z-30 hidden md:block">
         <div className="px-8 py-5 flex items-center justify-between">
           <h1 className="text-2xl font-black text-gray-900">
-            {activeTab === 'profile' ? '👤 Mon Profil' : activeTab === 'optimization' ? '⚡ Optimiseur' : activeTab === 'valuation' ? '📊 Évaluation' : '📈 Tableau de bord'}
+            {activeTab === 'profile' ? '👤 Mon Profil' : activeTab === 'optimization' ? '⚡ Optimiseur' : activeTab === 'valuation' ? '📊 Évaluation' :activeTab === '💬 chat'
+    ? 'Chat IA Immobilier': '📈 Tableau de bord'}
           </h1>
           <div className="flex items-center space-x-6">
             <div className="text-right hidden sm:block">
@@ -479,6 +479,7 @@ function DashboardLayout() {
       {/* Tabs Content */}
       <div className="px-8 py-6 pb-20">
         {activeTab === 'overview' && <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />}
+        {activeTab === 'chat' && ( <ChatTab user={user} userPlan={userPlan}setShowUpgradeModal={setShowUpgradeModal} /> )}
         {activeTab === 'optimization' && <OptimizationTab userPlan={userPlan} user={user} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
         {activeTab === 'valuation' && <PropertyValuationTab user={user} userPlan={userPlan} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
         {activeTab === 'profile' && <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />}
@@ -5896,6 +5897,708 @@ function PropertyValuationTab({
     </div>
   );
 }
+
+//CHAT TAB
+
+
+
+
+
+function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
+  const inputRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // 🔥 States avec fallback auto-fetch
+  const [conversations, setConversations] = useState([]);
+  const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [error, setError] = useState(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [userId, setUserId] = useState(null);
+  const [userPlanState, setUserPlanState] = useState(propPlan);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // ✅ Growth = Pro avantages (style OptimiPlex)
+  const isPro = userPlanState === 'pro' || userPlanState === 'growth' || userPlanState === 'entreprise';
+
+  // 🔥 LOADING INTELLIGENT - Analyse réelle du message
+  const getIntelligentSteps = useCallback((messageContent) => {
+    if (!messageContent?.trim()) return [
+      "🔍 Initialisation de la conversation avec Alex...",
+      "📊 Chargement des données immobilières Québec...",
+      "💡 Préparation de la réponse personnalisée...",
+      "✅ Génération du conseil stratégique..."
+    ];
+
+    const contentLower = messageContent.toLowerCase();
+    const steps = [];
+
+    // Refinancement
+    if (contentLower.includes('refi') || contentLower.includes('refinancer') || contentLower.includes('financement')) {
+      return [
+        "🏠 Analyse de la valeur actuelle de votre immeuble...",
+        "📈 Calcul du ratio prêt-valeur (LTV) et liquidités disponibles...",
+        "🔍 Recherche des plex multifamiliaux à Québec et Montréal...",
+        "🎯 Élaboration de la stratégie de croissance immobilière personnalisée..."
+      ];
+    }
+
+    // Rénovation
+    if (contentLower.includes('reno') || contentLower.includes('rénovation') || contentLower.includes('travaux')) {
+      return [
+        "🔧 Identification des types de travaux les plus rentables...",
+        "💰 Estimation des coûts réels à Montréal et Rive-Sud...",
+        "📊 Calcul du retour sur investissement par type de rénovation...",
+        "✅ Création de la checklist d'exécution complète..."
+      ];
+    }
+
+    // Achat/Vente
+    if (contentLower.includes('achat') || contentLower.includes('vendre') || contentLower.includes('plex') || contentLower.includes('immeuble')) {
+      return [
+        "🔍 Recherche des opportunités d'achat dans votre marché cible...",
+        "📈 Analyse des tendances de prix et inventaire actuel...",
+        "💼 Évaluation de la rentabilité projetée (cashflow, cap rate)...",
+        "🎯 Stratégie d'acquisition ou de vente optimisée..."
+      ];
+    }
+
+    // Location/Optimisation
+    if (contentLower.includes('loyer') || contentLower.includes('location') || contentLower.includes('occupation')) {
+      return [
+        "📊 Analyse du marché locatif dans votre secteur...",
+        "🔍 Benchmark des loyers par type d'unité et condition...",
+        "💰 Calcul du loyer optimal avec justification détaillée...",
+        "✅ Stratégies pour maximiser l'occupation et les revenus..."
+      ];
+    }
+
+    // Évaluation
+    if (contentLower.includes('valeur') || contentLower.includes('évaluation') || contentLower.includes('prix')) {
+      return [
+        "📋 Collecte des données de ventes récentes comparables...",
+        "🏠 Analyse des caractéristiques de votre propriété...",
+        "💎 Calcul de la valeur marchande avec fourchette précise...",
+        "✅ Recommandations pour optimiser la valeur de revente..."
+      ];
+    }
+
+    // Général
+    return [
+      "🧠 Analyse approfondie de votre question immobilière...",
+      "📈 Recherche des données de marché Québec actualisées...",
+      "💼 Calculs financiers et projections personnalisées...",
+      "🎯 Conseil stratégique adapté à votre situation..."
+    ];
+  }, []);
+
+  // 🔥 MODAL CONFIRMATION CUSTOM (ESLint compliant)
+  const confirmDelete = () => {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.id = 'delete-confirm-modal';
+      modal.innerHTML = `
+        <div style="
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+          background: rgba(0,0,0,0.5); z-index: 9999; 
+          display: flex; align-items: center; justify-content: center; 
+          backdrop-filter: blur(8px);
+        ">
+          <div style="
+            background: white; padding: 2.5rem; border-radius: 1.5rem; 
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); 
+            max-width: 450px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            border: 1px solid rgba(255,255,255,0.2);
+          ">
+            <div style="font-size: 1.5rem; font-weight: 800; color: #1f2937; margin-bottom: 1.25rem; line-height: 1.3;">
+              Supprimer cette conversation ?
+            </div>
+            <div style="color: #6b7280; margin-bottom: 2.5rem; line-height: 1.6; font-size: 1.1rem;">
+              Cette action est irréversible. Tous les messages seront perdus définitivement.
+            </div>
+            <div style="display: flex; gap: 1.25rem; justify-content: center;">
+              <button id="cancelBtn" style="
+                flex: 1; padding: 1rem 2rem; background: #f8fafc; 
+                border: 2px solid #e2e8f0; border-radius: 0.75rem; font-weight: 700; 
+                color: #475569; cursor: pointer; transition: all 0.3s; font-size: 1rem;
+                backdrop-filter: blur(10px);
+              " onmouseover="this.style.background='#f1f5f9';this.style.transform='translateY(-1px)'" 
+                 onmouseout="this.style.background='#f8fafc';this.style.transform='none'">
+                Annuler
+              </button>
+              <button id="confirmBtn" style="
+                flex: 1; padding: 1rem 2rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); 
+                border: none; border-radius: 0.75rem; font-weight: 700; 
+                color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem;
+                box-shadow: 0 4px 14px 0 rgba(239,68,68,0.4);
+              " onmouseover="this.style.background='linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';this.style.transform='translateY(-1px)'" 
+                 onmouseout="this.style.background='linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';this.style.transform='none'">
+                Supprimer définitivement
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+
+      // Event listeners
+      document.getElementById('cancelBtn').onclick = () => {
+        document.body.removeChild(modal);
+        resolve(false);
+      };
+      document.getElementById('confirmBtn').onclick = () => {
+        document.body.removeChild(modal);
+        resolve(true);
+      };
+
+      // Close on Escape
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          document.body.removeChild(modal);
+          resolve(false);
+          document.removeEventListener('keydown', handleEscape);
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+    });
+  };
+
+  // 🔥 TYPING EFFECT RECURSIF (Fix ESLint no-loop-func)
+  const typeMessage = useCallback((fullResponse, index = 0, tempMessages) => {
+    if (index > fullResponse.length) {
+      // Fin du typing - message final
+      const finalMessages = tempMessages.map(msg => ({ ...msg, streaming: false }));
+      setMessages(finalMessages);
+      return;
+    }
+
+    const displayedContent = fullResponse.slice(0, index);
+    const updatedMessages = tempMessages.map(msg =>
+      msg.role === 'assistant' && msg.streaming
+        ? { ...msg, content: displayedContent }
+        : msg
+    );
+
+    setMessages(updatedMessages);
+
+    setTimeout(() => typeMessage(fullResponse, index + 1, updatedMessages), 15);
+  }, []);
+
+  // 🔥 AUTO-FETCH USER ID + PLAN (Firebase uid)
+  useEffect(() => {
+    const initUser = async () => {
+      console.log('🔥 ChatTab init - propUser:', propUser?.uid || propUser?.id, 'propPlan:', propPlan);
+      
+      // Priorité 1: propUser.uid (Firebase Auth)
+      if (propUser?.uid) {
+        setUserId(propUser.uid);
+        if (propPlan) setUserPlanState(propPlan);
+        setAuthLoading(false);
+        return;
+      }
+
+      // Priorité 2: localStorage (optimiUser avec uid)
+      try {
+        const savedUser = localStorage.getItem('optimiUser');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          console.log('🔥 LocalStorage user:', parsed);
+          setUserId(parsed.uid || parsed.id);
+        }
+      } catch (err) {
+        console.error('🔥 LocalStorage parse error:', err);
+      }
+
+      // Priorité 3: Fetch quota pour plan
+      setAuthLoading(true);
+      try {
+        const quotaRes = await fetch(`${API_BASE_URL}/api/propertyquota/${propUser?.uid || propUser?.id || 'demo-user-xavier'}`);
+        if (quotaRes.ok) {
+          const quotaData = await quotaRes.json();
+          console.log('🔥 Quota API response:', quotaData);
+          setUserPlanState(quotaData.plan || 'essai');
+        }
+      } catch (err) {
+        console.error('🔥 Quota fetch error:', err);
+        setUserPlanState('growth');
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    initUser();
+  }, [propUser, propPlan]);
+
+  const handleNewConversation = () => {
+    setCurrentConversationId(null);
+    setMessages([]);
+    setError(null);
+  };
+
+  // ✅ FONCTION SUPPRESSION CONVERSATION (ESLINT FIX)
+  const handleDeleteConversation = async (conversationId) => {
+    if (!userId || !conversationId) return;
+
+    // ✨ MODAL CUSTOM (remplace confirm())
+    const shouldDelete = await confirmDelete();
+    if (!shouldDelete) return;
+
+    try {
+      setLoadingConversations(true);
+      const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversation/${userId}/${conversationId}`, {
+        method: 'DELETE'
+      });
+
+      if (!res.ok) throw new Error(`Erreur suppression: ${res.status}`);
+
+      // Rafraîchir la liste
+      const convRes = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
+      const convData = await convRes.json();
+      setConversations(convData.conversations || []);
+
+      // Si on supprime la conversation courante, reset
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(null);
+        setMessages([]);
+      }
+
+      console.log('✅ Conversation supprimée:', conversationId);
+    } catch (err) {
+      console.error('❌ Erreur suppression:', err);
+      // Utilise window.alert (ESLint accepte) ou crée un toast
+      window.alert('Erreur lors de la suppression. Réessayez.');
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  // CHARGER CONVERSATIONS
+  useEffect(() => {
+    const loadConversations = async () => {
+      if (!userId || authLoading) return;
+      console.log('🔥 Loading convos for userId:', userId);
+      
+      setLoadingConversations(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setConversations(data.conversations || []);
+      } catch (err) {
+        console.error('❌ Conversations error:', err);
+        setConversations([]);
+        if (err.message.includes('404')) setError("Aucune conversation. Cliquez sur ➕ pour commencer !");
+      } finally {
+        setLoadingConversations(false);
+      }
+    };
+    loadConversations();
+  }, [userId, authLoading]);
+
+  // CHARGER MESSAGES
+  useEffect(() => {
+    if (currentConversationId && userId && !authLoading) {
+      const loadMessages = async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversation/${userId}/${currentConversationId}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          setMessages(data.messages || []);
+        } catch (err) {
+          console.error('❌ Messages error:', err);
+          setMessages([]);
+          setError('Erreur lors du chargement des messages');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadMessages();
+    } else {
+      setMessages([]);
+    }
+  }, [currentConversationId, userId, authLoading]);
+
+  // 🔥 STREAMING + TYPING EFFECT + LOADING INTELLIGENT + FORMATAGE GRAS
+  const handleSend = async (e) => {
+    e?.preventDefault();
+   
+    if (!input.trim() || loading || !userId || authLoading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setError(null);
+    setLoading(true);
+    setIsStreaming(true);
+    setCurrentStep(0);
+
+    // Message utilisateur temporaire
+    const tempMessages = [...messages, {
+      role: 'user',
+      content: userMessage,
+      streaming: false,
+      timestamp: new Date()
+    }];
+    setMessages(tempMessages);
+
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    try {
+      // 🔥 Steps intelligents basés sur le message réel
+      const steps = getIntelligentSteps(userMessage);
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setCurrentStep(i + 1);
+      }
+
+      console.log('🔥 Envoi:', userMessage, 'userId:', userId);
+      
+      // Appel API avec streaming simulation (backend stream réel à implémenter)
+      const response = await fetch(`${API_BASE_URL}/api/realestate-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          message: userMessage,
+          conversationId: currentConversationId
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // 🔥 REMPLACEMENT DES ASTERISQUES PAR DU GRAS VISUEL
+      const formattedMessage = data.message
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-black text-gray-900 bg-gradient-to-r from-emerald-100 to-green-100 px-3 py-1 rounded-xl shadow-sm inline-block ml-1 mr-1">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em class="italic text-emerald-700 font-semibold not-italic">$1</em>');
+
+      const tempAssistantMsg = {
+        role: 'assistant',
+        content: '',
+        formattedContent: formattedMessage,  // Contenu formaté final
+        streaming: true,
+        timestamp: new Date()
+      };
+      const newTempMessages = [...tempMessages, tempAssistantMsg];
+      setMessages(newTempMessages);
+      
+      typeMessage(formattedMessage, 0, newTempMessages);
+
+      if (!currentConversationId) {
+        setCurrentConversationId(data.conversationId);
+        const convRes = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
+        const convData = await convRes.json();
+        setConversations(convData.conversations || []);
+      }
+
+    } catch (err) {
+      console.error('❌ Chat error:', err);
+      setError(`Oups ! ${err.message}. Réessayez s'il vous plaît.`);
+      setMessages(tempMessages);
+    } finally {
+      setLoading(false);
+      setIsStreaming(false);
+      setCurrentStep(0);
+    }
+  };
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // Loading auth
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20">
+        <div className="text-center p-12 max-w-md mx-auto">
+          <div className="w-24 h-24 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl ring-4 ring-white/50">
+            <Loader2 className="w-16 h-16 animate-spin text-white" />
+          </div>
+          <h2 className="text-3xl font-black text-gray-900 mb-4 bg-gradient-to-r from-gray-900 to-indigo-900 bg-clip-text text-transparent">
+            Connexion à Alex...
+          </h2>
+          <p className="text-xl text-gray-600 font-medium">Chargement de votre compte en cours</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Pas connecté
+  if (!userId) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20 px-4">
+        <div className="text-center max-w-lg w-full">
+          <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl ring-4 ring-white/30">
+            <MessageCircle className="w-20 h-20 text-indigo-600" />
+          </div>
+          <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6 bg-gradient-to-r from-gray-900 via-gray-800 to-indigo-900 bg-clip-text text-transparent">
+            Connectez-vous pour chatter
+          </h2>
+          <p className="text-2xl text-gray-700 mb-12 font-semibold leading-relaxed">
+            Discutez avec Alex, votre expert immobilier Québec
+          </p>
+          <button
+            onClick={() => window.location.href = '/login'}
+            className="px-16 py-8 bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-500 text-white font-black text-xl rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 ring-4 ring-indigo-100/50 hover:ring-indigo-200/50"
+          >
+            Se connecter maintenant
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/20 to-emerald-50/10 p-2 sm:p-4 lg:p-8">
+      <div className="w-full">
+        {/* HEADER PREMIUM - Pleine largeur */}
+        <div className="bg-white/90 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-8 mb-8 ring-1 ring-white/50">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500/90 via-green-500/90 to-teal-500/90 px-6 py-3 rounded-2xl text-white text-sm font-bold mb-6 shadow-lg ring-1 ring-white/30">
+                <Zap className="w-5 h-5" />
+                {isPro ? 'Alex - Expert PRO Illimité' : 'Alex - Assistant Immobilier Québec'}
+              </div>
+              <h1 className="text-5xl lg:text-6xl font-black bg-gradient-to-r from-gray-900 via-gray-800 to-indigo-900 bg-clip-text text-transparent mb-6 leading-tight">
+                Chat Immobilier Québec
+              </h1>
+              <p className="text-2xl text-gray-700 max-w-3xl leading-relaxed font-medium">
+                Parlez directement avec Alex, votre conseiller immobilier expert Québec. Rénovation, plex, refinancement, stratégie — il maîtrise tout le marché local.
+              </p>
+            </div>
+            {!isPro && (
+              <button
+                onClick={() => setShowUpgradeModal?.(true)}
+                className="px-12 py-8 bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-500 text-white font-black text-xl rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 ring-4 ring-indigo-100/50 hover:ring-indigo-200/50 whitespace-nowrap group hover:-translate-y-1"
+              >
+                Passer PRO (19$/mois)
+                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 lg:gap-8 h-[85vh]">
+          {/* SIDEBAR - Design raffiné AVEC SUPPRESSION */}
+          <div className="xl:col-span-1">
+            <div className="bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-6 h-full flex flex-col sticky top-6 ring-1 ring-white/50">
+              <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
+                <h3 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                  📱 Conversations
+                </h3>
+                <button
+                  onClick={handleNewConversation}
+                  className="p-3 bg-gradient-to-r from-indigo-100 to-emerald-100 text-indigo-700 rounded-2xl hover:from-indigo-200 hover:to-emerald-200 transition-all duration-300 font-bold shadow-lg hover:shadow-xl hover:scale-105 ring-1 ring-indigo-200/50 w-12 h-12 flex items-center justify-center"
+                  disabled={loadingConversations}
+                  title="Nouvelle conversation"
+                >
+                  ➕
+                </button>
+              </div>
+
+              {loadingConversations ? (
+                <div className="flex items-center gap-4 text-gray-600 py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                  <span className="font-semibold text-lg">Chargement des conversations...</span>
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-500 py-12">
+                  <MessageCircle className="w-20 h-20 mb-6 opacity-40" />
+                  <p className="font-bold text-2xl mb-3">Aucune conversation</p>
+                  <p className="text-lg opacity-75">Cliquez sur ➕ pour commencer</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  {conversations.map((conv) => (
+                    <div key={conv.id} className="relative group">
+                      <button
+                        onClick={() => setCurrentConversationId(conv.id)}
+                        className={`w-full p-6 rounded-3xl border-4 transition-all duration-300 group-hover:shadow-2xl group-hover:scale-[1.01] group-hover:-translate-y-1 ring-1 ring-transparent backdrop-blur-sm ${
+                          currentConversationId === conv.id
+                            ? 'border-emerald-400/80 bg-gradient-to-br from-emerald-50/80 via-green-50/80 to-teal-50/80 shadow-3xl ring-emerald-200/50'
+                            : 'border-transparent bg-white/70 hover:bg-indigo-50/50'
+                        }`}
+                      >
+                        <div className="font-black text-xl text-gray-900 truncate mb-2 leading-tight">{conv.title || 'Nouvelle discussion'}</div>
+                        <div className="text-sm text-gray-600 font-medium truncate">{conv.lastUserMessage}</div>
+                      </button>
+                      
+                      {/* BOUTON SUPPRESSION - Apparaît au hover */}
+                      <button
+                        onClick={() => handleDeleteConversation(conv.id)}
+                        className="absolute -top-2 -right-2 w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-2xl shadow-2xl ring-2 ring-white/50 flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 z-10 disabled:opacity-50"
+                        title="Supprimer cette conversation"
+                        disabled={loadingConversations}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* CHAT PRINCIPAL - Pleine largeur avec RENDU INTELLIGENT */}
+          <div className="xl:col-span-4 flex flex-col bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-3xl overflow-hidden ring-1 ring-white/50">
+            {/* Header Chat */}
+            <div className="border-b border-white/40 px-10 py-8 bg-gradient-to-r from-emerald-500/5 via-green-500/5 to-teal-500/5 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-black text-gray-900">
+                    {currentConversationId ? '💬 Discussion en cours' : '🆕 Nouvelle conversation'}
+                  </h2>
+                  <p className="text-xl text-gray-600 font-semibold mt-2">
+                    {messages.length} messages • Plan: <span className="font-black text-emerald-600 capitalize">{userPlanState}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Messages avec RENDU STRUCTURE INTELLIGENT */}
+            <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white/50">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-8 py-20">
+                  <div className="w-40 h-40 bg-gradient-to-br from-emerald-100/80 to-green-100/80 rounded-3xl flex items-center justify-center shadow-2xl ring-2 ring-emerald-200/50">
+                    <MessageCircle className="w-24 h-24 text-emerald-500" />
+                  </div>
+                  <div className="text-center space-y-4 max-w-2xl mx-auto">
+                    <h3 className="text-4xl font-black text-gray-900 mb-4 bg-gradient-to-r from-gray-900 to-emerald-900 bg-clip-text text-transparent">
+                      Parlez à Alex
+                    </h3>
+                    <p className="text-2xl font-semibold">Posez-lui n'importe quelle question immobilier Québec</p>
+                    <p className="text-xl opacity-80 italic">"Stratégie plex Montréal ?", "Coût rénovation cuisine ?", "Refinancement comment ?"</p>
+                  </div>
+                </div>
+              ) : (
+                messages.map((m, idx) => (
+                  <div key={idx} className="flex justify-start">
+                    <div 
+                      className={`max-w-4xl bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-8 py-6 shadow-2xl ring-1 ring-gray-200/50 prose prose-sm max-w-none ${
+                        m.role === 'user' ? 'bg-gradient-to-r from-indigo-50 to-emerald-50 border-indigo-200/50 ml-auto max-w-3xl' : ''
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: m.formattedContent || m.content }}
+                    />
+                  </div>
+                ))
+              )}
+
+              {/* 🔥 LOADING INTELLIGENT - Design premium */}
+              {isStreaming && (
+                <div className="flex justify-start">
+                  <div className="bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-10 py-8 shadow-2xl max-w-5xl ring-1 ring-gray-200/50">
+                    <div className="flex items-start gap-6">
+                      <div className="flex flex-col items-center pt-2">
+                        <div className="w-4 h-4 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full animate-ping shadow-lg mb-3" />
+                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-emerald-800 font-black text-2xl mb-4 leading-tight bg-gradient-to-r from-emerald-100 to-green-100 px-6 py-3 rounded-2xl ring-1 ring-emerald-200/50">
+                          {getIntelligentSteps(messages[messages.length - 1]?.content || input)[currentStep - 1] || 'Finalisation de la réponse complète...'}
+                        </div>
+                        <div className="flex space-x-3">
+                          {[0,1,2,3].map(i => (
+                            <div
+                              key={i}
+                              className={`w-4 h-4 rounded-2xl shadow-md transition-all duration-300 ${
+                                i < currentStep
+                                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 scale-125 ring-2 ring-emerald-400/50'
+                                  : 'bg-gray-200/50 hover:bg-gray-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input - Design premium */}
+            <div className="border-t border-gray-200/50 px-10 py-10 bg-gradient-to-t from-white/70 backdrop-blur-xl">
+              {error && (
+                <div className="mb-8 p-6 bg-gradient-to-r from-red-50/80 to-pink-50/80 border border-red-200/50 rounded-3xl backdrop-blur-xl ring-1 ring-red-200/50">
+                  <p className="font-bold text-xl text-red-800">{error}</p>
+                </div>
+              )}
+              <form onSubmit={handleSend} className="flex items-end gap-6 max-w-6xl mx-auto">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend(e);
+                    }
+                  }}
+                  placeholder="Tapez votre question à Alex... (ex: 'Stratégie plex Montréal ?')"
+                  className="flex-1 px-10 py-8 text-2xl bg-white/80 backdrop-blur-3xl border-2 border-gray-200/50 rounded-3xl focus:border-emerald-400 focus:outline-none focus:ring-8 focus:ring-emerald-100/60 shadow-2xl transition-all duration-300 resize-none placeholder-gray-500 font-semibold hover:shadow-xl hover:border-gray-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || authLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim() || !userId || authLoading}
+                  className="w-24 h-24 flex items-center justify-center bg-gradient-to-r from-emerald-600 via-green-600 to-teal-500 text-white rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 group ring-4 ring-emerald-100/50 hover:ring-emerald-200/60"
+                >
+                  {loading ? (
+                    <Loader2 className="w-9 h-9 animate-spin" />
+                  ) : (
+                    <Send className="w-9 h-9 group-hover:rotate-12 transition-transform duration-300" />
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Composant MessageBubble manquant - à créer séparément
+function MessageBubble({ message }) {
+  const isUser = message.role === 'user';
+  
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-4xl p-8 rounded-3xl shadow-2xl backdrop-blur-xl ring-1 ring-white/50 ${
+        isUser 
+          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' 
+          : 'bg-white/90 border border-gray-100/50'
+      }`}>
+        <p className="text-xl leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        <p className={`text-xs mt-3 opacity-75 font-medium ${
+          isUser ? 'text-emerald-100' : 'text-gray-500'
+        }`}>
+          {new Date(message.timestamp).toLocaleTimeString('fr-CA', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+
 
 
 // ============================================

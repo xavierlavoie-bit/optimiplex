@@ -675,6 +675,39 @@ Values: loyeroptimal = $/sqft/year, gainmensuel and gainannuel = total dollars.`
   return strictRules;
 };
 
+// PROMPT SYSTÈME CHATBOT IMMOBILIER QUÉBEC
+function getRealEstateChatSystemPrompt(plan = 'essai') {
+  return `
+Tu es **Alex**, un courtier immobilier Québec super expérimenté, direct et amical. Tu parles comme un ami conseiller qui connaît tout sur l'immobilier Québec.
+
+**TON STYLE** (fluide, humain, conversationnel) :
+- Parle comme à un client en café : direct, confiant, anecdotes courtes
+- Phrases courtes (10-15 mots max)
+- Questions naturelles : "T'as combien de budget ?", "T'es à Montréal ou Québec ?"
+- Emojis subtils 😊 👍 📍
+- **Pas de listes robotiques**, juste du texte qui coule
+- Termine par **1 question perso** : "Et toi, t'es rendu où là ?"
+
+**CONTENU EXPERT** :
+- Québec only : TAL, OACIQ, banques locales, coûts réno réels
+- Chiffres approximatifs : "généralement 50-70k pour une réno cuisine"
+- Anecdotes : "J'ai vu un plex pareil se vendre 20% sous marché"
+
+**FORMAT SIMPLE** :
+1. **Accroche perso** (2 lignes)
+2. **Conseil direct** (3-4 phrases fluides)
+3. **1 exemple concret**
+4. **Action + question**
+
+**EXEMPLE** :
+"Salut ! Pour ton 5-plex, refi à 80% c'est safe. 
+T'auras ~100k cash. Avec ça, vise un 6-plex à 650k Montréal, cashflow +800$/mois facile.
+J'en ai fait un pareil l'an passé, revendu 20% plus cher.
+T'es à Montréal ou Québec ? Combien tu sors du refi ? 😊"
+`;
+}
+
+
 
 // ====================================================================
 // 🏠 ENDPOINT : OPTIMISATEUR RÉSIDENTIEL
@@ -1371,6 +1404,229 @@ REPONSE EN JSON STRICT (pas de texte avant/après):
   }
 });
 
+// ENDPOINT CHATBOT IMMOBILIER QUÉBEC (GRATUIT / PRO) AVEC SAUVEGARDE FIRESTORE
+
+
+app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
+  try {
+    const { userId, message, conversationId = null } = req.body;
+    
+    if (!userId || !message.trim()) {
+      return res.status(400).json({ error: 'userId et message requis' });
+    }
+
+    console.log('Chat', userId.slice(-6), message.slice(0, 50) + '...');
+
+    // User validation
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const userData = userDoc.data();
+    const userPlan = userData?.plan || 'essai';
+
+    // Modèle Claude selon plan
+    const model = (userPlan === 'pro' || userPlan === 'growth' || userPlan === 'entreprise') 
+      ? 'claude-sonnet-4-6' 
+      : 'claude-haiku-4-5-20251001';
+
+    // 🔥 CONVERSATION HANDLING CORRIGÉ
+    let conversationIdFinal;
+    let history = [];
+
+    if (conversationId) {
+      // Conversation existante
+      const convRef = userRef.collection('chats').doc(conversationId);
+      const convDoc = await convRef.get();
+      
+      if (convDoc.exists) {
+        const convData = convDoc.data();
+        history = convData.messages || [];
+        conversationIdFinal = conversationId;
+      } else {
+        // ID invalide -> nouvelle conversation
+        console.log('⚠️ conversationId invalide, création nouvelle');
+      }
+    }
+
+    if (!conversationIdFinal) {
+      // 🔥 NOUVELLE CONVERSATION - CORRECTION CRITIQUE
+      const newConvRef = await userRef.collection('chats').add({
+        title: `Chat immobilier - ${message.slice(0, 50)}...`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        planAtCreation: userPlan,
+        modelUsed: model,
+        messages: []
+      });
+      conversationIdFinal = newConvRef.id;
+    }
+
+    // Récupère la référence correcte pour l'update
+    const convRef = userRef.collection('chats').doc(conversationIdFinal);
+
+    // Messages pour Claude (10 derniers + nouveau)
+    const systemPrompt = getRealEstateChatSystemPrompt(userPlan);
+    const claudeMessages = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    // 10 derniers messages (léger)
+    history.slice(-10).forEach(m => {
+      claudeMessages.push({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content
+      });
+    });
+
+    claudeMessages.push({ role: 'user', content: message });
+
+    // NON-STREAMING: create complet
+    const claudeResponse = await claude.messages.create({
+      model,
+      max_tokens: 3000,
+      temperature: 0.1,
+      system: systemPrompt,
+      messages: claudeMessages.filter(m => m.role !== 'system') // Sans system en top-level
+    });
+
+    const fullResponse = claudeResponse.content[0]?.text || '';
+    if (!fullResponse.trim().length) {
+      return res.status(500).json({ error: 'Réponse AI vide' });
+    }
+
+    // 🔥 SAUVEGARDE FIRESTORE - CORRECTION CRITIQUE
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const updatedMessages = [
+      ...history,
+      {
+        role: 'user',
+        content: message,
+        createdAt: new Date()
+      },
+      {
+        role: 'assistant',
+        content: fullResponse,
+        createdAt: new Date(),
+        model
+      }
+    ];
+
+    // ✅ UTILISE .update() au lieu de .set() + récupère l'ID
+    await convRef.update({
+      messages: updatedMessages,
+      updatedAt: now,
+      lastMessage: fullResponse.slice(0, 200),
+      lastUserMessage: message.slice(0, 200)
+    }, { merge: true });
+
+    // Quota
+    await deductUsage(userId, req.quotaInfo);
+
+    // JSON pour Frontend
+    res.json({
+      message: fullResponse,
+      conversationId: conversationIdFinal
+    });
+
+  } catch (error) {
+    if (res.headersSent) {
+      console.log('Headers déjà envoyés');
+      return;
+    }
+    console.error('Chatbot Immobilier:', error);
+    res.status(500).json({ 
+      error: 'Erreur Chatbot Immobilier', 
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne' 
+    });
+  }
+});
+
+
+// GET conversations (EXISTANT)
+app.get('/api/realestate-chat/conversations/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const snapshot = await db
+      .collection('users')
+      .doc(userId)
+      .collection('chats')
+      .orderBy('updatedAt', 'desc')
+      .limit(50)
+      .get();
+
+    const conversations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json({ conversations });
+  } catch (error) {
+    console.error('Erreur GET conversations chatbot', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des conversations.' });
+  }
+});
+
+
+
+
+// GET conversation (EXISTANT)
+app.get('/api/realestate-chat/conversation/:userId/:conversationId', async (req, res) => {
+  try {
+    const { userId, conversationId } = req.params;
+    const convRef = db.collection('users').doc(userId).collection('chats').doc(conversationId);
+    const convDoc = await convRef.get();
+
+    if (!convDoc.exists) {
+      return res.status(404).json({ error: 'Conversation introuvable.' });
+    }
+
+    res.json({
+      id: convDoc.id,
+      ...convDoc.data()
+    });
+  } catch (error) {
+    console.error('Erreur GET conversation chatbot', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la conversation.' });
+  }
+});
+
+app.delete('/api/realestate-chat/conversation/:userId/:conversationId', async (req, res) => {
+  try {
+    const { userId, conversationId } = req.params;
+    
+    if (!userId || !conversationId) {
+      return res.status(400).json({ error: 'userId et conversationId requis' });
+    }
+
+    // Vérification que la conversation appartient à l'utilisateur
+    const convRef = db.collection('users').doc(userId).collection('chats').doc(conversationId);
+    const convDoc = await convRef.get();
+    
+    if (!convDoc.exists) {
+      return res.status(404).json({ error: 'Conversation introuvable' });
+    }
+
+    // Suppression définitive
+    await convRef.delete();
+    
+    console.log('✅ Conversation supprimée:', conversationId, 'pour user:', userId);
+    res.json({ 
+      success: true, 
+      message: 'Conversation supprimée avec succès',
+      deletedId: conversationId 
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur suppression conversation:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la suppression',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
+  }
+});
 
 // ====================================================================
 // ℹ️ GET QUOTA INFO (MIS À JOUR AVEC CRÉDITS)
