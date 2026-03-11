@@ -41,6 +41,40 @@ import ReactMarkdown from 'react-markdown';
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
 
+const formatMarkdown = (text) => {
+  if (!text) return '';
+  
+  let html = text
+    // Titres
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    // Ligne de séparation
+    .replace(/^\s*---\s*$/gim, '<hr />')
+    // Gras (fini l'effet vert dégueu, juste un texte gras propre)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Italique
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Listes simples
+    .replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>');
+
+  // Grouper les <li> dans un <ul>
+  html = html.replace(/(<li>.*<\/li>(\s*))+/g, '<ul>$&</ul>');
+
+  // Gestion des paragraphes et sauts de ligne
+  html = html
+    .split('\n')
+    .filter(line => line.trim() !== '') // Retire les lignes vides inutiles
+    .map(line => {
+      // Ne pas wrapper les éléments qui sont déjà des blocs HTML
+      if (line.match(/^(<h|<ul|<li|<hr)/)) return line;
+      return `<p>${line}</p>`;
+    })
+    .join('');
+
+  return html;
+};
+
 // Toujours afficher pour debug
 console.log('📡 Frontend API URL:', API_BASE_URL);
 console.log('📡 NODE_ENV:', process.env.NODE_ENV);
@@ -5908,7 +5942,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // 🔥 States avec fallback auto-fetch
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -5922,10 +5955,9 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   const [userPlanState, setUserPlanState] = useState(propPlan);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // ✅ Growth = Pro avantages (style OptimiPlex)
   const isPro = userPlanState === 'pro' || userPlanState === 'growth' || userPlanState === 'entreprise';
 
-  // 🔥 LOADING INTELLIGENT - Analyse réelle du message
+  // 🔥 LOADING INTELLIGENT
   const getIntelligentSteps = useCallback((messageContent) => {
     if (!messageContent?.trim()) return [
       "🔍 Initialisation de la conversation avec Alex...",
@@ -5935,9 +5967,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     ];
 
     const contentLower = messageContent.toLowerCase();
-    const steps = [];
 
-    // Refinancement
     if (contentLower.includes('refi') || contentLower.includes('refinancer') || contentLower.includes('financement')) {
       return [
         "🏠 Analyse de la valeur actuelle de votre immeuble...",
@@ -5946,8 +5976,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         "🎯 Élaboration de la stratégie de croissance immobilière personnalisée..."
       ];
     }
-
-    // Rénovation
     if (contentLower.includes('reno') || contentLower.includes('rénovation') || contentLower.includes('travaux')) {
       return [
         "🔧 Identification des types de travaux les plus rentables...",
@@ -5956,8 +5984,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         "✅ Création de la checklist d'exécution complète..."
       ];
     }
-
-    // Achat/Vente
     if (contentLower.includes('achat') || contentLower.includes('vendre') || contentLower.includes('plex') || contentLower.includes('immeuble')) {
       return [
         "🔍 Recherche des opportunités d'achat dans votre marché cible...",
@@ -5966,8 +5992,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         "🎯 Stratégie d'acquisition ou de vente optimisée..."
       ];
     }
-
-    // Location/Optimisation
     if (contentLower.includes('loyer') || contentLower.includes('location') || contentLower.includes('occupation')) {
       return [
         "📊 Analyse du marché locatif dans votre secteur...",
@@ -5976,8 +6000,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         "✅ Stratégies pour maximiser l'occupation et les revenus..."
       ];
     }
-
-    // Évaluation
     if (contentLower.includes('valeur') || contentLower.includes('évaluation') || contentLower.includes('prix')) {
       return [
         "📋 Collecte des données de ventes récentes comparables...",
@@ -5986,8 +6008,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         "✅ Recommandations pour optimiser la valeur de revente..."
       ];
     }
-
-    // Général
     return [
       "🧠 Analyse approfondie de votre question immobilière...",
       "📈 Recherche des données de marché Québec actualisées...",
@@ -5996,7 +6016,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     ];
   }, []);
 
-  // 🔥 MODAL CONFIRMATION CUSTOM (ESLint compliant)
   const confirmDelete = () => {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
@@ -6025,9 +6044,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 flex: 1; padding: 1rem 2rem; background: #f8fafc; 
                 border: 2px solid #e2e8f0; border-radius: 0.75rem; font-weight: 700; 
                 color: #475569; cursor: pointer; transition: all 0.3s; font-size: 1rem;
-                backdrop-filter: blur(10px);
-              " onmouseover="this.style.background='#f1f5f9';this.style.transform='translateY(-1px)'" 
-                 onmouseout="this.style.background='#f8fafc';this.style.transform='none'">
+              ">
                 Annuler
               </button>
               <button id="confirmBtn" style="
@@ -6035,9 +6052,8 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 border: none; border-radius: 0.75rem; font-weight: 700; 
                 color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem;
                 box-shadow: 0 4px 14px 0 rgba(239,68,68,0.4);
-              " onmouseover="this.style.background='linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)';this.style.transform='translateY(-1px)'" 
-                 onmouseout="this.style.background='linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';this.style.transform='none'">
-                Supprimer définitivement
+              ">
+                Supprimer
               </button>
             </div>
           </div>
@@ -6046,7 +6062,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       
       document.body.appendChild(modal);
 
-      // Event listeners
       document.getElementById('cancelBtn').onclick = () => {
         document.body.removeChild(modal);
         resolve(false);
@@ -6056,7 +6071,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         resolve(true);
       };
 
-      // Close on Escape
       const handleEscape = (e) => {
         if (e.key === 'Escape') {
           document.body.removeChild(modal);
@@ -6068,10 +6082,10 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     });
   };
 
-  // 🔥 TYPING EFFECT RECURSIF (Fix ESLint no-loop-func)
+  // 🔥 TYPING EFFECT CORRIGÉ
+  // On tape le texte brut (Markdown), le rendu HTML se fait après !
   const typeMessage = useCallback((fullResponse, index = 0, tempMessages) => {
     if (index > fullResponse.length) {
-      // Fin du typing - message final
       const finalMessages = tempMessages.map(msg => ({ ...msg, streaming: false }));
       setMessages(finalMessages);
       return;
@@ -6086,15 +6100,12 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
     setMessages(updatedMessages);
 
+    // Vitesse de frappe
     setTimeout(() => typeMessage(fullResponse, index + 1, updatedMessages), 15);
   }, []);
 
-  // 🔥 AUTO-FETCH USER ID + PLAN (Firebase uid)
   useEffect(() => {
     const initUser = async () => {
-      console.log('🔥 ChatTab init - propUser:', propUser?.uid || propUser?.id, 'propPlan:', propPlan);
-      
-      // Priorité 1: propUser.uid (Firebase Auth)
       if (propUser?.uid) {
         setUserId(propUser.uid);
         if (propPlan) setUserPlanState(propPlan);
@@ -6102,29 +6113,24 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         return;
       }
 
-      // Priorité 2: localStorage (optimiUser avec uid)
       try {
         const savedUser = localStorage.getItem('optimiUser');
         if (savedUser) {
           const parsed = JSON.parse(savedUser);
-          console.log('🔥 LocalStorage user:', parsed);
           setUserId(parsed.uid || parsed.id);
         }
       } catch (err) {
-        console.error('🔥 LocalStorage parse error:', err);
+        console.error('LocalStorage error:', err);
       }
 
-      // Priorité 3: Fetch quota pour plan
       setAuthLoading(true);
       try {
         const quotaRes = await fetch(`${API_BASE_URL}/api/propertyquota/${propUser?.uid || propUser?.id || 'demo-user-xavier'}`);
         if (quotaRes.ok) {
           const quotaData = await quotaRes.json();
-          console.log('🔥 Quota API response:', quotaData);
           setUserPlanState(quotaData.plan || 'essai');
         }
       } catch (err) {
-        console.error('🔥 Quota fetch error:', err);
         setUserPlanState('growth');
       } finally {
         setAuthLoading(false);
@@ -6140,11 +6146,9 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     setError(null);
   };
 
-  // ✅ FONCTION SUPPRESSION CONVERSATION (ESLINT FIX)
   const handleDeleteConversation = async (conversationId) => {
     if (!userId || !conversationId) return;
 
-    // ✨ MODAL CUSTOM (remplace confirm())
     const shouldDelete = await confirmDelete();
     if (!shouldDelete) return;
 
@@ -6156,33 +6160,24 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
       if (!res.ok) throw new Error(`Erreur suppression: ${res.status}`);
 
-      // Rafraîchir la liste
       const convRes = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
       const convData = await convRes.json();
       setConversations(convData.conversations || []);
 
-      // Si on supprime la conversation courante, reset
       if (currentConversationId === conversationId) {
         setCurrentConversationId(null);
         setMessages([]);
       }
-
-      console.log('✅ Conversation supprimée:', conversationId);
     } catch (err) {
-      console.error('❌ Erreur suppression:', err);
-      // Utilise window.alert (ESLint accepte) ou crée un toast
       window.alert('Erreur lors de la suppression. Réessayez.');
     } finally {
       setLoadingConversations(false);
     }
   };
 
-  // CHARGER CONVERSATIONS
   useEffect(() => {
     const loadConversations = async () => {
       if (!userId || authLoading) return;
-      console.log('🔥 Loading convos for userId:', userId);
-      
       setLoadingConversations(true);
       try {
         const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
@@ -6190,7 +6185,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         const data = await res.json();
         setConversations(data.conversations || []);
       } catch (err) {
-        console.error('❌ Conversations error:', err);
         setConversations([]);
         if (err.message.includes('404')) setError("Aucune conversation. Cliquez sur ➕ pour commencer !");
       } finally {
@@ -6200,7 +6194,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     loadConversations();
   }, [userId, authLoading]);
 
-  // CHARGER MESSAGES
   useEffect(() => {
     if (currentConversationId && userId && !authLoading) {
       const loadMessages = async () => {
@@ -6211,7 +6204,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
           const data = await res.json();
           setMessages(data.messages || []);
         } catch (err) {
-          console.error('❌ Messages error:', err);
           setMessages([]);
           setError('Erreur lors du chargement des messages');
         } finally {
@@ -6224,7 +6216,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     }
   }, [currentConversationId, userId, authLoading]);
 
-  // 🔥 STREAMING + TYPING EFFECT + LOADING INTELLIGENT + FORMATAGE GRAS
   const handleSend = async (e) => {
     e?.preventDefault();
    
@@ -6237,7 +6228,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     setIsStreaming(true);
     setCurrentStep(0);
 
-    // Message utilisateur temporaire
     const tempMessages = [...messages, {
       role: 'user',
       content: userMessage,
@@ -6249,16 +6239,12 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
     try {
-      // 🔥 Steps intelligents basés sur le message réel
       const steps = getIntelligentSteps(userMessage);
       for (let i = 0; i < steps.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 800));
         setCurrentStep(i + 1);
       }
 
-      console.log('🔥 Envoi:', userMessage, 'userId:', userId);
-      
-      // Appel API avec streaming simulation (backend stream réel à implémenter)
       const response = await fetch(`${API_BASE_URL}/api/realestate-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -6276,22 +6262,18 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
       const data = await response.json();
       
-      // 🔥 REMPLACEMENT DES ASTERISQUES PAR DU GRAS VISUEL
-      const formattedMessage = data.message
-        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-black text-gray-900 bg-gradient-to-r from-emerald-100 to-green-100 px-3 py-1 rounded-xl shadow-sm inline-block ml-1 mr-1">$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em class="italic text-emerald-700 font-semibold not-italic">$1</em>');
-
+      // On sauvegarde la réponse brute, pas besoin de .replace complexe ici
       const tempAssistantMsg = {
         role: 'assistant',
         content: '',
-        formattedContent: formattedMessage,  // Contenu formaté final
         streaming: true,
         timestamp: new Date()
       };
       const newTempMessages = [...tempMessages, tempAssistantMsg];
       setMessages(newTempMessages);
       
-      typeMessage(formattedMessage, 0, newTempMessages);
+      // On stream le markdown pur
+      typeMessage(data.message, 0, newTempMessages);
 
       if (!currentConversationId) {
         setCurrentConversationId(data.conversationId);
@@ -6301,7 +6283,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       }
 
     } catch (err) {
-      console.error('❌ Chat error:', err);
       setError(`Oups ! ${err.message}. Réessayez s'il vous plaît.`);
       setMessages(tempMessages);
     } finally {
@@ -6319,7 +6300,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Loading auth
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20">
@@ -6336,7 +6316,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     );
   }
 
-  // Pas connecté
   if (!userId) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20 px-4">
@@ -6364,7 +6343,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/20 to-emerald-50/10 p-2 sm:p-4 lg:p-8">
       <div className="w-full">
-        {/* HEADER PREMIUM - Pleine largeur */}
         <div className="bg-white/90 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-8 mb-8 ring-1 ring-white/50">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
             <div className="flex-1">
@@ -6392,7 +6370,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 lg:gap-8 h-[85vh]">
-          {/* SIDEBAR - Design raffiné AVEC SUPPRESSION */}
           <div className="xl:col-span-1">
             <div className="bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-6 h-full flex flex-col sticky top-6 ring-1 ring-white/50">
               <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
@@ -6436,7 +6413,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                         <div className="text-sm text-gray-600 font-medium truncate">{conv.lastUserMessage}</div>
                       </button>
                       
-                      {/* BOUTON SUPPRESSION - Apparaît au hover */}
                       <button
                         onClick={() => handleDeleteConversation(conv.id)}
                         className="absolute -top-2 -right-2 w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-2xl shadow-2xl ring-2 ring-white/50 flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 z-10 disabled:opacity-50"
@@ -6452,9 +6428,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
             </div>
           </div>
 
-          {/* CHAT PRINCIPAL - Pleine largeur avec RENDU INTELLIGENT */}
           <div className="xl:col-span-4 flex flex-col bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-3xl overflow-hidden ring-1 ring-white/50">
-            {/* Header Chat */}
             <div className="border-b border-white/40 px-10 py-8 bg-gradient-to-r from-emerald-500/5 via-green-500/5 to-teal-500/5 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -6468,7 +6442,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
               </div>
             </div>
 
-            {/* Messages avec RENDU STRUCTURE INTELLIGENT */}
             <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white/50">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-8 py-20">
@@ -6487,16 +6460,16 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 messages.map((m, idx) => (
                   <div key={idx} className="flex justify-start">
                     <div 
-                      className={`max-w-4xl bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-8 py-6 shadow-2xl ring-1 ring-gray-200/50 prose prose-sm max-w-none ${
-                        m.role === 'user' ? 'bg-gradient-to-r from-indigo-50 to-emerald-50 border-indigo-200/50 ml-auto max-w-3xl' : ''
+                      className={`max-w-4xl bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-8 py-6 shadow-2xl ring-1 ring-gray-200/50 prose prose-slate sm:prose-lg max-w-none ${
+                        m.role === 'user' ? 'bg-gradient-to-r from-indigo-50 to-emerald-50 border-indigo-200/50 ml-auto max-w-3xl prose-p:text-indigo-900' : 'prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-emerald-800'
                       }`}
-                      dangerouslySetInnerHTML={{ __html: m.formattedContent || m.content }}
+                      // On parse le Markdown UNIQUEMENT au moment de l'affichage
+                      dangerouslySetInnerHTML={{ __html: m.role === 'user' ? `<p>${m.content}</p>` : formatMarkdown(m.content) }}
                     />
                   </div>
                 ))
               )}
 
-              {/* 🔥 LOADING INTELLIGENT - Design premium */}
               {isStreaming && (
                 <div className="flex justify-start">
                   <div className="bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-10 py-8 shadow-2xl max-w-5xl ring-1 ring-gray-200/50">
@@ -6530,7 +6503,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input - Design premium */}
             <div className="border-t border-gray-200/50 px-10 py-10 bg-gradient-to-t from-white/70 backdrop-blur-xl">
               {error && (
                 <div className="mb-8 p-6 bg-gradient-to-r from-red-50/80 to-pink-50/80 border border-red-200/50 rounded-3xl backdrop-blur-xl ring-1 ring-red-200/50">
