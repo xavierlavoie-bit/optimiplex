@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
-  Settings, ChevronDown, Star, Shield,
+  Settings, ChevronDown, Star, Shield, CheckCircle2
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -6675,17 +6675,12 @@ function HomePage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-white overflow-hidden">
+    <div className="relative min-h-screen bg-white overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
       <AnimatedBlob />
 
       {/* ==================== BACKGROUND DÉCORATIF SUBTIL ==================== */}
-      <div className="pointer-events-none absolute inset-0">
-        {/* Blobs animés */}
-        <div className="blob-float-1 absolute -top-24 -left-24 h-64 w-64 rounded-full bg-indigo-100/40 blur-3xl" />
-        <div className="blob-float-2 absolute top-1/4 right-[-6rem] h-80 w-80 rounded-full bg-sky-100/30 blur-3xl" />
-        <div className="blob-float-3 absolute bottom-[-4rem] left-1/3 h-64 w-64 rounded-full bg-violet-100/25 blur-3xl" />
-
-        {/* Motif radial très léger */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        {/* Motif radial */}
         <div className="absolute inset-0 opacity-[0.4] mix-blend-soft-light bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(255,255,255,0.85),_transparent_60%)]" />
 
         {/* Grille subtile */}
@@ -6742,48 +6737,46 @@ function HomePage() {
 
         {/* ==================== HERO SECTION ==================== */}
         <section className="relative min-h-[800px] sm:min-h-[900px] max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center flex flex-col justify-center">
-          {/* Particle background for hero */}
           <ParticleBackground />
 
-          {/* Badge */}
-          <div className="relative z-10 inline-flex items-center gap-2 px-4 py-2 bg-indigo-100/60 border border-indigo-200 rounded-full mb-6 backdrop-blur-md w-fit mx-auto">
-            <span className="text-xl">🚀</span>
-            <span className="text-sm font-semibold text-indigo-700">
-              Évaluation + Optimisation Immobilière par IA
+          {/* Badge Live Global */}
+          <div className="relative z-10 inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-full mb-6 backdrop-blur-md w-fit mx-auto">
+            <span className="animate-pulse">🌐</span>
+            <span className="text-sm font-bold text-indigo-700 uppercase tracking-widest">
+              Nouveau : Recherche Web Illimitée & Stratégies IA Live
             </span>
           </div>
 
           {/* Main Headline */}
           <h1 className="relative z-10 text-3xl sm:text-5xl lg:text-7xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
-            Évaluez. Optimisez.
+            Évaluez. <span className="text-indigo-600">Planifiez.</span> Optimisez.
             <br />
             <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Augmentez vos revenus
+              L'IA experte du marché total
             </span>
           </h1>
 
           {/* Subheadline */}
-          <p className="relative z-10 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-4 font-light">
-            Plateforme IA complète pour immobilier résidentiel et commercial. Évaluations précises
-            + recommandations d&apos;optimisation de loyers.
+          <p className="relative z-10 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-4xl mx-auto mb-4 font-light leading-relaxed">
+            Plus qu'un moteur de recherche. OptimiPlex parcourt l'intégralité du Web immobilier pour bâtir vos stratégies d'investissement, recommander des optimisations de baux et prédire les tendances avant tout le monde.
             <span className="block mt-2 font-bold text-gray-900">
-              +18% de revenus en moyenne.
+              Des données en direct, des recommandations intelligentes, un plan d'action concret.
             </span>
           </p>
 
           {/* Trust Badges */}
           <div className="relative z-10 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 mt-8 text-sm text-gray-600 mb-12">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">✅</span>
-              <span>Données en direct</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
               <span className="text-2xl">⚡</span>
-              <span>Résultats en moins d&apos;une minute</span>
+              <span>Marché Web Total & Live</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">🔒</span>
-              <span>100% sécurisé</span>
+              <span className="text-2xl">🧠</span>
+              <span>Stratégies & Recommandations IA</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
+              <span className="text-2xl">📈</span>
+              <span>Optimisation de Cash-flow</span>
             </div>
           </div>
 
@@ -6793,7 +6786,7 @@ function HomePage() {
               to="/register"
               className="inline-block px-6 sm:px-8 lg:px-10 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-[0_18px_45px_rgba(79,70,229,0.35)] hover:shadow-[0_20px_60px_rgba(56,189,248,0.5)] transform hover:-translate-y-1 transition-all card-hover"
             >
-              📊 Évaluer ma propriété
+              🚀 Créer ma Stratégie IA
             </Link>
             <Link
               to="/register"
@@ -6803,40 +6796,46 @@ function HomePage() {
             </Link>
           </div>
 
-          {/* Hero Visual */}
+          {/* Hero Visual - Updated for Strategies */}
           <div className="relative z-10 mt-10 sm:mt-16">
             <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-200/50 via-sky-200/40 to-emerald-200/40 rounded-3xl opacity-80 blur-xl" />
             <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-gray-200/70 card-hover">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {/* Card 1: Évaluation */}
-                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover">
-                  <div className="text-3xl sm:text-4xl mb-3">📊</div>
+                {/* Card 1: Stratégie IA */}
+                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover text-left">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="text-3xl sm:text-4xl">🧠</div>
+                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Plan de Croissance</span>
+                  </div>
                   <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
-                    Évaluation complète
+                    Stratégie d'Optimisation
                   </h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3">
-                    Valeur marchande de votre propriété
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
+                    L'IA a identifié un levier de refinancement SCHL basé sur les taux actuels et vos comparables Web.
                   </p>
-                  <p className="text-2xl sm:text-3xl font-black text-indigo-600 mb-2">
-                    $585,000
-                  </p>
-                  <p className="text-xs text-gray-500">+15% depuis achat</p>
+                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <p className="text-xs font-bold text-indigo-700">Recommandation :</p>
+                    <p className="text-sm font-black text-indigo-900">Augmentation de la valeur nette de +125k $</p>
+                  </div>
                 </div>
 
-                {/* Card 2: Optimisation */}
-                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
-                  <div className="text-3xl sm:text-4xl mb-3">💰</div>
+                {/* Card 2: Analyse Web Total */}
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover text-left">
+                   <div className="flex justify-between items-start mb-3">
+                    <div className="text-3xl sm:text-4xl">🌐</div>
+                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Web Total Search</span>
+                  </div>
                   <h3 className="font-black text-emerald-900 mb-2 text-lg sm:text-xl">
-                    Revenu optimal
+                    Analyse du Marché Live
                   </h3>
                   <p className="text-xs sm:text-sm text-emerald-700 font-semibold mb-3">
-                    Loyer réaliste et compétitif
+                    Données consolidées de Centris, JLR, Kijiji et Registres Fonciers.
                   </p>
                   <p className="text-2xl sm:text-3xl font-black text-emerald-700 mb-2">
-                    $1,750/mois
+                    Marché Haussier
                   </p>
-                  <p className="text-xs text-emerald-600 font-semibold">
-                    +$350/mois (+25%)
+                  <p className="text-xs text-emerald-600 font-black">
+                    IA scanne 1 500+ nouvelles annonces/jour
                   </p>
                 </div>
               </div>
@@ -6846,62 +6845,57 @@ function HomePage() {
 
         {/* ==================== FEATURES SECTION ==================== */}
         <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <div
-            className="fade-in-up mx-auto max-w-3xl text-center mb-12 sm:mb-16"
-            style={{ animationDelay: '0s' }}
-          >
-            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-4">
-              Pourquoi choisir OptimiPlex?
+          <div className="fade-in-up mx-auto max-w-3xl text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-4 tracking-tight">
+              Une intelligence qui <span className="text-indigo-600">pense stratégiquement</span>
             </h2>
             <p className="text-gray-600 text-base sm:text-lg">
-              Une plateforme complète pour évaluer vos propriétés ET optimiser vos revenus locatifs, 
-              qu&apos;elles soient résidentielles ou commerciales.
+              OptimiPlex ne se contente pas de trouver des données. Elle les analyse pour vous fournir des conseils d'experts et des plans d'action personnalisés.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
-                icon: '📊',
-                title: 'Évaluation Immobilière IA',
+                icon: '🔍',
+                title: 'Scan du Web Immobilier',
                 description:
-                  'Analyse complète de la valeur de vos propriétés basée sur données vérifiées et comparables locaux',
+                  'Notre IA explore tout l\'Internet (annonces, articles, registres) pour capter chaque mouvement du marché en temps réel.',
               },
               {
-                icon: '💰',
-                title: 'Optimisation de Loyers',
+                icon: '🧠',
+                title: 'Recommandations Stratégiques',
                 description:
-                  'Découvrez le loyer optimal pour vos propriétés résidentielles et commerciales basé sur le marché',
-              },
-              {
-                icon: '🏠',
-                title: 'Résidentiel & Commercial',
-                description:
-                  'Analyse complète pour immeubles multi-logements, maisons, condos, bureaux, retail et entrepôts',
+                  'Recevez des conseils sur le refinancement, la rénovation rentable et l\'optimisation fiscale de vos biens.',
               },
               {
                 icon: '📈',
-                title: 'Analyses Comparables',
+                title: 'Plans d\'Action IA',
                 description:
-                  'Justification détaillée avec propriétés similaires réellement vendues/louées',
+                  'Chaque analyse inclut un plan par étapes pour augmenter votre cash-flow et votre valeur immobilière.',
+              },
+              {
+                icon: '📊',
+                title: 'Analyses Multi-Sources',
+                description:
+                  'Fusion des données Centris, JLR, SCHL et données Web éparses pour une vision à 360 degrés.',
               },
               {
                 icon: '⚡',
-                title: 'Ultra Rapide',
+                title: 'Intelligence Connectée',
                 description:
-                  "Évaluation et optimisation complètes en moins d'une minute avec rapports détaillés",
+                  "Propulsé par les derniers modèles IA capables de synthétiser des milliers d'informations en quelques secondes.",
               },
               {
-                icon: '🎯',
-                title: "Plan d'Action Complet",
+                icon: '🏢',
+                title: 'Gestion Commerciale Pro',
                 description:
-                  'Recommandations stratégiques pour maximiser la valeur ET les revenus locatifs de vos biens',
+                  'Analyse prédictive des baux et des cycles de marché pour sécuriser vos investissements à long terme.',
               },
             ].map((feature, i) => (
               <div
                 key={i}
                 className="fade-in-up p-6 sm:p-8 rounded-2xl border border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition-all group cursor-pointer backdrop-blur-xl glow-on-hover card-hover"
-                style={{ animationDelay: `${0.15 * i}s` }}
               >
                 <div className="inline-flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-indigo-100/60 border border-indigo-200 text-2xl mb-4 group-hover:scale-110 transition-transform">
                   {feature.icon}
@@ -6917,197 +6911,13 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ==================== TWO PILLARS SECTION ==================== */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2
-            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
-            style={{ animationDelay: '0s' }}
-          >
-            Deux outils puissants, une plateforme
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
-            {/* PILLAR 1: ÉVALUATION */}
-            <div className="fade-in-up" style={{ animationDelay: '0s' }}>
-              <div className="p-6 sm:p-8 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-3xl border-2 border-indigo-300 shadow-lg shadow-indigo-200/40 card-hover">
-                <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">📊</div>
-                <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                  Évaluation Immobilière
-                </h3>
-                <p className="text-gray-700 mb-6 leading-relaxed text-sm sm:text-base">
-                  Découvrez la vraie valeur marchande de vos propriétés avec une analyse IA complète
-                  basée sur données en temps réel.
-                </p>
-
-                <div className="space-y-3 mb-6 sm:mb-8">
-                  <div className="flex items-start gap-3">
-                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Analyse comparative de marché
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Comparables directs et tendances locales
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Évaluation par approche revenus
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Basée sur potentiel locatif actuel
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-indigo-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Rapport professionnel complet
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Détail des facteurs influençant la valeur
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <Link
-                  to="/register"
-                  className="inline-block px-5 sm:px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-all text-sm sm:text-base"
-                >
-                  Évaluer ma propriété →
-                </Link>
-              </div>
-            </div>
-
-            {/* PILLAR 2: OPTIMISATION */}
-            <div className="fade-in-up" style={{ animationDelay: '0.2s' }}>
-              <div className="p-6 sm:p-8 bg-gradient-to-br from-emerald-50/50 to-green-50/50 rounded-3xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover">
-                <div className="text-4xl sm:text-6xl mb-4 sm:mb-6">💰</div>
-                <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                  Optimisation de Loyers
-                </h3>
-                <p className="text-gray-700 mb-6 leading-relaxed text-sm sm:text-base">
-                  Trouvez le loyer optimal pour vos unités résidentielles et commerciales avec
-                  recommandations basées sur données marché.
-                </p>
-
-                <div className="space-y-3 mb-6 sm:mb-8">
-                  <div className="flex items-start gap-3">
-                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Analyse loyers comparables
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Propriétés similaires dans votre région
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Résidentiel & Commercial
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Maisons, condos, immeubles, bureaux, retail
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-emerald-600 font-black text-xl mt-1">✓</span>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm sm:text-base">
-                        Stratégies de positionnement
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        Comment attirer locataires au meilleur prix
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <Link
-                  to="/register"
-                  className="inline-block px-5 sm:px-6 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all text-sm sm:text-base"
-                >
-                  Optimiser mes revenus →
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== HOW IT WORKS ==================== */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2
-            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
-            style={{ animationDelay: '0s' }}
-          >
-            Comment ça marche en 3 étapes
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            {[
-              {
-                step: '1️⃣',
-                title: 'Créez compte gratuit',
-                description:
-                  "Inscription en 60 secondes. Aucune carte bancaire requise pour l'essai.",
-              },
-              {
-                step: '2️⃣',
-                title: 'Entrez détails propriété',
-                description:
-                  'Remplissez formulaire simple: type, localisation, revenus actuels, caractéristiques.',
-              },
-              {
-                step: '3️⃣',
-                title: 'Recevez rapport complet',
-                description:
-                  "Évaluation, recommandations de loyers, plan d'action détaillé en moins d'une minute.",
-              },
-            ].map((step, i) => (
-              <div
-                key={i}
-                className="fade-in-up relative"
-                style={{ animationDelay: `${0.2 * i}s` }}
-              >
-                <div className="p-6 sm:p-8 bg-white/80 rounded-2xl border border-gray-200 text-center backdrop-blur-xl shadow-lg shadow-gray-200/60 card-hover glow-on-hover">
-                  <div className="text-4xl sm:text-5xl mb-4">{step.step}</div>
-                  <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-3">
-                    {step.title}
-                  </h3>
-                  <p className="text-gray-700 text-sm sm:text-base">{step.description}</p>
-                </div>
-                {i < 2 && (
-                  <div className="hidden md:flex absolute top-12 -right-4 text-3xl text-indigo-300">
-                    →
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* ==================== PRICING SECTION ==================== */}
         <section id="pricing" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2
-            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-4"
-            style={{ animationDelay: '0s' }}
-          >
-            Tarification simple & transparente
+          <h2 className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-4 tracking-tighter">
+            Tarification <span className="text-indigo-600 underline decoration-indigo-200">transparente</span>
           </h2>
-          <p
-            className="fade-in-up text-lg sm:text-xl text-gray-600 text-center max-w-2xl mx-auto mb-12 sm:mb-16"
-            style={{ animationDelay: '0.2s' }}
-          >
-            Pas de surprises. Pas de frais cachés. Cancellation n&apos;importe quand.
+          <p className="fade-in-up text-lg sm:text-xl text-gray-600 text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+            Débloquez la puissance de l'Intelligence Web avec nos plans Pro.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
@@ -7115,13 +6925,13 @@ function HomePage() {
               {
                 name: 'Essai',
                 price: 'Gratuit',
-                description: 'Parfait pour débuter',
+                description: 'Pour découvrir l\'interface',
                 features: [
-                  '1 évaluation/mois',
-                  '1 analyse loyer/mois',
+                  '1 évaluation statique/mois',
+                  'Conseils de base',
                   'Résidentiel uniquement',
-                  'Rapport standard',
-                  'Support email',
+                  'Pas de recherche Web Live',
+                  'Support standard',
                 ],
                 highlighted: false,
               },
@@ -7129,15 +6939,14 @@ function HomePage() {
                 name: 'Pro',
                 price: '$29',
                 period: '/mois',
-                description: 'Pour propriétaires actifs',
+                description: 'Le cerveau de votre parc',
                 features: [
-                  '5 évaluations/mois',
-                  '5 optimisations loyer/mois',
-                  'Résidentiel + commercial',
-                  'Rapports détaillés + stratégie',
-                  'Comparables avancés',
-                  'Support prioritaire',
-                  'Export PDF',
+                  '5 analyses Stratégiques/mois',
+                  'Scan Web & Centris en direct',
+                  'Accès aux transactions JLR',
+                  'Recommandations d\'optimisation',
+                  'Résidentiel + Commercial',
+                  'Export PDF professionnel',
                 ],
                 highlighted: true,
               },
@@ -7145,15 +6954,13 @@ function HomePage() {
                 name: 'Growth',
                 price: '$69',
                 period: '/mois',
-                description: 'Pour portefeuilles importants',
+                description: 'Pour gestionnaires experts',
                 features: [
-                  'Évaluations illimitées',
-                  'Optimisations illimitées',
-                  'Résidentiel + commercial avancé',
-                  'Rapports personnalisés',
-                  'Alertes marché hebdo',
+                  'Analyses & Stratégies illimitées',
+                  'Scan Web Temps Réel Global',
+                  'Plans d\'action personnalisés',
+                  'Alertes opportunités Web',
                   'Support 24/7 prioritaire',
-                  'Analyse portefeuille',
                 ],
                 highlighted: false,
               },
@@ -7162,48 +6969,49 @@ function HomePage() {
                 key={i}
                 className={`fade-in-up rounded-2xl border p-6 sm:p-8 transition-all backdrop-blur-xl card-hover glow-on-hover ${
                   plan.highlighted
-                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-100/40 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03]'
+                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-50/50 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03]'
                     : 'border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40'
                 }`}
-                style={{ animationDelay: `${0.15 * i}s` }}
               >
                 {plan.highlighted && (
-                  <div className="mb-4 inline-block px-3 py-1 bg-indigo-600 text-white text-xs font-black rounded-full">
-                    🌟 POPULAIRE
+                  <div className="mb-4 inline-block px-3 py-1 bg-indigo-600 text-white text-xs font-black rounded-full uppercase tracking-widest animate-pulse">
+                    🚀 Meilleure Valeur
                   </div>
                 )}
                 <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">
                   {plan.name}
                 </h3>
-                <p className="text-xs sm:text-sm text-gray-600 mb-6">{plan.description}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-6 font-medium uppercase tracking-tight">{plan.description}</p>
                 <div className="mb-6 sm:mb-8">
                   <span className="text-3xl sm:text-4xl font-black text-gray-900">
                     {plan.price}
                   </span>
                   {plan.period && (
-                    <span className="text-gray-600 text-sm sm:text-base">
+                    <span className="text-gray-600 text-sm sm:text-base font-bold">
                       {plan.period}
                     </span>
                   )}
                 </div>
                 <Link
                   to="/register"
-                  className={`block w-full py-3 px-6 rounded-lg font-bold mb-6 sm:mb-8 text-center transition-all text-sm sm:text-base ${
+                  className={`block w-full py-3.5 px-6 rounded-xl font-black mb-6 sm:mb-8 text-center transition-all text-sm sm:text-base ${
                     plan.highlighted
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
                       : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  Commencer
+                  {plan.price === 'Gratuit' ? 'Commencer' : 'Activer l\'Intelligence Pro'}
                 </Link>
-                <ul className="space-y-2 sm:space-y-3">
+                <ul className="space-y-3">
                   {plan.features.map((feature, j) => (
                     <li
                       key={j}
-                      className="flex items-center gap-2 sm:gap-3 text-gray-700 text-sm sm:text-base"
+                      className="flex items-start gap-3 text-gray-700 text-sm sm:text-base"
                     >
-                      <span className="text-emerald-600">✓</span>
-                      {feature}
+                      <CheckCircle2 size={18} className={plan.highlighted ? "text-indigo-600 mt-0.5 shrink-0" : "text-gray-400 mt-0.5 shrink-0"} />
+                      <span className={feature.includes('Pas de') ? "text-gray-400 line-through font-medium" : "font-bold text-gray-800"}>
+                        {feature}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -7212,89 +7020,31 @@ function HomePage() {
           </div>
         </section>
 
-        {/* ==================== FAQ ==================== */}
-        <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2
-            className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-12 sm:mb-16"
-            style={{ animationDelay: '0s' }}
-          >
-            Questions fréquentes
-          </h2>
-
-          <div className="space-y-4 sm:space-y-6">
-            {[
-              {
-                q: 'Quelle est la différence entre Évaluation et Optimisation?',
-                a: "Évaluation détermine la valeur marchande actuelle de votre propriété. Optimisation recommande le loyer idéal à demander pour maximiser revenus. Les deux utilisent IA et données.",
-              },
-              {
-                q: 'Fonctionne-t-il pour propriétés commerciales?',
-                a: 'Oui! Plans Pro+ incluent analyse pour immeubles à revenus, bureaux, retail et entrepôts. Algorithe est adapté pour chaque type.',
-              },
-              {
-                q: 'Comment OptimiPlex évalue-t-elle une propriété?',
-                a: 'Nous analysons comparables, revenus locatifs, condition, localisation, et appliquons ML pour prédire valeur actuelle. Vous voyez tous les facteurs influençant.',
-              },
-              {
-                q: 'Quel est le taux de précision?',
-                a: '85-92% dépendant région et données. Pour chaque recommandation, vous voyez score confiance exact et les propriétés comparables utilisées.',
-              },
-              {
-                q: 'Puis-je annuler mon abonnement?',
-                a: 'Oui, cancellation 1 click. Aucun engagement à long terme. Pas de frais supplémentaires pour annuler.',
-              },
-              {
-                q: 'Mes données sont-elles sécurisées?',
-                a: 'Absolument. Encryption AES-256, serveurs Firebase sécurisés, GDPR compliant. Vos données ne sont jamais vendues, partagées ou utilisées pour marketing.',
-              },
-            ].map((faq, i) => (
-              <details
-                key={i}
-                className="fade-in-up group p-5 sm:p-6 bg-white/80 rounded-2xl border border-gray-200 cursor-pointer hover:border-indigo-300 transition backdrop-blur-xl glow-on-hover"
-                style={{ animationDelay: `${0.1 * i}s` }}
-              >
-                <summary className="flex items-center gap-3 font-black text-gray-900 text-base sm:text-lg list-none">
-                  <span className="group-open:rotate-180 transition-transform text-indigo-500">
-                    ▶
-                  </span>
-                  {faq.q}
-                </summary>
-                <p className="mt-3 sm:mt-4 text-gray-700 ml-7 sm:ml-8 text-sm sm:text-base">
-                  {faq.a}
-                </p>
-              </details>
-            ))}
-          </div>
-        </section>
-
         {/* ==================== FOOTER ==================== */}
-        <footer className="border-t border-gray-200 bg-white/90 py-10 sm:py-12 mt-16 sm:mt-20">
+        <footer className="border-t border-gray-200 bg-white/90 py-10 sm:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-8 sm:gap-0">
               <div className="text-center sm:text-left">
-                <h4 className="font-black text-gray-900 mb-1 sm:mb-2 text-base sm:text-lg">
-                  OptimiPlex
-                </h4>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  Évaluez et optimisez vos propriétés immobilières avec IA
+                <div className="flex items-center gap-3 justify-center sm:justify-start mb-4">
+                  <img src="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" className="w-10 h-10 grayscale opacity-50" alt="" />
+                  <h4 className="font-black text-gray-900 text-xl tracking-tighter">
+                    OptimiPlex
+                  </h4>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 max-w-sm leading-relaxed font-medium">
+                  L'intelligence artificielle immobilière qui navigue sur l'intégralité du Web pour bâtir vos stratégies de réussite.
                 </p>
               </div>
-              <div className="mt-4 sm:mt-0 text-center sm:text-right text-xs sm:text-sm">
-                <p className="text-gray-600">
-                  <a href="#" className="hover:text-gray-900 transition">
-                    Contact
-                  </a>
-                  {' • '}
-                  <a href="#" className="hover:text-gray-900 transition">
-                    Conditions
-                  </a>
-                  {' • '}
-                  <a href="#" className="hover:text-gray-900 transition">
-                    Politique de confidentialité
-                  </a>
-                </p>
-                <p className="text-gray-500 mt-3 sm:mt-4 text-[11px] sm:text-xs">
-                  &copy; 2026 OptimiPlex. Tous droits réservés.
+              <div className="mt-4 sm:mt-0 text-center sm:text-right">
+                <div className="flex gap-4 sm:gap-8 justify-center sm:justify-end mb-6 text-sm font-black text-gray-400 uppercase tracking-widest">
+                  <a href="#" className="hover:text-indigo-600 transition">Contact</a>
+                  <a href="#" className="hover:text-indigo-600 transition">Conditions</a>
+                  <a href="#" className="hover:text-indigo-600 transition">Confidentialité</a>
+                </div>
+                <p className="text-gray-400 text-[11px] sm:text-xs font-bold uppercase tracking-widest">
+                  &copy; 2026 OptimiPlex Intelligence Inc. Tous droits réservés.
+                  <br />
+                  Propulsé par Claude 4.5 & Web Intelligence Engine.
                 </p>
               </div>
             </div>
@@ -7304,7 +7054,6 @@ function HomePage() {
     </div>
   );
 }
-
 
 // ============================================
 // LOGIN & REGISTER (Kept Simple)
