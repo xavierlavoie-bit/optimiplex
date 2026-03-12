@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
-  Settings, ChevronDown,
+  Settings, ChevronDown, Star, Shield,
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -541,7 +541,6 @@ function DashboardLayout() {
 // ⬆️ MODAL UPGRADE avec STRIPE
 // ============================================
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
-  // Par défaut, on ouvre sur l'onglet 'plans' pour encourager l'abonnement récurrent
   const [activeTab, setActiveTab] = useState('plans'); 
   const [subLoading, setSubLoading] = useState(null);
   const [creditsLoading, setCreditsLoading] = useState(false);
@@ -555,11 +554,12 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       name: 'Essai', 
       price: 'Gratuit', 
       features: [
-        '1 analyse résidentielle/mois',
-        'Résidentiel basique',
-        'Chatbot limité (sans accès web)'
+        '1 analyse / mois',
+        'Optimisation loyer (Recherche Web incluse 🌐)',
+        'Évaluation de valeur (Recherche Web incluse 🔍)',
+        'Chatbot IA (Sans accès Internet)'
       ],
-      icon: '🎯',
+      icon: <Zap className="text-blue-500" size={32} />,
       color: 'blue'
     },
     { 
@@ -568,12 +568,13 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       price: '$29/mois',
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
       features: [
-        '20 analyses résidentiel/mois',
-        'Recherche Centris en temps réel 🔍',
-        'Chatbot avec accès Internet',
+        '20 analyses / mois',
+        'Recherche Centris & JLR en temps réel 🚀',
+        'Chatbot avec RECHERCHE INTERNET 🌐',
+        'Analyses financières Pro (TGA, MRB)',
         'Support email prioritaire'
       ],
-      icon: '🚀',
+      icon: <Star className="text-purple-500" size={32} />,
       color: 'purple'
     },
     { 
@@ -582,12 +583,13 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       price: '$69/mois',
       priceId: process.env.REACT_APP_STRIPE_GROWTH_PRICE_ID,
       features: [
-        'Analyses illimitées',
-        'Recherche Centris & Marché live',
-        'Résidentiel + Commercial',
-        'Chatbot Pro illimité'
+        'Analyses ILLIMITÉES',
+        'Recherche Centris Commercial & Résidentiel',
+        'Chatbot Pro avec Recherche Internet 🌐',
+        'Données de marché avancées',
+        'Support VIP'
       ],
-      icon: '💎',
+      icon: <Search className="text-indigo-500" size={32} />,
       color: 'indigo',
       recommended: true
     },
@@ -599,9 +601,10 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
         'Solution 100% adaptée',
         'API + White label',
         'Formation équipe incluse',
-        'Support dédié 24/7'
+        'Chatbot personnalisé',
+        'Volume illimité'
       ],
-      icon: '👑',
+      icon: <Shield className="text-amber-500" size={32} />,
       color: 'amber'
     }
   ];
@@ -615,7 +618,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       price: '4.99',
       color: 'from-blue-100 to-blue-200',
       borderColor: 'border-blue-400',
-      bgColor: 'bg-blue-50',
       badge: '💎 Budget',
       buttonColor: 'bg-blue-600 hover:bg-blue-700'
     },
@@ -627,7 +629,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       price: '19.99',
       color: 'from-indigo-100 to-indigo-200',
       borderColor: 'border-indigo-400',
-      bgColor: 'bg-indigo-50',
       badge: '⭐ Populaire',
       buttonColor: 'bg-indigo-600 hover:bg-indigo-700',
       popular: true
@@ -640,7 +641,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       price: '79.99',
       color: 'from-purple-100 to-purple-200',
       borderColor: 'border-purple-400',
-      bgColor: 'bg-purple-50',
       badge: '👑 Illimité',
       buttonColor: 'bg-purple-600 hover:bg-purple-700'
     }
@@ -670,8 +670,8 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
         window.location.href = response.data.sessionUrl || response.data.url;
       }
     } catch (err) {
-      console.error('Erreur souscription:', err);
-      alert(err.response?.data?.error || "Une erreur est survenue.");
+      console.error('Erreur:', err);
+      alert("Une erreur est survenue lors de la redirection.");
     } finally {
       setSubLoading(null);
     }
@@ -680,7 +680,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
   const handleBuyCredits = async (plan) => {
     try {
       setCreditsLoading(true);
-      setCreditsError(null);
       const response = await axios.post(`${API_BASE_URL}/api/stripe/create-checkout-session-credits`, {
         userId: user?.uid,
         userEmail: user?.email,
@@ -689,157 +688,165 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       });
       if (response.data.sessionUrl) window.location.href = response.data.sessionUrl;
     } catch (err) {
-      setCreditsError(err.response?.data?.error || 'Erreur lors de la création de la session');
+      setCreditsError('Erreur lors de la création de la session');
     } finally {
       setCreditsLoading(false);
     }
   };
 
-  const handleContactEnterprise = () => {
-    const emailContent = `Demande Plan Entreprise - ${user?.email}`;
-    navigator.clipboard.writeText(emailContent);
-    window.open(`mailto:info@optimiplex.com?subject=Demande Entreprise&body=Je souhaite en savoir plus sur le plan Entreprise.`);
-    setShowUpgradeModal(false);
-  };
-
   return (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-8"
+      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4 md:p-8"
       onClick={(e) => e.target === e.currentTarget && setShowUpgradeModal(false)}
     >
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-y-auto border border-gray-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 animate-in fade-in zoom-in duration-200">
         
-        {/* HEADER STICKY */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 md:px-8 py-6 flex items-center justify-between z-10">
+        {/* HEADER */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 md:px-10 py-6 flex items-center justify-between z-20">
           <div>
-            <h2 className="text-2xl md:text-4xl font-black text-gray-900">⬆️ Upgrader votre plan</h2>
-            <p className="text-xs md:text-sm text-gray-600 mt-1">Plan actuel : <span className="font-bold uppercase text-indigo-600">{userPlan}</span></p>
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Optimisez vos investissements</h2>
+            <p className="text-gray-500 mt-1 flex items-center gap-2 font-medium">
+              Plan actuel : <span className="bg-indigo-100 text-indigo-700 px-3 py-0.5 rounded-full text-xs uppercase font-bold">{userPlan}</span>
+            </p>
           </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
-            className="text-gray-400 hover:text-gray-600 text-3xl transition-colors"
+            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all text-2xl"
           >
             ✕
           </button>
         </div>
 
-        {/* CONTENT */}
-        <div className="px-4 md:px-8 py-6 md:py-8">
+        <div className="px-6 md:px-10 py-8">
           
-          {/* TABS NAVIGATION */}
-          <div className="flex gap-2 mb-8 border-b border-gray-300">
+          {/* TABS */}
+          <div className="flex p-1.5 bg-gray-100 rounded-2xl w-fit mb-10 mx-auto">
             <button
               onClick={() => setActiveTab('plans')}
-              className={`px-6 py-3 font-bold border-b-4 transition-all ${activeTab === 'plans' ? 'border-indigo-600 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+              className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${activeTab === 'plans' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              📊 Plans & Abonnements
+              <Zap size={18} /> Plans mensuels
             </button>
             <button
               onClick={() => setActiveTab('credits')}
-              className={`px-6 py-3 font-bold border-b-4 transition-all ${activeTab === 'credits' ? 'border-indigo-600 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+              className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${activeTab === 'credits' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              🎯 Crédits à la carte
+              <Coins size={18} /> Crédits à la carte
             </button>
           </div>
 
-          {/* TAB CONTENU: PLANS */}
+          {/* PLANS TAB */}
           {activeTab === 'plans' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {plans.map((p) => {
-                  const isCurrent = userPlan === p.key;
-                  const isDown = isDowngrade(p.key);
-                  const isLoading = subLoading === p.key;
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {plans.map((p) => {
+                const isCurrent = userPlan === p.key;
+                const isDown = isDowngrade(p.key);
+                const isLoading = subLoading === p.key;
 
-                  const colorMap = {
-                    blue: 'bg-blue-50 border-blue-200',
-                    purple: 'bg-purple-50 border-purple-200',
-                    indigo: 'bg-indigo-50 border-indigo-200',
-                    amber: 'bg-amber-50 border-amber-200'
-                  };
+                return (
+                  <div 
+                    key={p.key} 
+                    className={`relative p-8 rounded-3xl border-2 transition-all flex flex-col h-full ${isCurrent ? 'border-indigo-500 bg-indigo-50/50 ring-4 ring-indigo-500/10' : 'border-gray-100 hover:border-indigo-200 bg-white'}`}
+                  >
+                    {p.recommended && (
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest">
+                        Recommandé
+                      </div>
+                    )}
+                    
+                    <div className="mb-6">{p.icon}</div>
+                    <h4 className="text-2xl font-black text-gray-900 mb-1">{p.name}</h4>
+                    <p className="text-3xl font-black text-indigo-600 mb-6">{p.price}</p>
+                    
+                    <ul className="space-y-4 text-sm text-gray-600 mb-8 flex-grow">
+                      {p.features.map((f, i) => (
+                        <li key={i} className="flex items-start gap-3 leading-tight">
+                          <div className="mt-0.5 bg-emerald-100 rounded-full p-0.5">
+                            <Zap size={12} className="text-emerald-600 fill-emerald-600" />
+                          </div>
+                          <span className={f.includes('RECHERCHE INTERNET') || f.includes('temps réel') ? 'font-bold text-gray-900' : ''}>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
 
-                  return (
-                    <div 
-                      key={p.key} 
-                      className={`relative p-6 rounded-xl border-2 transition-all ${isCurrent ? 'ring-4 ring-indigo-500 shadow-xl z-0 scale-105' : `${colorMap[p.color]} border-gray-100 hover:border-indigo-300`}`}
-                    >
-                      {p.recommended && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black shadow-lg">
-                          RECOMMANDÉ ⭐
-                        </div>
-                      )}
-                      <div className="text-4xl mb-3">{p.icon}</div>
-                      <h4 className="text-xl font-black text-gray-900 mb-1">{p.name}</h4>
-                      <p className="text-2xl font-black text-indigo-600 mb-4">{p.price}</p>
-                      
-                      <ul className="space-y-2 text-sm text-gray-700 mb-6 h-36 overflow-hidden">
-                        {p.features.map((f, i) => (
-                          <li key={i} className="flex gap-2">
-                            <span className="text-emerald-600 font-bold">✓</span>
-                            <span className={f.includes('Centris') ? 'font-bold' : ''}>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-
-                      {isCurrent ? (
-                        <div className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-center">Plan actuel ✅</div>
-                      ) : (
-                        <button
-                          onClick={() => p.key === 'entreprise' ? handleContactEnterprise() : handleSubscribe(p.key)}
-                          disabled={subLoading !== null || isDown}
-                          className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${isDown ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-1 active:translate-y-0'}`}
-                        >
-                          {isLoading ? '⏳ Redirection...' : isDown ? '🔒 Downgrade' : 'Choisir'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    {isCurrent ? (
+                      <div className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold text-center border border-gray-200">
+                        Votre forfait actuel
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => p.key === 'entreprise' ? window.location.href='mailto:info@optimiplex.com' : handleSubscribe(p.key)}
+                        disabled={subLoading !== null || isDown}
+                        className={`w-full py-4 rounded-2xl font-black transition-all shadow-lg ${isDown ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 active:scale-95'}`}
+                      >
+                        {isLoading ? 'Redirection...' : isDown ? '🔒' : 'Choisir ce plan'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* TAB CONTENU: CRÉDITS */}
+          {/* CREDITS TAB */}
           {activeTab === 'credits' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {creditPlans.map((cp) => (
-                  <div key={cp.name} className={`p-6 rounded-2xl border-2 ${cp.borderColor} bg-white relative transition-all hover:shadow-xl`}>
-                    {cp.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs px-4 py-1 rounded-full font-bold">{cp.badge}</div>}
-                    <div className={`rounded-xl p-6 mb-4 text-center bg-gradient-to-br ${cp.color}`}>
-                      <p className="text-4xl font-black text-gray-900">{cp.credits}</p>
-                      <p className="text-xs font-bold text-gray-600 uppercase">Analyses</p>
+                  <div key={cp.name} className={`p-8 rounded-3xl border-2 transition-all hover:shadow-2xl bg-white border-gray-100 relative group`}>
+                    {cp.popular && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest">Le plus prisé</div>}
+                    <div className={`rounded-2xl p-8 mb-6 text-center bg-gradient-to-br ${cp.color} transform group-hover:scale-105 transition-transform`}>
+                      <p className="text-5xl font-black text-gray-900">{cp.credits}</p>
+                      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mt-1">Analyses live</p>
                     </div>
-                    <p className="text-3xl font-black text-center mb-6 text-indigo-600">${cp.price}</p>
+                    <p className="text-4xl font-black text-center mb-8 text-gray-900">${cp.price}</p>
                     <button 
                       onClick={() => handleBuyCredits(cp)} 
                       disabled={creditsLoading}
-                      className={`w-full py-4 rounded-xl text-white font-bold transition-all shadow-lg ${cp.buttonColor} active:scale-95`}
+                      className={`w-full py-4 rounded-2xl text-white font-black transition-all shadow-xl ${cp.buttonColor} active:scale-95`}
                     >
-                      {creditsLoading ? '⏳ Chargement...' : '🛒 Acheter maintenant'}
+                      {creditsLoading ? 'Traitement...' : 'Acheter maintenant'}
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-                <span className="font-bold">💡 Note :</span> Les crédits n'expirent jamais et s'ajoutent à votre quota mensuel.
-              </div>
             </div>
           )}
 
-          {/* FAQ SECTION */}
-          <div className="mt-12 pt-8 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { q: "Accès Centris ?", a: "Oui, la recherche immobilière en temps réel est exclusive aux membres Pro et Growth." },
-              { q: "Engagement ?", a: "Aucun. Vous pouvez annuler votre abonnement à tout moment en un clic." },
-              { q: "Crédits vs Plans ?", a: "Les plans sont des abonnements mensuels. Les crédits sont à la carte pour des besoins ponctuels." },
-              { q: "Facturation ?", a: "Traitée en toute sécurité via Stripe. Factures disponibles dans votre profil." }
-            ].map((item, i) => (
-              <div key={i} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="font-bold text-gray-900 text-sm mb-1">{item.q}</p>
-                <p className="text-xs text-gray-600 leading-relaxed">{item.a}</p>
+          {/* MARKET FOOTER */}
+          <div className="mt-16 p-8 bg-gray-50 rounded-3xl border border-gray-100">
+            <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
+              <Search size={24} className="text-indigo-600" /> Données en temps réel (Centris & JLR)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="flex gap-4">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Zap size={20} className="text-indigo-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Analyses de Loyer</p>
+                  <p className="text-xs text-gray-500 mt-1">Optimisation basée sur les listings actifs de Centris (Tous plans).</p>
+                </div>
               </div>
-            ))}
+              <div className="flex gap-4">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Search size={20} className="text-indigo-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Évaluations de Valeur</p>
+                  <p className="text-xs text-gray-500 mt-1">Estimations utilisant les comparables vendus réels de JLR (Tous plans).</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
+                  <MessageSquare size={20} className="text-indigo-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Chatbot Intelligent</p>
+                  <p className="text-xs text-gray-500 mt-1">Recherche Internet libre limitée aux forfaits **Pro et Growth**.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
