@@ -745,11 +745,11 @@ Ton rôle est d'agir comme un analyste financier pragmatique pour donner l'heure
 app.post('/api/pricing/optimizer-pro', checkQuotaOrCredits, async (req, res) => {
   try {
     const { 
-      userId, // AJOUTÉ POUR LE MIDDLEWARE
+      userId,
       proprietetype,
       ville,
       quartier,
-      typeappart,      // ← typeappart existe ICI
+      typeappart,
       loyeractuel,
       titre,
       etat,
@@ -765,7 +765,7 @@ app.post('/api/pricing/optimizer-pro', checkQuotaOrCredits, async (req, res) => 
       piscine
     } = req.body; 
 
-    // ✅ DÉPLACER CETTE MAP ICI (à l'intérieur du endpoint)
+    // Mapping des étiquettes d'appartements
     const appartmentLabels = {
       '112': '1 1/2 (Studio)',
       '312': '3 1/2 (2 chambres)',
@@ -774,48 +774,173 @@ app.post('/api/pricing/optimizer-pro', checkQuotaOrCredits, async (req, res) => 
     };
 
     const typeappartLabel = appartmentLabels[typeappart] || typeappart;
-
-    console.log(`📤 Backend reçoit typeappart = ${typeappart}`);
-    console.log(`🏠 Analyse Résidentielle: ${ville} - ${typeappartLabel}`);
-
+    
+    // Construction de la liste des extras pour le prompt
     const extrasList = [
       meuble ? 'Entièrement meublé' : null,
       balcon ? 'Balcon privé' : null,
-      // ... reste des extras
+      garage ? 'Garage intérieur' : null,
+      climatise ? 'Climatisation' : null,
+      gym ? 'Accès Gym' : null,
+      piscine ? 'Piscine' : null,
+      stationnement ? 'Stationnement inclus' : null,
     ].filter(Boolean).join(', ');
 
+    console.log(`🏠 Analyse Résidentielle demandée pour: ${ville} (${typeappartLabel})`);
+
+    // 1. Définition de l'outil de recherche (activé pour tous car service payé par crédit)
+    const tools = [
+      {
+        name: "web_search",
+        description: "Recherche en temps réel les loyers comparables sur Centris, Zumper, Louer.ca et Kijiji pour une ville et un quartier précis au Québec.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La requête de recherche (ex: 'loyer moyen 4 1/2 Plateau Mont-Royal 2025')" }
+          },
+          required: ["query"]
+        }
+      }
+    ];
+
+    const systemPrompt = `
+      ${getSystemPrompt('residential')}
+      
+      INSTRUCTIONS SUPPLÉMENTAIRES :
+      - Tu AS accès à Internet via l'outil 'web_search'.
+      - Utilise-le systématiquement pour trouver des comparables réels à ${ville} dans le secteur ${quartier || 'global'}.
+      - Analyse spécifiquement les données de Centris et des sites d'annonces locaux.
+      - Ton objectif est de déterminer si le loyer de $${loyeractuel} est sous le marché ou optimal.
+    `;
+
     const userPrompt = `
-ANALYSE CIBLE :
-- Bien : ${typeappartLabel} à ${ville}, quartier ${quartier || 'Non spécifié'}.
-- Loyer Actuel : $${loyeractuel}/mois
-- Extras : ${extrasList || 'Standard'}
+      ANALYSE CIBLE :
+      - Type : ${typeappartLabel}
+      - Ville : ${ville}
+      - Quartier : ${quartier || 'Non spécifié'}
+      - Loyer Actuel : $${loyeractuel}/mois
+      - État du bien : ${etat || 'Standard'}
+      - Extras inclus : ${extrasList || 'Standard'}
 
-⚠️ IMPORTANT: Analyse UNIQUEMENT pour un ${typeappartLabel}.
-`;
+      RECHERCHE : Trouve les comparables actuels pour ce type de bien dans ce secteur précis pour justifier ton analyse.
+    `;
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2500,
-      temperature: 0.2,
-      system: getSystemPrompt('residential'),
-      messages: [{ role: 'user', content: userPrompt }]
+    const messages = [{ role: 'user', content: userPrompt }];
+
+    // 2. Premier appel à Claude avec les outils
+    let response = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 3000,
+      temperature: 0.1, // Basse température pour plus de précision sur les outils
+      system: systemPrompt,
+      tools: tools,
+      messages: messages
     });
 
-    const jsonResponse = parseClaudeJSON(response.content[0].text);
+    // 3. Gestion du cycle Tool Use (Recherche Internet)
+    let iterations = 0;
+    const maxIterations = 3;
 
-    // ✅ NOUVELLE LOGIQUE : DÉDUIRE SELON LE MODE (CREDIT OU ABONNEMENT)
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
+      iterations++;
+      const toolResults = [];
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.name === 'web_search') {
+          const query = toolCall.input.query;
+          console.log(`🔍 Optimizer Pro recherche [Itération ${iterations}]: ${query}`);
+
+          let searchDataStr = "Aucun résultat trouvé.";
+          try {
+            const searchResponse = await fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: { 
+                "X-API-KEY": process.env.SERPER_API_KEY || "", 
+                "Content-Type": "application/json" 
+              },
+              body: JSON.stringify({ q: query, gl: "ca", hl: "fr" })
+            });
+            const data = await searchResponse.json();
+            
+            // Formatage des résultats pour Claude
+            const formattedResults = data.organic?.slice(0, 5).map(r => 
+              `Titre: ${r.title}\nLien: ${r.link}\nDescription: ${r.snippet}`
+            ).join('\n\n');
+            
+            searchDataStr = formattedResults || "Pas de résultats pertinents trouvés.";
+          } catch (e) {
+            console.error("Erreur Serper API:", e);
+            searchDataStr = "Erreur technique lors de la recherche en direct.";
+          }
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            content: searchDataStr
+          });
+        }
+      }
+
+      // On ajoute l'appel assistant et les résultats au fil des messages
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
+
+      // Appel suivant (on continue de passer tools pour permettre à Claude de rebondir)
+      response = await claude.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        system: systemPrompt,
+        tools: tools,
+        messages: messages
+      });
+    }
+
+    // 4. Sécurité finale : Si on s'arrête sur un tool_use (limite atteinte), on force la synthèse
+    if (response.stop_reason === 'tool_use') {
+      console.log("⚠️ Limite d'itérations Optimizer Pro atteinte.");
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ 
+        role: 'user', 
+        content: "Synthétise maintenant ton analyse finale basée sur ces recherches sans faire de nouvelle recherche." 
+      });
+      
+      response = await claude.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages: messages
+      });
+    }
+
+    // 5. Analyse finale et parsing JSON
+    const finalContent = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n');
+
+    if (!finalContent || finalContent.trim() === "") {
+      throw new Error("Claude n'a pas retourné de contenu textuel exploitable.");
+    }
+
+    const jsonResponse = parseClaudeJSON(finalContent);
+
+    // 6. Déduction des crédits/usage
     await deductUsage(userId, req.quotaInfo);
 
-    // On ajoute le mode utilisé à la réponse pour le frontend (optionnel)
-    jsonResponse.meta = { paidWith: req.quotaInfo.mode };
+    // Métadonnées pour le frontend
+    jsonResponse.meta = { 
+      paidWith: req.quotaInfo.mode,
+      searchUsed: iterations > 0 
+    };
 
     res.json(jsonResponse);
+
   } catch (error) {
-    console.error('❌ Erreur Résidentiel:', error);
-    res.status(500).json({ error: "Échec de l'analyse résidentielle", details: error.message });
+    console.error('❌ Erreur Optimizer Pro:', error);
+    res.status(500).json({ error: "Échec de l'analyse immobilière", details: error.message });
   }
 });
-
 
 // ====================================================================
 // 🏢 ENDPOINT : OPTIMISATEUR COMMERCIAL
@@ -824,7 +949,7 @@ ANALYSE CIBLE :
 app.post('/api/pricing/commercial-optimizer', checkQuotaOrCredits, async (req, res) => {
   try {
     const {
-      userId, // AJOUTÉ POUR LE MIDDLEWARE
+      userId,
       ville,
       quartier,
       typecommercial,
@@ -838,81 +963,175 @@ app.post('/api/pricing/commercial-optimizer', checkQuotaOrCredits, async (req, r
       amenages
     } = req.body;
 
-    // ✅ MAP (même pattern que résidentiel)
+    // Mapping des types commerciaux
     const commercialLabels = {
       'office': 'Bureau',
       'warehouse': 'Entrepôt',
-      'retail': 'Retail'
+      'retail': 'Espace Commercial (Retail)'
     };
 
     const typecommercialLabel = commercialLabels[typecommercial] || typecommercial;
 
-    console.log(`📤 Backend reçoit typecommercial = ${typecommercial}`);
-    console.log(`🏢 Analyse Commerciale: ${ville} - ${typecommercialLabel}`);
-
-    // ✅ EXTRAS (même pattern que résidentiel - null au lieu de '')
+    // Construction de la liste des atouts
     const extrasList = [
-      parking ? 'Parking inclus' : null,
+      parking ? 'Stationnement inclus' : null,
       ascenseur ? 'Ascenseur' : null,
       acceshandicape ? 'Accès universel' : null,
       amenages ? 'Déjà aménagé' : null
     ].filter(Boolean).join(', ');
 
-    // ✅ PROMPT
+    console.log(`🏢 Analyse Commerciale demandée : ${ville} - ${typecommercialLabel}`);
+
+    // 1. Définition de l'outil de recherche (Scraping LoopNet, Centris, JLR)
+    const tools = [
+      {
+        name: "web_search",
+        description: "Recherche en temps réel les loyers commerciaux (prix au pi²) sur LoopNet, Centris, Spacelist et les sites de courtiers commerciaux pour une ville et un quartier précis au Québec.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La requête de recherche (ex: 'loyer bureau pi2 Montréal Saint-Laurent 2025')" }
+          },
+          required: ["query"]
+        }
+      }
+    ];
+
+    const systemPrompt = `
+      ${getSystemPrompt('commercial')}
+      
+      INSTRUCTIONS SUPPLÉMENTAIRES SUR L'ACCÈS WEB :
+      - Tu AS accès à Internet via l'outil 'web_search'.
+      - Utilise-le pour valider les prix au pied carré à ${ville} pour un ${typecommercialLabel}.
+      - Analyse spécifiquement les données de LoopNet, Centris Commercial et Spacelist.
+      - Ton objectif est de déterminer le loyer optimal au pied carré (net ou brut) et les incitatifs (TIA, mois gratuits).
+      - Réponds uniquement avec un JSON valide et complet.
+    `;
+
     const userPrompt = `
-CONTEXTE DU BIEN :
-- Type : ${typecommercialLabel}
-- Localisation : ${ville}${quartier ? `, ${quartier}` : ''}
-- Surface : ${surfacepiedcarre} pi²
-- Loyer actuel : $${prixactuelpiedcarre}/pi²/an
-- Visibilité : ${visibilite}
-- Terme bail : ${termebailans} ans
-- Atouts : ${extrasList || 'Standard'}
+      CONTEXTE DU BIEN :
+      - Type : ${typecommercialLabel}
+      - Localisation : ${ville}${quartier ? `, ${quartier}` : ''}
+      - Surface : ${surfacepiedcarre} pi²
+      - Loyer actuel : $${prixactuelpiedcarre}/pi²/an
+      - Visibilité : ${visibilite}
+      - Terme bail : ${termebailans} ans
+      - Atouts : ${extrasList || 'Standard'}
 
-MISSION :
-1. Analyse LoopNet/Centris/LesPac pour un ${typecommercialLabel} à ${ville}
-2. Prix optimal au pied carré pour ce TYPE précis
-3. Incitatifs (Mois gratuits, budget travaux)
+      RECHERCHE : Trouve les comparables de loyer au pi² pour ce type de bien dans ce secteur précis.
+    `;
 
-⚠️ IMPORTANT: Analyse UNIQUEMENT pour un ${typecommercialLabel}.
-Réponds uniquement avec un JSON valide et complet.
-`;
+    const messages = [{ role: 'user', content: userPrompt }];
 
-    console.log('📋 Prompt envoyé à Claude:', userPrompt);
-
-    // ✅ CLAUDE
-    // CORRECTION : Augmentation de max_tokens de 2500 à 8000
-    // L'analyse commerciale est verbeuse, 2500 tokens coupait le JSON au milieu.
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000, // Augmenté pour éviter le JSON tronqué
+    // 2. Premier appel à Claude avec détection d'outils
+    let response = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 8000,
       temperature: 0.1,
-      system: getSystemPrompt('commercial'),
-      messages: [{ role: 'user', content: userPrompt }]
+      system: systemPrompt,
+      tools: tools,
+      messages: messages
     });
 
-    // Vérification de sécurité pour voir si la réponse a été tronquée par l'API
-    if (response.stop_reason === 'max_tokens') {
-      console.warn('⚠️ ATTENTION : La réponse de Claude a atteint la limite de tokens !');
+    // 3. Boucle de gestion des outils (Recherche itérative)
+    let iterations = 0;
+    const maxIterations = 3;
+
+    // On boucle tant que Claude demande des outils ET qu'on n'a pas dépassé la limite
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
+      iterations++;
+      const toolResults = [];
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
+
+      for (const toolCall of toolCalls) {
+        let searchDataStr = "Outil non supporté ou erreur.";
+        
+        if (toolCall.name === 'web_search') {
+          const query = toolCall.input.query;
+          console.log(`🔍 Commercial Optimizer recherche [Itération ${iterations}]: ${query}`);
+
+          try {
+            const searchResponse = await fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: { 
+                "X-API-KEY": process.env.SERPER_API_KEY || "", 
+                "Content-Type": "application/json" 
+              },
+              body: JSON.stringify({ q: query, gl: "ca", hl: "fr" })
+            });
+            const data = await searchResponse.json();
+            
+            const results = data.organic?.slice(0, 5).map(r => 
+              `Titre: ${r.title}\nLien: ${r.link}\nDescription: ${r.snippet}`
+            ).join('\n\n');
+            
+            searchDataStr = results || "Pas de résultats pertinents.";
+          } catch (e) {
+            console.error("Erreur Serper Commercial:", e);
+            searchDataStr = "Erreur technique de recherche.";
+          }
+        }
+
+        // On ajoute obligatoirement un tool_result pour CHAQUE tool_use_id trouvé
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolCall.id,
+          content: searchDataStr
+        });
+      }
+
+      // Important: On pousse la réponse de l'assistant (qui contient tool_use)
+      messages.push({ role: 'assistant', content: response.content });
+      
+      // Si c'est la dernière itération, on ajoute une instruction textuelle dans le même message que les résultats
+      if (iterations >= maxIterations) {
+        toolResults.push({
+          type: 'text',
+          text: "Ceci est la dernière recherche autorisée. Analyse maintenant les informations et fournis ton rapport final en format JSON uniquement."
+        });
+      }
+
+      // On pousse le message de l'utilisateur (qui contient les tool_results)
+      messages.push({ role: 'user', content: toolResults });
+
+      // On relance l'appel
+      response = await claude.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 8000,
+        system: systemPrompt,
+        tools: iterations < maxIterations ? tools : undefined, // On retire les outils sur le dernier appel pour forcer la fin
+        messages: messages
+      });
     }
 
-    // ✅ PARSING
-    const jsonResponse = parseClaudeJSON(response.content[0].text);
-    
-    // ✅ DÉDUIRE LE CRÉDIT OU LE QUOTA
+    // 4. Extraction du texte final et parsing JSON
+    const finalContent = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n');
+
+    if (!finalContent || finalContent.trim() === "") {
+      // Si Claude s'arrête encore sur tool_use (cas rare après retrait des tools), on fait un ultime appel de secours
+      if (response.stop_reason === 'tool_use') {
+         throw new Error("L'IA tente encore d'utiliser des outils après la limite. Vérifiez la configuration.");
+      }
+      throw new Error("Contenu AI vide après analyse commerciale.");
+    }
+
+    const jsonResponse = parseClaudeJSON(finalContent);
+
+    // 5. Déduction des crédits
     await deductUsage(userId, req.quotaInfo);
-    
-    jsonResponse.meta = { paidWith: req.quotaInfo.mode };
-    
+
+    jsonResponse.meta = { 
+      paidWith: req.quotaInfo.mode,
+      searchUsed: iterations > 0 
+    };
+
     res.json(jsonResponse);
 
   } catch (error) {
-    console.error('❌ Erreur Commercial:', error);
-    // On logue le contenu brut s'il existe pour le débogage
-    if (error.response && error.response.content) {
-        console.error('Contenu reçu (partiel):', error.response.content[0].text);
-    }
-    
+    console.error('❌ Erreur Commercial Optimizer:', error);
     res.status(500).json({ 
       error: "Échec de l'analyse commerciale", 
       details: error.message 
@@ -973,96 +1192,128 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         contexteSaisonnier = "Été (Marché plus lent, vacances)";
     }
 
-    console.log(`🏠 Évaluation V4 (Strict): ${proprietyType} à ${ville}, Saison: ${moisActuel}`);
+    console.log(`🏠 Évaluation Résidentielle avec recherche Web: ${proprietyType} à ${ville}`);
 
-    /**
-     * PROMPT "ZERO-BIAS" & "NO-FICTION"
-     */
+    // 1. Définition des outils de recherche
+    const tools = [
+      {
+        name: "web_search",
+        description: "Recherche en temps réel les propriétés vendues ou à vendre sur Centris, JLR, DuProprio et les rapports de marché immobilier pour un secteur précis au Québec.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La requête de recherche (ex: 'maison à vendre ${ville} ${quartier || ''} Centris 2025')" }
+          },
+          required: ["query"]
+        }
+      }
+    ];
+
+    const systemPrompt = `
+      Tu es un expert en évaluation immobilière (A.É.) au Québec, membre de l'OEAQ.
+      Tu AS accès à Internet via l'outil 'web_search'. Utilise-le pour trouver des comparables RÉELS.
+      Rigueur absolue. Pas d'hallucination d'adresses.
+      Si tu ne connais pas de vente spécifique, utilise les statistiques de secteur agrégées.
+      Tu évalues la valeur marchande objective sans te laisser influencer par le prix d'achat passé.
+      Réponds uniquement avec un JSON valide.
+    `;
+
     const valuationPrompt = `
-Vous agissez en tant qu'évaluateur agréé (A.É.) senior membre de l'OEAQ.
-Votre mandat est d'évaluer la "Valeur Marchande Réelle" d'une propriété.
+      CONTEXTE DE MARCHÉ:
+      - Date: ${moisActuel} ${anneeActuelle} (${contexteSaisonnier})
+      - Localisation: ${ville}, ${quartier || ''} ${codePostal ? `(Secteur CP: ${codePostal})` : ''}
 
-CONTEXTE DE MARCHÉ:
-- Date: ${moisActuel} ${anneeActuelle}
-- Saison: ${contexteSaisonnier}
-- Localisation: ${ville}, ${quartier || ''} ${codePostal ? `(Secteur CP: ${codePostal})` : ''}
+      CARACTÉRISTIQUES DU BIEN:
+      - Type: ${proprietyType}
+      - Adresse: ${addresseComplete || 'Non fournie'}
+      - Âge: ${anneeConstruction} (${ageConstruction} ans)
+      - Superficie: ${surfaceHabitee ? surfaceHabitee + ' pi² habitables' : 'Standard'}
+      - Terrain: ${surfaceLot ? surfaceLot + ' pi²' : 'Standard'} (${terrain_detail || ''})
+      - Configuration: ${nombreChambres || '?'} CC, ${nombreSallesBain || '?'} SDB
+      - Garage: ${garage > 0 ? garage : '0'} | Sous-sol: ${sous_sol}
+      - État: ${etatGeneral.toUpperCase()} | Rénovations: ${renobations?.join(', ') || 'Aucune'}
 
-CARACTÉRISTIQUES PHYSIQUES (BASE DE L'ÉVALUATION):
-- Type: ${proprietyType}
-- Adresse: ${addresseComplete || 'Non fournie'}
-- Âge: Construit en ${anneeConstruction} (${ageConstruction} ans)
-- Superficie: ${surfaceHabitee ? surfaceHabitee + ' pi² habitables' : 'Standard pour le type'}
-- Terrain: ${surfaceLot ? surfaceLot + ' pi²' : 'Standard'} (${terrain_detail || ''})
-- Configuration: ${nombreChambres || '?'} CC, ${nombreSallesBain || '?'} SDB
-- Stationnement: ${garage > 0 ? `Garage ${garage} place(s)` : 'Extérieur seulement'}
-- Sous-sol: ${sous_sol}
-- État Global: ${etatGeneral.toUpperCase()}
-- Rénovations: ${renobations && renobations.length > 0 ? renobations.join(', ') : 'Aucune rénovation majeure récente déclarée'}
-- Facteurs: ${piscine ? 'Piscine' : 'Pas de piscine'}
-- NOTES IMPORTANTES DU PROPRIÉTAIRE: "${notes_additionnelles || 'Aucune'}"
+      RECHERCHE : Trouve les comparables de prix vendus ou actifs pour ce type de propriété dans ce secteur.
+      
+      DONNÉES FINANCIÈRES (Pour calcul gain uniquement):
+      - Prix d'achat en ${anneeAchat}: ${prixAchat}$
 
---- SÉPARATION STRICTE DES TÂCHES ---
+      FORMAT JSON ATTENDU:
+      {
+        "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0, "confiance": "haute" },
+        "analyse": { "appreciationTotale": 0, "appreciationAnnuelleMoyenne": 0, "pourcentageGainTotal": 0, "marketTrend": "vendeur", "analyseSecteur": "" },
+        "facteursPrix": { "positifs": [], "negatifs": [], "incertitudes": [] },
+        "recommendations": { "renovationsRentables": [], "strategieVente": "" },
+        "comparable": { "soldReference": "Citer des données réelles trouvées", "prixPiedCarreEstime": 0 }
+      }
+    `;
 
-TÂCHE 1: ÉVALUATION MARCHANDE (IGNOREZ LE PRIX D'ACHAT)
-Basez-vous UNIQUEMENT sur les caractéristiques physiques ci-dessus et les données du marché (Centris/JLR).
-ATTENTION: Ne regardez PAS le prix d'achat fourni plus bas pour cette étape. Les prix d'achats passés sont souvent biaisés (vente de succession, surenchère covid, vente rapide). Votre évaluation doit être indépendante.
+    const messages = [{ role: 'user', content: valuationPrompt }];
 
-TÂCHE 2: ANALYSE DE COMPARABLES
-Trouvez un profil de comparable RÉEL vendu récemment.
-INTERDICTION D'INVENTER UNE ADRESSE FICTIVE. Si vous n'avez pas l'adresse exacte d'un comparable vendu hier, décrivez le "Profil Type" vendu (ex: "Duplex standard secteur G1H, non rénové, vendu env. 450k$").
-
-TÂCHE 3: CALCUL DE RENTABILITÉ (DONNÉES FINANCIÈRES)
-Utilisez ces données UNIQUEMENT pour calculer le gain/perte, PAS pour influencer la valeur marchande:
-- Acheté en: ${anneeAchat} (Il y a ${ansAchatEcoules} ans)
-- Prix payé à l'époque: ${prixAchat}$
-
-FORMAT JSON STRICT:
-{
-  "estimationActuelle": {
-    "valeurBasse": [nombre],
-    "valeurMoyenne": [nombre - Valeur marchande objective],
-    "valeurHaute": [nombre],
-    "confiance": "faible | moyenne | haute"
-  },
-  "analyse": {
-    "appreciationTotale": [nombre $ (Moyenne - Prix Achat)],
-    "appreciationAnnuelleMoyenne": [nombre $],
-    "pourcentageGainTotal": [nombre sans %],
-    "performanceMarche": "inférieure | égale | supérieure",
-    "marketTrend": "vendeur | acheteur | équilibré",
-    "analyseSecteur": "Analyse démographique et demande actuelle pour ${codePostal || ville}"
-  },
-  "facteursPrix": {
-    "positifs": ["Liste points forts"],
-    "negatifs": ["Liste points faibles"],
-    "incertitudes": ["Données manquantes critiques (ex: toit, fenêtres)"]
-  },
-  "recommendations": {
-    "renovationsRentables": ["Top 2 rénos payantes pour ce type de bien"],
-    "strategieVente": "Conseil basé sur la saison ${moisActuel}"
-  },
-  "comparable": {
-    "soldReference": "Description d'un profil de comparable vendu réel (Ex: 'Vente récente secteur X: Duplex similaire semi-rénové vendu 460k$'). NE PAS INVENTER D'ADRESSE.",
-    "prixPiedCarreEstime": [nombre]
-  }
-}
-`;
-
-    // Température encore plus basse pour réduire la créativité (fiction)
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6', 
-      max_tokens: 3500,
-      temperature: 0.1, 
-      system: `Tu es un expert en évaluation immobilière (A.É.) au Québec. 
-               Rigueur absolue. Pas d'hallucination.
-               Si tu ne connais pas de vente spécifique récente, donne des statistiques de secteur agrégées plutôt que d'inventer une adresse.
-               Tu es sceptique face au prix d'achat fourni : tu évalues la brique et le marché d'abord.`,
-      messages: [{ role: 'user', content: valuationPrompt }]
+    // 2. Appel initial
+    let response = await claude.messages.create({
+      model: 'claude-sonnet-4-6', // Modèle plus intelligent pour l'analyse
+      max_tokens: 4000,
+      temperature: 0,
+      system: systemPrompt,
+      tools: tools,
+      messages: messages
     });
 
-    const valuationResult = parseClaudeJSON(response.content[0].text);
+    // 3. Boucle Tool Use (itérations de recherche)
+    let iterations = 0;
+    const maxIterations = 3;
 
-    // --- Sauvegarde Firestore ---
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
+      iterations++;
+      const toolResults = [];
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
+
+      for (const toolCall of toolCalls) {
+        let resultStr = "Aucun résultat trouvé.";
+        if (toolCall.name === 'web_search') {
+          const query = toolCall.input.query;
+          console.log(`🔍 Valuation recherche [Itération ${iterations}]: ${query}`);
+
+          try {
+            const searchResponse = await fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: { "X-API-KEY": process.env.SERPER_API_KEY || "", "Content-Type": "application/json" },
+              body: JSON.stringify({ q: query, gl: "ca", hl: "fr" })
+            });
+            const data = await searchResponse.json();
+            resultStr = data.organic?.slice(0, 5).map(r => `Titre: ${r.title}\nLien: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n') || "Pas de résultats.";
+          } catch (e) {
+            console.error("Erreur Serper Valuation:", e);
+            resultStr = "Erreur technique de recherche.";
+          }
+        }
+
+        toolResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: resultStr });
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+      
+      if (iterations >= maxIterations) {
+        toolResults.push({ type: 'text', text: "Ceci est la dernière recherche. Analyse les données et fournis le JSON final." });
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+
+      response = await claude.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system: systemPrompt,
+        tools: iterations < maxIterations ? tools : undefined,
+        messages: messages
+      });
+    }
+
+    // 4. Extraction du contenu final
+    const finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const valuationResult = parseClaudeJSON(finalContent);
+
+    // 5. Sauvegarde Firestore
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
       proprietyType,
       ville,
@@ -1075,24 +1326,21 @@ FORMAT JSON STRICT:
       result: valuationResult,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      paidWith: req.quotaInfo.mode // Trace si payé par crédit ou sub
+      paidWith: req.quotaInfo.mode
     });
 
-    // ✅ DÉDUIRE LE CRÉDIT OU LE QUOTA
+    // 6. Déduction Usage
     await deductUsage(userId, req.quotaInfo);
 
     res.json({
       id: evaluationRef.id,
       ...valuationResult,
-      meta: { paidWith: req.quotaInfo.mode }
+      meta: { paidWith: req.quotaInfo.mode, searchUsed: iterations > 0 }
     });
 
   } catch (error) {
     console.error('❌ Erreur Valuation:', error);
-    res.status(500).json({ 
-      error: "Échec de l'évaluation",
-      details: error.message 
-    });
+    res.status(500).json({ error: "Échec de l'évaluation", details: error.message });
   }
 });
 
@@ -1103,8 +1351,8 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
   try {
     const {
       userId,
-      proprietyType, // 'depanneur', 'immeuble_revenus', 'hotel', etc.
-      typeCom, // Alternative name for proprietyType
+      proprietyType, 
+      typeCom, 
       ville,
       quartier = '',
       addresseComplete = '',
@@ -1119,9 +1367,9 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       tauxOccupation,
       loyerMoyenParUnite,
       revenus_bruts_annuels,
-      revenuBrutAnnuel, // Alternative name
+      revenuBrutAnnuel, 
       depenses_annuelles,
-      depensesAnnuelles, // Alternative name
+      depensesAnnuelles, 
       
       // POUR HÔTEL
       nombreChambres,
@@ -1140,7 +1388,7 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       notes_additionnelles = ''
     } = req.body;
 
-    // ✅ NORMALISATION - Gérer les deux noms de variables
+    // ✅ NORMALISATION
     const finalProprieTyType = proprietyType || typeCom;
     const finalRevenusAnnuels = revenus_bruts_annuels || revenuBrutAnnuel;
     const finalDepenses = depenses_annuelles || depensesAnnuelles;
@@ -1149,294 +1397,186 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
     if (!finalProprieTyType || !ville || !prixAchat || !anneeAchat || !anneeConstruction) {
       return res.status(400).json({
         error: 'Paramètres obligatoires manquants',
-        required: ['proprietyType', 'ville', 'prixAchat', 'anneeAchat', 'anneeConstruction'],
-        received: { proprietyType, ville, prixAchat, anneeAchat, anneeConstruction }
+        required: ['proprietyType', 'ville', 'prixAchat', 'anneeAchat', 'anneeConstruction']
       });
     }
 
-    // ✅ VALIDATIONS SUPPLÉMENTAIRES SELON TYPE
-    if (finalProprieTyType === 'immeuble_revenus') {
-      if (!nombreUnites || !finalRevenusAnnuels || !finalDepenses) {
-        return res.status(400).json({
-          error: 'Données manquantes pour immeuble à revenus',
-          required: ['nombreUnites', 'revenus_bruts_annuels (ou revenuBrutAnnuel)', 'depenses_annuelles (ou depensesAnnuelles)'],
-          received: { nombreUnites, revenuBrutAnnuel, depensesAnnuelles, revenus_bruts_annuels, depenses_annuelles }
-        });
-      }
-    }
-
-    if (finalProprieTyType === 'hotel') {
-      if (!nombreChambres || !tauxOccupationHotel || !tariffMoyenParNuit) {
-        return res.status(400).json({
-          error: 'Données manquantes pour hôtel',
-          required: ['nombreChambres', 'tauxOccupationHotel', 'tariffMoyenParNuit'],
-          received: { nombreChambres, tauxOccupationHotel, tariffMoyenParNuit }
-        });
-      }
-    }
-
-    if (['depanneur', 'restaurant', 'commerce'].includes(finalProprieTyType)) {
-      if (!finalRevenusAnnuels || !finalDepenses) {
-        return res.status(400).json({
-          error: `Données manquantes pour ${finalProprieTyType}`,
-          required: ['revenuBrutAnnuel', 'depensesAnnuelles'],
-          received: { revenuBrutAnnuel, depensesAnnuelles }
-        });
-      }
-    }
-
-    console.log(`🏪 Évaluation Commerciale: ${finalProprieTyType} à ${ville}`);
+    console.log(`🏪 Évaluation Commerciale avec recherche Web: ${finalProprieTyType} à ${ville}`);
 
     const anneeActuelle = new Date().getFullYear();
     const ansAchatEcoules = anneeActuelle - anneeAchat;
     const ageConstruction = anneeActuelle - anneeConstruction;
 
+    // 1. Définition des outils de recherche commerciaux
+    const tools = [
+      {
+        name: "web_search",
+        description: "Recherche en temps réel les propriétés commerciales vendues ou à vendre sur Centris Commercial, LoopNet, Spacelist et rapports de marché commerciaux (JLR) au Québec.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La requête de recherche (ex: 'immeuble à revenus ${ville} vendu 2025')" }
+          },
+          required: ["query"]
+        }
+      }
+    ];
+
     // ============================================
     // CONSTRUCTION DU PROMPT SPÉCIFIQUE
     // ============================================
-
     let promptSpecifique = '';
 
     if (finalProprieTyType === 'immeuble_revenus') {
       const noi = finalRevenusAnnuels - finalDepenses;
-      const ratioDepenses = (finalDepenses / finalRevenusAnnuels * 100).toFixed(1);
-      
       promptSpecifique = `
 DONNÉES FINANCIÈRES IMMEUBLE À REVENUS:
-- Nombre d'unités: ${nombreUnites}
-- Taux d'occupation: ${tauxOccupation}%
-- Loyer moyen: $${loyerMoyenParUnite}/mois
-- Revenus bruts annuels: $${finalRevenusAnnuels?.toLocaleString('fr-CA')}
-- Dépenses annuelles: $${finalDepenses?.toLocaleString('fr-CA')}
-- NOI annuel: $${noi?.toLocaleString('fr-CA')}
-- Ratio dépenses: ${ratioDepenses}%
-- Prix d'achat: $${prixAchat?.toLocaleString('fr-CA')}
-
-ANALYSE:
-1. Cap Rate = NOI / Prix d'achat = ${noi} / ${prixAchat} = ${((noi / prixAchat) * 100).toFixed(2)}%
-2. Évaluer potentiel augmentation loyers (+5% = +$${Math.round(finalRevenusAnnuels * 0.05)}/an)
-3. Identifier opportunités occupation (+ 1% occupation = +$${Math.round((finalRevenusAnnuels / 100))}/an)
-4. Évaluer dépenses réelles vs marché
-5. Projeter valeur dans 5-10 ans
+- Unités: ${nombreUnites} | Occupation: ${tauxOccupation}% | Loyer moyen: $${loyerMoyenParUnite}/mois
+- Revenus annuels: $${finalRevenusAnnuels?.toLocaleString('fr-CA')} | Dépenses: $${finalDepenses?.toLocaleString('fr-CA')}
+- NOI estimé: $${noi?.toLocaleString('fr-CA')} | Cap Rate achat: ${((noi / prixAchat) * 100).toFixed(2)}%
 `;
-    }
-
-    if (finalProprieTyType === 'hotel') {
-      const revenuBrutHotel = nombreChambres * 365 * tauxOccupationHotel / 100 * tariffMoyenParNuit;
-      const nuitees = Math.round(nombreChambres * 365 * tauxOccupationHotel / 100);
-      const revpar = Math.round((revenuBrutHotel / (nombreChambres * 365)) * 100) / 100;
-      
+    } else if (finalProprieTyType === 'hotel') {
+      const revenuBrutHotel = nombreChambres * 365 * (tauxOccupationHotel / 100) * tariffMoyenParNuit;
       promptSpecifique = `
 DONNÉES FINANCIÈRES HÔTEL:
-- Chambres: ${nombreChambres}
-- Taux occupation: ${tauxOccupationHotel}%
-- Tarif moyen/nuit: $${tariffMoyenParNuit}
-- Revenu annuel estimé: $${Math.round(revenuBrutHotel)?.toLocaleString('fr-CA')}
-- Nuitées annuelles: ${nuitees?.toLocaleString('fr-CA')}
-- RevPAR: $${revpar}
-
-ANALYSE:
-1. Comparer RevPAR $${revpar} vs marché québécois (~$100-150 haut de gamme)
-2. Évaluer saison: améliorer taux ${tauxOccupationHotel}% → 75%+ = +$${Math.round(revenuBrutHotel * 0.25)}/an
-3. Analyser coûts exploitation (main-d'œuvre, énergie, etc.)
-4. Identifier améliorations tarifaires ou packages
+- Chambres: ${nombreChambres} | Occupation: ${tauxOccupationHotel}% | Tarif nuit: $${tariffMoyenParNuit}
+- Revenu estimé: $${Math.round(revenuBrutHotel)?.toLocaleString('fr-CA')}
 `;
-    }
-
-    if (['depanneur', 'restaurant', 'commerce'].includes(finalProprieTyType) && finalRevenusAnnuels) {
-      const revenuNet = finalRevenusAnnuels - finalDepenses;
-      const margeNette = ((revenuNet / finalRevenusAnnuels) * 100).toFixed(1);
-      
+    } else if (['depanneur', 'restaurant', 'commerce'].includes(finalProprieTyType) && finalRevenusAnnuels) {
       promptSpecifique = `
 DONNÉES FINANCIÈRES COMMERCE:
-- Type: ${finalProprieTyType}
-- Revenu brut annuel: $${finalRevenusAnnuels?.toLocaleString('fr-CA')}
-- Dépenses annuelles: $${finalDepenses?.toLocaleString('fr-CA')}
-- Revenu net: $${revenuNet?.toLocaleString('fr-CA')}
-- Marge nette: ${margeNette}%
-- Santé clientèle: ${clienteleActive}
-
-ANALYSE:
-1. Évaluer stabilité revenus (croissance historique?)
-2. Analyser marges: ${margeNette}% - benchmark industrie 10-20%
-3. Identifier risques continuité clientèle (${clienteleActive})
-4. Évaluer impact économique local
-5. Estimer potentiel croissance vs marché
+- Revenus: $${finalRevenusAnnuels?.toLocaleString('fr-CA')} | Dépenses: $${finalDepenses?.toLocaleString('fr-CA')}
+- Clientèle: ${clienteleActive}
 `;
     }
 
-    // ============================================
-    // PROMPT PRINCIPAL
-    // ============================================
+    const systemPrompt = `
+      Tu es un expert évaluateur immobilier commercial québécois membre de l'OEAQ.
+      Tu AS accès à Internet via 'web_search'. Utilise-le pour valider les Cap Rates et prix au pi² actuels à ${ville}.
+      Rigueur absolue sur les métriques (NOI, Cap Rate, RevPAR).
+      Réponds uniquement avec un JSON valide.
+    `;
 
     const valuationPrompt = `
-Vous êtes un évaluateur immobilier expert du marché québécois spécialisé en propriétés commerciales.
-Estimez la valeur marchande actuelle basée sur les approches par le revenu et les comparables.
+      ÉVALUATION COMMERCIALE:
+      - Type: ${finalProprieTyType} | Ville: ${ville} ${quartier ? `(${quartier})` : ''}
+      - Adresse: ${addresseComplete}
+      - Surface: Totale ${surfaceTotale} pi², Locable ${surfaceLocable} pi²
+      - Construction: ${anneeConstruction} | État: ${etatGeneral}
+      - Atouts: Parking ${parking}, Accessibilité ${accessibilite}
+      - Notes: ${notes_additionnelles}
 
-INFORMATIONS GÉNÉRALES:
-- Type: ${finalProprieTyType}
-- Localisation: ${ville}${quartier ? `, ${quartier}` : ''}
-- Adresse: ${addresseComplete || 'Non spécifiée'}
-- Surface totale: ${surfaceTotale || '?'} pi²
-- Surface locable: ${surfaceLocable || '?'} pi²
-- Prix d'achat: $${prixAchat?.toLocaleString('fr-CA')}
-- Année d'achat: ${anneeAchat} (il y a ${ansAchatEcoules} ans)
-- Année construction: ${anneeConstruction} (${ageConstruction} ans)
-- État: ${etatGeneral}
-- Rénovations: ${renovations && renovations.length > 0 ? renovations.join(', ') : 'Aucune'}
-- Parking: ${parking || '?'} places
-- Accessibilité: ${accessibilite || 'Non spécifiée'}
+      ${promptSpecifique}
 
-${promptSpecifique}
+      RECHERCHE : Trouve les comparables de marché et les Cap Rates actuels pour ce type de bien à ${ville} pour 2025/2026.
+      
+      FORMAT JSON ATTENDU:
+      {
+        "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0 },
+        "metriquesCommerciales": { "capRate": 0, "noiAnnuel": 0, "cashOnCash": 0, "revenuParSurfaceLocable": 0, "multiplicateurRevenu": 0, "revpar": 0 },
+        "analyse": { "appreciationTotale": 0, "appreciationAnnuelle": 0, "pourcentageGain": 0, "marketTrend": "stable", "rentabiliteActuelle": "acceptable", "risques": [], "opportunities": [], "secteurAnalysis": "" },
+        "facteurs_prix": { "augmentent": [], "diminuent": [], "neutre": [] },
+        "recommendations": { "ameliorationsValeur": [], "optimisationRevenu": [], "reduceExpenses": [], "strategie": "", "timing": "" },
+        "comparable": { "proprietesCommerciales": 0, "prix_moyen": 0, "prix_min": 0, "prix_max": 0, "evaluation_qualite": "" }
+      }
+    `;
 
-TÂCHES:
-1. Analyser rentabilité actuelle et potentiel futur
-2. Calculer métriques clés (Cap Rate, NOI, Cash-on-Cash, RevPAR si applicable)
-3. Évaluer le marché commercial local de ${ville}
-4. Identifier risques et opportunités spécifiques
-5. Fournir valeur marchande réaliste ET fourchette (basse/haute)
-6. Recommander stratégies d'optimisation
+    const messages = [{ role: 'user', content: valuationPrompt }];
 
-REPONSE EN JSON STRICT (pas de texte avant/après):
-{
-  "estimationActuelle": {
-    "valeurBasse": [nombre $],
-    "valeurMoyenne": [nombre $],
-    "valeurHaute": [nombre $]
-  },
-  "metriquesCommerciales": {
-    "capRate": [nombre % ou null],
-    "noiAnnuel": [nombre $ ou null],
-    "cashOnCash": [nombre % ou null],
-    "revenuParSurfaceLocable": [nombre $/pi² ou null],
-    "multiplicateurRevenu": [nombre ou null],
-    "revpar": [nombre $ ou null]
-  },
-  "analyse": {
-    "appreciationTotale": [nombre $],
-    "appreciationAnnuelle": [nombre $],
-    "pourcentageGain": [nombre %],
-    "marketTrend": "haussier | baissier | stable",
-    "rentabiliteActuelle": "très rentable | rentable | acceptable | faible",
-    "risques": ["risque1", "risque2"],
-    "opportunities": ["opportunité1", "opportunité2"],
-    "secteurAnalysis": "description analyse secteur"
-  },
-  "facteurs_prix": {
-    "augmentent": ["facteur1", "facteur2"],
-    "diminuent": ["facteur1", "facteur2"],
-    "neutre": ["facteur1"]
-  },
-  "recommendations": {
-    "ameliorationsValeur": ["amélioration1"],
-    "optimisationRevenu": ["stratégie1"],
-    "reduceExpenses": ["réduction1"],
-    "strategie": "description stratégie complète",
-    "timing": "recommandation timing"
-  },
-  "comparable": {
-    "proprietesCommerciales": [nombre],
-    "prix_moyen": [nombre $/pi²],
-    "prix_min": [nombre $/pi²],
-    "prix_max": [nombre $/pi²],
-    "evaluation_qualite": "description qualité"
-  }
-}
-`;
-
-    // ============================================
-    // APPEL CLAUDE
-    // ============================================
-
-    const response = await claude.messages.create({
+    // 2. Appel initial
+    let response = await claude.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
-      temperature: 0.3,
-      system: `Vous êtes un évaluateur immobilier expert québécois avec 15+ ans d'expérience en commercial.
-               Vous êtes spécialisé en Cap Rates, NOI, Cash-on-Cash, RevPAR et métriques commerciales.
-               Répondez TOUJOURS avec du JSON valide, complet et bien structuré.
-               Jamais de texte avant ou après le JSON.
-               Si un champ ne s'applique pas, mettez null.`,
-      messages: [{ role: 'user', content: valuationPrompt }]
+      temperature: 0,
+      system: systemPrompt,
+      tools: tools,
+      messages: messages
     });
 
-    const valuationResult = parseClaudeJSON(response.content[0].text);
+    // 3. Boucle Tool Use
+    let iterations = 0;
+    const maxIterations = 3;
 
-    // ============================================
-    // SAUVEGARDE FIRESTORE
-    // ============================================
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
+      iterations++;
+      const toolResults = [];
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
 
+      for (const toolCall of toolCalls) {
+        let resultStr = "Aucun résultat trouvé.";
+        if (toolCall.name === 'web_search') {
+          const query = toolCall.input.query;
+          console.log(`🔍 Commercial Valuation recherche [Itération ${iterations}]: ${query}`);
+
+          try {
+            const searchResponse = await fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: { "X-API-KEY": process.env.SERPER_API_KEY || "", "Content-Type": "application/json" },
+              body: JSON.stringify({ q: query, gl: "ca", hl: "fr" })
+            });
+            const data = await searchResponse.json();
+            resultStr = data.organic?.slice(0, 5).map(r => `Titre: ${r.title}\nLien: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n') || "Pas de résultats.";
+          } catch (e) {
+            console.error("Erreur Serper Commercial Valuation:", e);
+            resultStr = "Erreur technique.";
+          }
+        }
+        toolResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: resultStr });
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+      
+      if (iterations >= maxIterations) {
+        toolResults.push({ type: 'text', text: "Dernière recherche. Analyse les données et fournis le JSON final." });
+      }
+
+      messages.push({ role: 'user', content: toolResults });
+
+      response = await claude.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system: systemPrompt,
+        tools: iterations < maxIterations ? tools : undefined,
+        messages: messages
+      });
+    }
+
+    // 4. Extraction du contenu final
+    const finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    const valuationResult = parseClaudeJSON(finalContent);
+
+    // 5. Sauvegarde Firestore
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations_commerciales').add({
       proprietyType: finalProprieTyType,
       ville,
       quartier,
-      addresseComplete,
       prixAchat,
       anneeAchat,
-      anneeConstruction,
-      surfaceTotale,
-      surfaceLocable,
-      etatGeneral,
-      renovations,
-      accessibilite,
-      parking,
-      terrain_detail,
-      notes_additionnelles,
-      
-      // Données spécifiques selon type
-      ...(finalProprieTyType === 'immeuble_revenus' && {
-        nombreUnites,
-        tauxOccupation,
-        loyerMoyenParUnite,
-        revenus_bruts_annuels: finalRevenusAnnuels,
-        depenses_annuelles: finalDepenses
-      }),
-      
-      ...(finalProprieTyType === 'hotel' && {
-        nombreChambres,
-        tauxOccupationHotel,
-        tariffMoyenParNuit
-      }),
-      
-      ...(finalProprieTyType === 'commerce' && {
-        revenus_bruts_annuels: finalRevenusAnnuels,
-        depenses_annuelles: finalDepenses,
-        clienteleActive
-      }),
-      
-      // Résultats
       result: valuationResult,
       evaluationType: 'commercial',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      paidWith: req.quotaInfo.mode // Trace si payé par crédit ou sub
+      paidWith: req.quotaInfo.mode
     });
 
-    // ✅ DÉDUIRE LE CRÉDIT OU LE QUOTA
+    // 6. Déduction Usage
     await deductUsage(userId, req.quotaInfo);
-
-    console.log(`✅ Évaluation commerciale créée: ${evaluationRef.id}`);
 
     res.json({
       id: evaluationRef.id,
       ...valuationResult,
-      meta: { paidWith: req.quotaInfo.mode }
+      meta: { paidWith: req.quotaInfo.mode, searchUsed: iterations > 0 }
     });
 
   } catch (error) {
     console.error('❌ Erreur Valuation Commerciale:', error);
-    res.status(500).json({
-      error: "Échec de l'évaluation commerciale",
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    res.status(500).json({ error: "Échec de l'évaluation commerciale", details: error.message });
   }
 });
 
 // ENDPOINT CHATBOT IMMOBILIER QUÉBEC (GRATUIT / PRO) AVEC SAUVEGARDE FIRESTORE
 
 
-app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
+app.post('/api/realestate-chat', async (req, res) => {
   try {
     const { userId, message, conversationId = null, model: requestedModel = 'base' } = req.body;
     
@@ -1454,24 +1594,19 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
     const userPlan = userData?.plan || 'essai';
     const isProPlan = (userPlan === 'pro' || userPlan === 'growth' || userPlan === 'entreprise');
 
-    // 🔥 SÉCURITÉ ET SÉLECTION DU MODÈLE - VRAIS NOMS CLAUDE
-    // Base = Haiku (Claude 3.5 Haiku est le plus rapide au monde)
-    // Pro = Sonnet (Claude 3.5 Sonnet est le plus intelligent)
+    // 🔥 SÉLECTION DU MODÈLE
     const finalModel = (requestedModel === 'pro' && isProPlan) 
       ? 'claude-sonnet-4-6' 
       : 'claude-haiku-4-5-20251001';
 
-    // 👇 MESSAGE SUR TA CONSOLE POUR VÉRIFIER
-    console.log(`\n🚀 CHAT REÇU | User: ${userId.slice(-6)} | Modèle Demandé: ${requestedModel} | Modèle Utilisé par l'API: ${finalModel}\n`);
+    console.log(`\n🚀 CHAT REÇU | User: ${userId.slice(-6)} | Modèle: ${finalModel} | Pro: ${isProPlan}\n`);
 
-    // 🔥 CONVERSATION HANDLING
     let conversationIdFinal;
     let history = [];
 
     if (conversationId) {
       const convRef = userRef.collection('chats').doc(conversationId);
       const convDoc = await convRef.get();
-      
       if (convDoc.exists) {
         history = convDoc.data().messages || [];
         conversationIdFinal = conversationId;
@@ -1492,32 +1627,117 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
 
     const convRef = userRef.collection('chats').doc(conversationIdFinal);
 
-    // Messages pour Claude
+    // 🔥 CONFIGURATION DES OUTILS - UNIQUEMENT SI PRO
+    const tools = isProPlan ? [
+      {
+        name: "web_search",
+        description: "RECHERCHE LIVE : Utilise cet outil pour TOUTE question sur les prix actuels, Centris, les taux hypothécaires, ou des événements récents. Tu AS accès à Internet via cet outil.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La requête de recherche (ex: 'prix duplex Plateau Mont-Royal 2025')" }
+          },
+          required: ["query"]
+        }
+      }
+    ] : undefined;
+
     const isProModelUsed = finalModel === 'claude-sonnet-4-6';
-    const systemPrompt = getRealEstateChatSystemPrompt(isProModelUsed ? 'pro' : 'base');
-    const claudeMessages = [
-      { role: 'system', content: systemPrompt }
-    ];
+    const baseSystemPrompt = getRealEstateChatSystemPrompt(isProModelUsed ? 'pro' : 'base');
+    
+    // 🔥 AJOUT DES INSTRUCTIONS INTERNET
+    let enhancedSystemPrompt = baseSystemPrompt;
+    if (isProPlan) {
+      enhancedSystemPrompt += `
 
-    history.slice(-10).forEach(m => {
-      claudeMessages.push({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content
-      });
-    });
+INSTRUCTIONS CRITIQUES SUR L'ACCÈS INTERNET (MODE PRO UNIQUEMENT) :
+1. Tu n'es PAS limité à tes données d'entraînement. Tu AS un accès réel à Internet via l'outil 'web_search'.
+2. Ne dis JAMAIS "Je n'ai pas accès à Internet" ou "Je ne peux pas consulter Centris". 
+3. Si on te pose une question sur des données actuelles, utilise l'outil 'web_search' IMMÉDIATEMENT.
+4. Tu peux utiliser l'outil plusieurs fois de suite si tu as besoin de préciser tes résultats après une première recherche.`;
+    } else {
+      enhancedSystemPrompt += `
 
+INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
+1. Tu n'as PAS accès à Internet en temps réel dans ce mode. 
+2. Si l'utilisateur pose une question nécessitant des données actuelles (ex: "Quels sont les plex à vendre aujourd'hui ?", "Quel est le taux 5 ans fixe ce matin ?", "Cherche sur Centris"), tu DOIS lui répondre poliment que la **recherche web en temps réel est une fonctionnalité exclusive à Optimiplex Pro**. 
+3. Invite-le explicitement à améliorer son forfait pour débloquer l'accès aux données de Centris, JLR et aux taux en direct.`;
+    }
+
+    const claudeMessages = history.slice(-10).map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content
+    }));
     claudeMessages.push({ role: 'user', content: message });
 
-    // Appel API Anthropic
-    const claudeResponse = await claude.messages.create({
-      model: finalModel, // Utilisation du VRAI nom du modèle
+    // 🔥 PREMIER APPEL
+    let response = await claude.messages.create({
+      model: finalModel,
       max_tokens: 4000,
-      temperature: 0.1,
-      system: systemPrompt,
-      messages: claudeMessages.filter(m => m.role !== 'system')
+      temperature: 0,
+      system: enhancedSystemPrompt,
+      tools: tools,
+      messages: claudeMessages
     });
 
-    const fullResponse = claudeResponse.content[0]?.text || '';
+    // 🔥 BOUCLE DE GESTION DES OUTILS
+    let iterations = 0;
+    const maxIterations = 5;
+
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations && isProPlan) {
+      iterations++;
+      const toolResults = [];
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
+
+      for (const toolUse of toolCalls) {
+        if (toolUse.name === 'web_search') {
+          const searchQuery = toolUse.input.query;
+          console.log(`🔍 RECHERCHE [Itération ${iterations}] : ${searchQuery}`);
+
+          let searchContent = "Aucun résultat trouvé.";
+          try {
+            const searchResponse = await fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: { 
+                "X-API-KEY": process.env.SERPER_API_KEY || "", 
+                "Content-Type": "application/json" 
+              },
+              body: JSON.stringify({ q: searchQuery, gl: "ca", hl: "fr" })
+            });
+            const searchData = await searchResponse.json();
+            
+            searchContent = searchData.organic?.slice(0, 5).map(r => 
+              `Titre: ${r.title}\nLien: ${r.link}\nExtrait: ${r.snippet}`
+            ).join("\n\n") || "La recherche n'a retourné aucun résultat organique.";
+          } catch (e) {
+            console.error("Serper API Error:", e);
+            searchContent = "Erreur technique lors de la recherche internet.";
+          }
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: searchContent
+          });
+        }
+      }
+
+      if (toolResults.length > 0) {
+        claudeMessages.push({ role: 'assistant', content: response.content });
+        claudeMessages.push({ role: 'user', content: toolResults });
+
+        response = await claude.messages.create({
+          model: finalModel,
+          max_tokens: 4000,
+          temperature: 0,
+          system: enhancedSystemPrompt,
+          tools: tools,
+          messages: claudeMessages
+        });
+      }
+    }
+
+    const fullResponse = response.content[0]?.text || '';
     if (!fullResponse.trim().length) {
       return res.status(500).json({ error: 'Réponse AI vide' });
     }
@@ -1535,8 +1755,6 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
       lastMessage: fullResponse.slice(0, 200),
       lastUserMessage: message.slice(0, 200)
     });
-
-    await deductUsage(userId, req.quotaInfo);
 
     res.json({
       message: fullResponse,
