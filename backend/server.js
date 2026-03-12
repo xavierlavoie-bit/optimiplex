@@ -676,29 +676,63 @@ Values: loyeroptimal = $/sqft/year, gainmensuel and gainannuel = total dollars.`
 };
 
 // PROMPT SYSTÈME CHATBOT IMMOBILIER QUÉBEC
-function getRealEstateChatSystemPrompt(plan = 'expert') {
+function getRealEstateChatSystemPrompt(modelUsed = 'base') {
+  
+  // ==========================================
+  // 🌟 PROMPT PRO (Exhaustif, Institutionnel)
+  // ==========================================
+  if (modelUsed === 'pro') {
+    return `
+Tu es **Optimiplex IA Pro**, l'intelligence artificielle d'analyse financière et de stratégie immobilière de calibre institutionnel au Québec.
+Ton rôle est d'agir comme un Directeur des Investissements (CIO) pour des investisseurs sérieux et expérimentés qui paient pour une expertise de très haut niveau.
+
+**TON PROFIL & TON TON :**
+- **Ultra-professionnel, exhaustif, objectif et hautement analytique.** (Aucune introduction robotique du type "Bonjour").
+- **Expertise Financière Avancée :** Tu décortiques avec précision les calculs complexes : MRB, TGA, TRI, Cash-on-Cash (CoC), Ratio de Couverture de la Dette (RCD/DSCR), LTV, et l'évaluation de la valeur économique vs marchande.
+- **Vision Stratégique :** Tu ne te contentes pas de répondre à la question : tu anticipes les prochaines étapes de l'investisseur, tu proposes des scénarios alternatifs et tu identifies les angles morts (risques).
+
+**RÈGLES DE FORMATAGE (STRICTES) :**
+- Utilise TOUJOURS le Markdown avec des titres (## Titre).
+- Sépare tes sections majeures avec un trait horizontal (---).
+- **Utilise systématiquement des tableaux Markdown complets** pour les projections financières, les comparatifs de scénarios ou les estimations de coûts de travaux.
+- Mets en **gras** toutes les métriques et montants clés.
+
+**STRUCTURE DE RÉPONSE EXIGÉE :**
+1. **Synthèse Exécutive :** Un résumé percutant (2-3 phrases) de la viabilité de la situation/du deal.
+2. ---
+3. **Modélisation Financière / Décorticage :** Tableaux détaillés ou puces approfondies avec les vrais chiffres (TGA, MRB, RCD, valeur économique).
+4. ---
+5. **Ingénierie de Financement :** Stratégies avancées (ex: optimisation APH Select, prêteurs alternatifs, seasoning).
+6. ---
+7. **Évaluation des Risques & Mitigations :** Ce qui pourrait mal tourner (TAL, zonage, taux, imprévus) et comment s'en protéger.
+8. ---
+9. **Plan d'Action Stratégique :** Les 2 à 3 prochaines étapes concrètes recommandées.
+`;
+  }
+
+  // ==========================================
+  // ⚡ PROMPT BASE (Analyse Flash, Rapide)
+  // ==========================================
   return `
-Tu es **Alex**, consultant expert en investissement immobilier au Québec, spécialisé dans le multilogement (plex) et l'optimisation de parc immobilier. Ton approche combine l'expertise d'un courtier chevronné et la rigueur d'un analyste financier.
+Tu es **Optimiplex IA**, l'intelligence artificielle d'analyse immobilière rapide au Québec.
+Ton rôle est d'agir comme un analyste financier pragmatique pour donner l'heure juste rapidement.
 
-**TA PERSONNALITÉ (L'Expert de Confiance) :**
-- Ton : Franc, pragmatique, "straight to the point". Tu ne vends pas de rêve, tu vends de la rentabilité.
-- Langage : Québécois professionnel et décontracté (tu tutoies ton client comme un partenaire d'affaires). Utilise le jargon local : TAL, SCHL (APH Select), mise de fonds, cash-on-cash, TGA, certificat de localisation.
-- Style : Évite les structures de chatbot classiques. Pas de "En tant qu'IA...". Entre directement dans le vif du sujet.
+**TON PROFIL & TON TON :**
+- **Chirurgical, rapide et direct.** Aucun bla-bla inutile ni introduction.
+- **Expertise :** MRB, TGA, Cashflow, règles du TAL et bases de la SCHL.
 
-**TES PILIERS D'EXPERTISE :**
-1. **Analyse de Rentabilité :** Tu calcules mentalement le MRB, le TGA et le cashflow net. Si un deal est mauvais, tu le dis clairement.
-2. **Stratégie de Financement :** Tu maîtrises le refinancement, la valeur marchande vs valeur économique, et les critères de la SCHL pour les 5 logements et plus.
-3. **Réalité du Terrain :** Tu connais les coûts de rénovation actuels au Québec (ex: 15k-20k$ pour un rafraîchissement complet de cuisine/salle de bain standard).
-4. **Législation :** Tu es à jour sur les règles du Tribunal administratif du logement (TAL) et les changements de zonage.
+**RÈGLES DE FORMATAGE (STRICTES) :**
+- Utilise le Markdown avec des titres (## Titre).
+- Sépare tes sections majeures avec un trait horizontal (---).
+- Utilise des **tableaux Markdown simples** pour présenter les chiffres clés.
+- Mets en **gras** les montants importants.
 
-**STRUCTURE DE TES RÉPONSES (Strict) :**
-- **L'Analyse Flash :** Une évaluation directe de la situation ou de la question.
-- **Le Conseil Stratégique :** Appuie tes dires sur des chiffres ou des lois (ex: Loi 31, critères d'efficacité énergétique).
-- **Le "Reality Check" :** Une anecdote ou un piège à éviter spécifique au marché québécois (Montréal, Québec, Gatineau, etc.).
-- **L'Engagement :** Termine par une question tactique qui force l'utilisateur à préciser son plan financier.
-
-**EXEMPLE DE TON :**
-"Écoute, ton projet de conversion de 4-plex en 5-plex à Québec, c'est brillant pour la valeur économique, mais attention au zonage de la ville. Si tu passes par le programme APH Select de la SCHL, tu peux aller chercher 95% de LTV, mais tes points d'efficacité énergétique doivent être béton. J'ai vu un client perdre son financement parce qu'il avait sous-estimé l'isolation du sous-sol. C'est quoi ton ratio de couverture de dette actuel sur ce dossier-là ?"
+**STRUCTURE DE RÉPONSE EXIGÉE :**
+1. **L'Analyse Flash :** 2-3 phrases résumant le verdict final.
+2. ---
+3. **Les Chiffres Clés :** Un tableau ou des puces directes avec les données essentielles.
+4. ---
+5. **Le Conseil Optimiplex :** Ta recommandation claire (Go / No-Go / Négocier).
 `;
 }
 
@@ -1404,15 +1438,12 @@ REPONSE EN JSON STRICT (pas de texte avant/après):
 
 app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
   try {
-    const { userId, message, conversationId = null } = req.body;
+    const { userId, message, conversationId = null, model: requestedModel = 'base' } = req.body;
     
     if (!userId || !message.trim()) {
       return res.status(400).json({ error: 'userId et message requis' });
     }
 
-    console.log('Chat', userId.slice(-6), message.slice(0, 50) + '...');
-
-    // User validation
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {
@@ -1421,54 +1452,53 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
 
     const userData = userDoc.data();
     const userPlan = userData?.plan || 'essai';
+    const isProPlan = (userPlan === 'pro' || userPlan === 'growth' || userPlan === 'entreprise');
 
-    // Modèle Claude selon plan
-    const model = (userPlan === 'pro' || userPlan === 'growth' || userPlan === 'entreprise') 
+    // 🔥 SÉCURITÉ ET SÉLECTION DU MODÈLE - VRAIS NOMS CLAUDE
+    // Base = Haiku (Claude 3.5 Haiku est le plus rapide au monde)
+    // Pro = Sonnet (Claude 3.5 Sonnet est le plus intelligent)
+    const finalModel = (requestedModel === 'pro' && isProPlan) 
       ? 'claude-sonnet-4-6' 
       : 'claude-haiku-4-5-20251001';
 
-    // 🔥 CONVERSATION HANDLING CORRIGÉ
+    // 👇 MESSAGE SUR TA CONSOLE POUR VÉRIFIER
+    console.log(`\n🚀 CHAT REÇU | User: ${userId.slice(-6)} | Modèle Demandé: ${requestedModel} | Modèle Utilisé par l'API: ${finalModel}\n`);
+
+    // 🔥 CONVERSATION HANDLING
     let conversationIdFinal;
     let history = [];
 
     if (conversationId) {
-      // Conversation existante
       const convRef = userRef.collection('chats').doc(conversationId);
       const convDoc = await convRef.get();
       
       if (convDoc.exists) {
-        const convData = convDoc.data();
-        history = convData.messages || [];
+        history = convDoc.data().messages || [];
         conversationIdFinal = conversationId;
-      } else {
-        // ID invalide -> nouvelle conversation
-        console.log('⚠️ conversationId invalide, création nouvelle');
       }
     }
 
     if (!conversationIdFinal) {
-      // 🔥 NOUVELLE CONVERSATION - CORRECTION CRITIQUE
       const newConvRef = await userRef.collection('chats').add({
-        title: `Chat immobilier - ${message.slice(0, 50)}...`,
+        title: `Chat immobilier - ${message.slice(0, 40)}...`,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         planAtCreation: userPlan,
-        modelUsed: model,
+        modelUsed: finalModel,
         messages: []
       });
       conversationIdFinal = newConvRef.id;
     }
 
-    // Récupère la référence correcte pour l'update
     const convRef = userRef.collection('chats').doc(conversationIdFinal);
 
-    // Messages pour Claude (10 derniers + nouveau)
-    const systemPrompt = getRealEstateChatSystemPrompt(userPlan);
+    // Messages pour Claude
+    const isProModelUsed = finalModel === 'claude-sonnet-4-6';
+    const systemPrompt = getRealEstateChatSystemPrompt(isProModelUsed ? 'pro' : 'base');
     const claudeMessages = [
       { role: 'system', content: systemPrompt }
     ];
 
-    // 10 derniers messages (léger)
     history.slice(-10).forEach(m => {
       claudeMessages.push({
         role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -1478,13 +1508,13 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
 
     claudeMessages.push({ role: 'user', content: message });
 
-    // NON-STREAMING: create complet
+    // Appel API Anthropic
     const claudeResponse = await claude.messages.create({
-      model,
-      max_tokens: 3000,
+      model: finalModel, // Utilisation du VRAI nom du modèle
+      max_tokens: 4000,
       temperature: 0.1,
       system: systemPrompt,
-      messages: claudeMessages.filter(m => m.role !== 'system') // Sans system en top-level
+      messages: claudeMessages.filter(m => m.role !== 'system')
     });
 
     const fullResponse = claudeResponse.content[0]?.text || '';
@@ -1492,50 +1522,31 @@ app.post('/api/realestate-chat', checkQuotaOrCredits, async (req, res) => {
       return res.status(500).json({ error: 'Réponse AI vide' });
     }
 
-    // 🔥 SAUVEGARDE FIRESTORE - CORRECTION CRITIQUE
     const now = admin.firestore.FieldValue.serverTimestamp();
     const updatedMessages = [
       ...history,
-      {
-        role: 'user',
-        content: message,
-        createdAt: new Date()
-      },
-      {
-        role: 'assistant',
-        content: fullResponse,
-        createdAt: new Date(),
-        model
-      }
+      { role: 'user', content: message, createdAt: new Date() },
+      { role: 'assistant', content: fullResponse, createdAt: new Date(), model: finalModel }
     ];
 
-    // ✅ UTILISE .update() au lieu de .set() + récupère l'ID
     await convRef.update({
       messages: updatedMessages,
       updatedAt: now,
       lastMessage: fullResponse.slice(0, 200),
       lastUserMessage: message.slice(0, 200)
-    }, { merge: true });
+    });
 
-    // Quota
     await deductUsage(userId, req.quotaInfo);
 
-    // JSON pour Frontend
     res.json({
       message: fullResponse,
       conversationId: conversationIdFinal
     });
 
   } catch (error) {
-    if (res.headersSent) {
-      console.log('Headers déjà envoyés');
-      return;
-    }
-    console.error('Chatbot Immobilier:', error);
-    res.status(500).json({ 
-      error: 'Erreur Chatbot Immobilier', 
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne' 
-    });
+    if (res.headersSent) return;
+    console.error('Chatbot Error:', error);
+    res.status(500).json({ error: 'Erreur Chatbot', details: error.message });
   }
 });
 
