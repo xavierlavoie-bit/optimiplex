@@ -6929,8 +6929,6 @@ function HomePage() {
                 features: [
                   '1 évaluation statique/mois',
                   'Conseils de base',
-                  'Résidentiel uniquement',
-                  'Pas de recherche Web Live',
                   'Support standard',
                 ],
                 highlighted: false,
@@ -6941,12 +6939,11 @@ function HomePage() {
                 period: '/mois',
                 description: 'Le cerveau de votre parc',
                 features: [
-                  '5 analyses Stratégiques/mois',
+                  '20 analyses Stratégiques/mois',
                   'Scan Web & Centris en direct',
                   'Accès aux transactions JLR',
                   'Recommandations d\'optimisation',
                   'Résidentiel + Commercial',
-                  'Export PDF professionnel',
                 ],
                 highlighted: true,
               },
@@ -6959,7 +6956,6 @@ function HomePage() {
                   'Analyses & Stratégies illimitées',
                   'Scan Web Temps Réel Global',
                   'Plans d\'action personnalisés',
-                  'Alertes opportunités Web',
                   'Support 24/7 prioritaire',
                 ],
                 highlighted: false,
@@ -7044,7 +7040,6 @@ function HomePage() {
                 <p className="text-gray-400 text-[11px] sm:text-xs font-bold uppercase tracking-widest">
                   &copy; 2026 OptimiPlex Intelligence Inc. Tous droits réservés.
                   <br />
-                  Propulsé par Claude 4.5 & Web Intelligence Engine.
                 </p>
               </div>
             </div>
