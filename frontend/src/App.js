@@ -83,7 +83,7 @@ console.log('📡 REACT_APP_BACKEND_URL env var:', process.env.REACT_APP_BACKEND
 
 
 axios.defaults.baseURL = API_BASE_URL;
-axios.defaults.timeout = 30000;
+axios.defaults.timeout = 190000;
 
 axios.interceptors.response.use(
   response => response,
@@ -541,9 +541,9 @@ function DashboardLayout() {
 // ⬆️ MODAL UPGRADE avec STRIPE
 // ============================================
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
-  // On utilise subLoading pour savoir quel plan est en train de charger (stocke la 'key' du plan)
+  // Par défaut, on ouvre sur l'onglet 'plans' pour encourager l'abonnement récurrent
+  const [activeTab, setActiveTab] = useState('plans'); 
   const [subLoading, setSubLoading] = useState(null);
-  const [activeTab, setActiveTab] = useState('credits'); 
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [creditsError, setCreditsError] = useState(null);
 
@@ -557,11 +557,10 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       features: [
         '1 analyse résidentielle/mois',
         'Résidentiel basique',
-        'Accès limité'
+        'Chatbot limité (sans accès web)'
       ],
       icon: '🎯',
       color: 'blue'
-      // Pas de priceId car gratuit
     },
     { 
       key: 'pro', 
@@ -570,9 +569,9 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
       features: [
         '20 analyses résidentiel/mois',
-        'Résidentiel + extras',
-        'Support email',
-        'Rapports détaillés'
+        'Recherche Centris en temps réel 🔍',
+        'Chatbot avec accès Internet',
+        'Support email prioritaire'
       ],
       icon: '🚀',
       color: 'purple'
@@ -584,9 +583,9 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       priceId: process.env.REACT_APP_STRIPE_GROWTH_PRICE_ID,
       features: [
         'Analyses illimitées',
+        'Recherche Centris & Marché live',
         'Résidentiel + Commercial',
-        'Support prioritaire',
-        'Données avancées'
+        'Chatbot Pro illimité'
       ],
       icon: '💎',
       color: 'indigo',
@@ -600,16 +599,13 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
         'Solution 100% adaptée',
         'API + White label',
         'Formation équipe incluse',
-        'Support dédié 24/7',
-        'Volume illimité'
+        'Support dédié 24/7'
       ],
       icon: '👑',
       color: 'amber'
-      // Pas de priceId car contact manuel
     }
   ];
 
-  // ⭐ PLANS DE CRÉDITS
   const creditPlans = [
     {
       name: 'decouverte',
@@ -621,7 +617,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       borderColor: 'border-blue-400',
       bgColor: 'bg-blue-50',
       badge: '💎 Budget',
-      textColor: 'text-blue-900',
       buttonColor: 'bg-blue-600 hover:bg-blue-700'
     },
     {
@@ -634,7 +629,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       borderColor: 'border-indigo-400',
       bgColor: 'bg-indigo-50',
       badge: '⭐ Populaire',
-      textColor: 'text-indigo-900',
       buttonColor: 'bg-indigo-600 hover:bg-indigo-700',
       popular: true
     },
@@ -648,7 +642,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       borderColor: 'border-purple-400',
       bgColor: 'bg-purple-50',
       badge: '👑 Illimité',
-      textColor: 'text-purple-900',
       buttonColor: 'bg-purple-600 hover:bg-purple-700'
     }
   ];
@@ -660,65 +653,42 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     return false;
   };
 
-  // ⭐ HANDLER ABONNEMENT (CORRIGÉ avec API_URL)
   const handleSubscribe = async (planKey) => {
     try {
       setSubLoading(planKey);
-      
       const selectedPlan = plans.find(p => p.key === planKey);
-      
-      if (!selectedPlan?.priceId) {
-        alert("Configuration manquante : L'ID de prix Stripe n'est pas configuré pour ce plan.");
-        console.error(`PriceID manquant pour le plan: ${planKey}`);
-        setSubLoading(null);
-        return;
-      }
+      if (!selectedPlan?.priceId) return;
 
-      // Utilisation de API_URL au lieu de la logique ternaire instable
-      const response = await axios.post(
-        `${API_BASE_URL}/api/stripe/create-checkout-session`, 
-        {
-          userId: user?.uid,
-          userEmail: user?.email,
-          plan: planKey, 
-          priceId: selectedPlan.priceId
-        }
-      );
+      const response = await axios.post(`${API_BASE_URL}/api/stripe/create-checkout-session`, {
+        userId: user?.uid,
+        userEmail: user?.email,
+        plan: planKey, 
+        priceId: selectedPlan.priceId
+      });
 
       if (response.data.sessionUrl || response.data.url) {
         window.location.href = response.data.sessionUrl || response.data.url;
       }
     } catch (err) {
       console.error('Erreur souscription:', err);
-      const errorMessage = err.response?.data?.error || "Une erreur est survenue lors de la redirection.";
-      alert(errorMessage);
+      alert(err.response?.data?.error || "Une erreur est survenue.");
     } finally {
       setSubLoading(null);
     }
   };
 
-  // ⭐ HANDLER ACHAT CRÉDITS (CORRIGÉ avec API_URL)
   const handleBuyCredits = async (plan) => {
     try {
       setCreditsLoading(true);
       setCreditsError(null);
-
-      // Utilisation de API_URL au lieu de la logique ternaire instable
-      const response = await axios.post(
-        `${API_BASE_URL}/api/stripe/create-checkout-session-credits`,
-        {
-          userId: user?.uid,
-          userEmail: user?.email,
-          creditsPlan: plan.name,
-          priceId: plan.priceId
-        }
-      );
-
-      if (response.data.sessionUrl) {
-        window.location.href = response.data.sessionUrl;
-      }
+      const response = await axios.post(`${API_BASE_URL}/api/stripe/create-checkout-session-credits`, {
+        userId: user?.uid,
+        userEmail: user?.email,
+        creditsPlan: plan.name,
+        priceId: plan.priceId
+      });
+      if (response.data.sessionUrl) window.location.href = response.data.sessionUrl;
     } catch (err) {
-      console.error('Erreur achat crédits:', err);
       setCreditsError(err.response?.data?.error || 'Erreur lors de la création de la session');
     } finally {
       setCreditsLoading(false);
@@ -726,59 +696,28 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
   };
 
   const handleContactEnterprise = () => {
-    const emailContent = `Bonjour équipe OptimiPlex,
-
-Je suis intéressé par une **solution sur mesure** adaptée à mes besoins spécifiques:
-
-👤 Mon profil actuel:
-• Plan: ${userPlan === 'pro' ? 'Pro ($29)' : userPlan === 'growth' ? 'Growth ($69)' : userPlan === 'essai' ? 'Essai' : 'Autre'}
-• Email: ${user?.email || 'non fourni'}
-• Analyses/mois: [précisez votre volume actuel]
-
-🎯 Mes besoins spécifiques:
-□ Solution Entreprise complète
-□ IA adaptée à mon marché [précisez: immobilier, commercial, etc.]
-□ API personnalisée
-□ Formation équipe [nombre personnes]
-□ White label / branding
-□ [Autres besoins spécifiques]
-
-💰 Budget mensuel approximatif: [$XXX]
-⏰ Délai souhaité: [MM/AAAA]
-
-Pouvez-vous me proposer une démo / pricing adapté?
-
-Merci!
----
-${user?.email || 'contact'}`;
-
+    const emailContent = `Demande Plan Entreprise - ${user?.email}`;
     navigator.clipboard.writeText(emailContent);
-    window.open(
-      'https://mail.google.com/mail/?view=cm&fs=1&to=info@optimiplex.com&su=Demande+Plan+Entreprise&body=' + encodeURIComponent(emailContent),
-      '_blank'
-    );
+    window.open(`mailto:info@optimiplex.com?subject=Demande Entreprise&body=Je souhaite en savoir plus sur le plan Entreprise.`);
     setShowUpgradeModal(false);
   };
 
   return (
     <div 
       className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-8"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          setShowUpgradeModal(false);
-        }
-      }}
+      onClick={(e) => e.target === e.currentTarget && setShowUpgradeModal(false)}
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-y-auto border border-gray-200">
+        
         {/* HEADER STICKY */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 md:px-8 py-6 flex items-center justify-between z-10">
           <div>
             <h2 className="text-2xl md:text-4xl font-black text-gray-900">⬆️ Upgrader votre plan</h2>
-            <p className="text-xs md:text-sm text-gray-600 mt-1">Plan actuel: <span className="font-bold uppercase">{userPlan}</span></p>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">Plan actuel : <span className="font-bold uppercase text-indigo-600">{userPlan}</span></p>
           </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
-            className="flex-shrink-0 ml-4 text-2xl md:text-3xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center transition-all"
+            className="text-gray-400 hover:text-gray-600 text-3xl transition-colors"
           >
             ✕
           </button>
@@ -787,232 +726,70 @@ ${user?.email || 'contact'}`;
         {/* CONTENT */}
         <div className="px-4 md:px-8 py-6 md:py-8">
           
-          {/* ⭐ TABS NAVIGATION */}
+          {/* TABS NAVIGATION */}
           <div className="flex gap-2 mb-8 border-b border-gray-300">
-            {/* TAB CRÉDITS */}
-            <button
-              onClick={() => setActiveTab('credits')}
-              className={`
-                px-6 py-3 font-bold border-b-4 transition-all whitespace-nowrap
-                ${activeTab === 'credits' 
-                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50' 
-                  : 'border-transparent text-gray-600 hover:text-gray-900'}
-              `}
-            >
-              🎯 Crédits
-            </button>
-
-            {/* TAB PLANS */}
             <button
               onClick={() => setActiveTab('plans')}
-              className={`
-                px-6 py-3 font-bold border-b-4 transition-all whitespace-nowrap
-                ${activeTab === 'plans' 
-                  ? 'border-indigo-600 text-indigo-600 bg-indigo-50' 
-                  : 'border-transparent text-gray-600 hover:text-gray-900'}
-              `}
+              className={`px-6 py-3 font-bold border-b-4 transition-all ${activeTab === 'plans' ? 'border-indigo-600 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
             >
-              📊 Plans
+              📊 Plans & Abonnements
+            </button>
+            <button
+              onClick={() => setActiveTab('credits')}
+              className={`px-6 py-3 font-bold border-b-4 transition-all ${activeTab === 'credits' ? 'border-indigo-600 text-indigo-600 bg-indigo-50' : 'border-transparent text-gray-500 hover:text-gray-900'}`}
+            >
+              🎯 Crédits à la carte
             </button>
           </div>
 
-          {/* ⭐ TAB CONTENU: CRÉDITS */}
-          {activeTab === 'credits' && (
-            <div className="space-y-6 mb-8">
-              <div>
-                <h3 className="text-2xl font-black text-gray-900 mb-2">Acheter des Crédits</h3>
-                <p className="text-gray-600">
-                  Les crédits vous permettent de faire des analyses supplémentaires après avoir atteint votre quota mensuel.
-                </p>
-              </div>
-
-              {creditsError && (
-                <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold">
-                  {creditsError}
-                </div>
-              )}
-
-              {/* PLANS DE CRÉDITS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {creditPlans.map((plan, idx) => (
-                  <div
-                    key={idx}
-                    className={`
-                      relative rounded-2xl border-2 p-6 transition-all shadow-lg
-                      ${plan.popular ? 'ring-2 ring-indigo-500 shadow-2xl scale-105 md:scale-100' : ''}
-                      bg-white ${plan.borderColor}
-                    `}
-                  >
-                    {/* Popular Badge */}
-                    {plan.popular && (
-                      <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                        <span className="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg">
-                          {plan.badge}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Header avec crédits */}
-                    <div className={`bg-gradient-to-br ${plan.color} rounded-xl p-4 mb-4 text-center`}>
-                      <p className="text-sm font-bold text-gray-700 mb-1">Crédits</p>
-                      <p className="text-4xl font-black text-gray-900">{plan.credits}</p>
-                    </div>
-
-                    {/* Nom du plan */}
-                    <h4 className="text-lg font-bold text-gray-900 mb-2">{plan.displayName}</h4>
-
-                    {/* Prix */}
-                    <div className="mb-4">
-                      <p className="text-3xl font-black text-indigo-600">
-                        ${plan.price}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        ${(parseFloat(plan.price) / plan.credits).toFixed(2)}/crédit
-                      </p>
-                    </div>
-
-                    {/* Bénéfices */}
-                    <div className="mb-6 space-y-2 text-sm text-gray-700">
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-600 font-bold">✓</span>
-                        <span>{plan.credits} analyses</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-600 font-bold">✓</span>
-                        <span>Utilisables immédiatement</span>
-                      </div>
-                    </div>
-
-                    {/* Bouton d'achat */}
-                    <button
-                      onClick={() => handleBuyCredits(plan)}
-                      disabled={creditsLoading}
-                      className={`
-                        w-full py-3 px-4 rounded-xl font-bold text-white transition-all shadow-lg
-                        ${creditsLoading 
-                          ? 'bg-gray-400 cursor-not-allowed opacity-50' 
-                          : `${plan.buttonColor} hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0`
-                        }
-                      `}
-                    >
-                      {creditsLoading ? '⏳ Chargement...' : '🛒 Acheter maintenant'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* INFO BOX */}
-              <div className="bg-blue-50 border border-blue-300 rounded-xl p-4 mt-6">
-                <p className="text-sm text-blue-900">
-                  <span className="font-bold">💡 Comment ça marche :</span> Chaque crédit vous donne une analyse supplémentaire. 
-                  Lorsque vous atteignez votre quota mensuel, vous pouvez utiliser vos crédits pour continuer. 
-                  Les crédits ne s'expirent pas et se cumulent d'un mois à l'autre.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ⭐ TAB CONTENU: PLANS */}
+          {/* TAB CONTENU: PLANS */}
           {activeTab === 'plans' && (
             <div className="space-y-8">
-              {/* PLANS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                {plans.map(({ key, name, price, features, icon, color, recommended }) => {
-                  const isPlanDowngrade = isDowngrade(key);
-                  const isCurrentPlan = userPlan === key;
-                  const isLoadingThisPlan = subLoading === key;
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {plans.map((p) => {
+                  const isCurrent = userPlan === p.key;
+                  const isDown = isDowngrade(p.key);
+                  const isLoading = subLoading === p.key;
 
-                  const colorClasses = {
-                    blue: {
-                      bg: 'bg-blue-50',
-                      border: 'border-blue-200',
-                      active: 'bg-blue-100 border-blue-400 shadow-lg shadow-blue-200',
-                      button: 'bg-blue-600 hover:bg-blue-700'
-                    },
-                    purple: {
-                      bg: 'bg-purple-50',
-                      border: 'border-purple-200',
-                      active: 'bg-purple-100 border-purple-400 shadow-lg shadow-purple-200',
-                      button: 'bg-purple-600 hover:bg-purple-700'
-                    },
-                    indigo: {
-                      bg: 'bg-indigo-50',
-                      border: 'border-indigo-200',
-                      active: 'bg-indigo-100 border-indigo-400 shadow-lg shadow-indigo-200',
-                      button: 'bg-indigo-600 hover:bg-indigo-700'
-                    },
-                    amber: {
-                      bg: 'bg-amber-50',
-                      border: 'border-amber-200',
-                      active: 'bg-amber-100 border-amber-400 shadow-lg shadow-amber-200',
-                      button: 'bg-amber-600 hover:bg-amber-700'
-                    }
+                  const colorMap = {
+                    blue: 'bg-blue-50 border-blue-200',
+                    purple: 'bg-purple-50 border-purple-200',
+                    indigo: 'bg-indigo-50 border-indigo-200',
+                    amber: 'bg-amber-50 border-amber-200'
                   };
 
-                  const colors = colorClasses[color];
-
                   return (
-                    <div
-                      key={key}
-                      className={`relative p-4 md:p-6 rounded-xl border-2 transition-all ${
-                        isCurrentPlan
-                          ? `${colors.active}`
-                          : isPlanDowngrade
-                          ? `${colors.bg} ${colors.border} opacity-60 cursor-not-allowed`
-                          : `${colors.bg} ${colors.border} hover:border-${color}-400 hover:shadow-md`
-                      }`}
+                    <div 
+                      key={p.key} 
+                      className={`relative p-6 rounded-xl border-2 transition-all ${isCurrent ? 'ring-4 ring-indigo-500 shadow-xl z-0 scale-105' : `${colorMap[p.color]} border-gray-100 hover:border-indigo-300`}`}
                     >
-                      {/* RECOMMENDED BADGE */}
-                      {recommended && (
-                        <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-black px-3 py-1 rounded-full shadow-lg">
+                      {p.recommended && (
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] px-3 py-1 rounded-full font-black shadow-lg">
                           RECOMMANDÉ ⭐
                         </div>
                       )}
-
-                      {/* ICON & NAME */}
-                      <div className="mb-4">
-                        <div className="text-3xl md:text-4xl mb-2">{icon}</div>
-                        <h4 className="text-lg md:text-xl font-black text-gray-900">{name}</h4>
-                      </div>
-
-                      {/* PRICE */}
-                      <p className={`text-xl md:text-2xl font-black mb-4`}>
-                        <span className={`text-${color}-600`}>{price}</span>
-                      </p>
-
-                      {/* FEATURES */}
-                      <ul className="space-y-2 text-xs md:text-sm text-gray-700 mb-6">
-                        {features.map((feature, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✓</span>
-                            <span>{feature}</span>
+                      <div className="text-4xl mb-3">{p.icon}</div>
+                      <h4 className="text-xl font-black text-gray-900 mb-1">{p.name}</h4>
+                      <p className="text-2xl font-black text-indigo-600 mb-4">{p.price}</p>
+                      
+                      <ul className="space-y-2 text-sm text-gray-700 mb-6 h-36 overflow-hidden">
+                        {p.features.map((f, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span className="text-emerald-600 font-bold">✓</span>
+                            <span className={f.includes('Centris') ? 'font-bold' : ''}>{f}</span>
                           </li>
                         ))}
                       </ul>
 
-                      {/* ACTION BUTTON */}
-                      {isCurrentPlan ? (
-                        <div className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold text-center shadow-md text-sm md:text-base`}>
-                          Plan actuel ✅
-                        </div>
-                      ) : isPlanDowngrade ? (
-                        <div className="w-full py-2 md:py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg text-center font-semibold text-xs md:text-sm shadow-md">
-                          🔒 Downgrade via annulation
-                        </div>
-                      ) : key === 'entreprise' ? (
-                        <button
-                          onClick={handleContactEnterprise}
-                          className="w-full py-2 md:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl hover:from-amber-600 hover:to-orange-600 transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0"
-                        >
-                          📧 Contacter
-                        </button>
+                      {isCurrent ? (
+                        <div className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-center">Plan actuel ✅</div>
                       ) : (
                         <button
-                          onClick={() => handleSubscribe(key)}
-                          disabled={subLoading !== null} // Désactive tous les boutons si un chargement est en cours
-                          className={`w-full py-2 md:py-3 ${colors.button} text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 text-sm md:text-base active:translate-y-0 ${isLoadingThisPlan || subLoading ? 'opacity-90' : ''}`}
+                          onClick={() => p.key === 'entreprise' ? handleContactEnterprise() : handleSubscribe(p.key)}
+                          disabled={subLoading !== null || isDown}
+                          className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${isDown ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-1 active:translate-y-0'}`}
                         >
-                          {isLoadingThisPlan ? '⏳ Redirection...' : 'Choisir'}
+                          {isLoading ? '⏳ Redirection...' : isDown ? '🔒 Downgrade' : 'Choisir'}
                         </button>
                       )}
                     </div>
@@ -1022,47 +799,47 @@ ${user?.email || 'contact'}`;
             </div>
           )}
 
-          {/* FOIRE AUX QUESTIONS */}
-          <div className="mt-8 md:mt-12 pt-8 md:pt-12 border-t border-gray-200">
-            <h3 className="text-lg md:text-xl font-black text-gray-900 mb-6">❓ Questions fréquentes</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Puis-je changer de plan après?</p>
-                <p className="text-xs md:text-sm text-gray-700">Oui! Vous pouvez upgrader ou downgrader à tout moment. Les changements sont effectifs le mois suivant.</p>
+          {/* TAB CONTENU: CRÉDITS */}
+          {activeTab === 'credits' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {creditPlans.map((cp) => (
+                  <div key={cp.name} className={`p-6 rounded-2xl border-2 ${cp.borderColor} bg-white relative transition-all hover:shadow-xl`}>
+                    {cp.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs px-4 py-1 rounded-full font-bold">{cp.badge}</div>}
+                    <div className={`rounded-xl p-6 mb-4 text-center bg-gradient-to-br ${cp.color}`}>
+                      <p className="text-4xl font-black text-gray-900">{cp.credits}</p>
+                      <p className="text-xs font-bold text-gray-600 uppercase">Analyses</p>
+                    </div>
+                    <p className="text-3xl font-black text-center mb-6 text-indigo-600">${cp.price}</p>
+                    <button 
+                      onClick={() => handleBuyCredits(cp)} 
+                      disabled={creditsLoading}
+                      className={`w-full py-4 rounded-xl text-white font-bold transition-all shadow-lg ${cp.buttonColor} active:scale-95`}
+                    >
+                      {creditsLoading ? '⏳ Chargement...' : '🛒 Acheter maintenant'}
+                    </button>
+                  </div>
+                ))}
               </div>
-
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Aucun engagement?</p>
-                <p className="text-xs md:text-sm text-gray-700">Correct! Vous pouvez annuler votre abonnement à tout moment, sans pénalité.</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Quand est la facturation?</p>
-                <p className="text-xs md:text-sm text-gray-700">Le paiement est débité le même jour chaque mois. Vous recevez une facture par email.</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Les crédits s'expirent?</p>
-                <p className="text-xs md:text-sm text-gray-700">Non! Vos crédits n'expirent pas et se cumulent. Vous pouvez les utiliser quand vous le souhaitez.</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Puis-je combiner crédits et plan?</p>
-                <p className="text-xs md:text-sm text-gray-700">Absolument! Une fois votre quota mensuel atteint, vous pouvez utiliser vos crédits.</p>
-              </div>
-
-              <div className="bg-gray-50 p-4 md:p-6 rounded-lg border border-gray-200">
-                <p className="font-bold text-gray-900 mb-2 text-sm md:text-base">Besoin d'aide?</p>
-                <p className="text-xs md:text-sm text-gray-700">Contactez info@optimiplex.com ou utilisez le chat en bas à droite.</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                <span className="font-bold">💡 Note :</span> Les crédits n'expirent jamais et s'ajoutent à votre quota mensuel.
               </div>
             </div>
-          </div>
+          )}
 
-          {/* FOOTER INFO */}
-          <div className="mt-8 md:mt-12 text-center text-xs md:text-sm text-gray-600 py-4 border-t border-gray-200">
-            <p>💳 Paiement sécurisé via Stripe | 🔒 Aucune donnée partagée</p>
-            <p className="mt-2">Conditions d'utilisation • Politique de confidentialité</p>
+          {/* FAQ SECTION */}
+          <div className="mt-12 pt-8 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { q: "Accès Centris ?", a: "Oui, la recherche immobilière en temps réel est exclusive aux membres Pro et Growth." },
+              { q: "Engagement ?", a: "Aucun. Vous pouvez annuler votre abonnement à tout moment en un clic." },
+              { q: "Crédits vs Plans ?", a: "Les plans sont des abonnements mensuels. Les crédits sont à la carte pour des besoins ponctuels." },
+              { q: "Facturation ?", a: "Traitée en toute sécurité via Stripe. Factures disponibles dans votre profil." }
+            ].map((item, i) => (
+              <div key={i} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="font-bold text-gray-900 text-sm mb-1">{item.q}</p>
+                <p className="text-xs text-gray-600 leading-relaxed">{item.a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -2663,9 +2440,10 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
       };
 
       const response = await axios.post(
-        `${API_BASE_URL}/api/pricing/optimizer-pro`,
-        { userId: user.uid, ...analysisData }
-      );
+      `${API_BASE_URL}/api/pricing/optimizer-pro`,
+        { userId: user.uid, ...analysisData },
+        { timeout: 90000 } // 90 secondes recommandées
+        );
 
       // ✅ MISE À JOUR OPTIMISTE DU UI
       // Le backend fait le vrai travail, mais on met à jour l'affichage tout de suite pour l'utilisateur
@@ -5681,7 +5459,7 @@ function PropertyValuationTab({
       <LoadingSpinner
         isLoading={loading}
         messages={loadingMessages[evaluationType]}
-        estimatedTime={evaluationType === 'commercial' ? 60 : 40}
+        estimatedTime={evaluationType === 'commercial' ? 90 : 60}
       />
 
       {/* ✅ QUOTA CARD AVEC CRÉDITS */}
@@ -5942,7 +5720,9 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   const chatContainerRef = useRef(null);
   const isAutoScrollPaused = useRef(false);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Initialiser la sidebar fermée sur mobile, ouverte sur desktop
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState('base'); 
 
@@ -5962,6 +5742,13 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   const isPro = userPlanState === 'pro' || userPlanState === 'growth' || userPlanState === 'entreprise';
 
+  // Ouverture automatique de la sidebar sur grand écran au chargement
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (isPro) setSelectedModel('pro');
   }, [isPro]);
@@ -5976,8 +5763,21 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     setIsModelDropdownOpen(false);
   };
 
+  // Fermer la sidebar sur mobile quand on clique sur une conversation
+  const handleSelectConversation = (id) => {
+    setCurrentConversationId(id);
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
+  };
+
+  const handleNewConversationMobile = () => {
+    setCurrentConversationId(null);
+    setMessages([]);
+    setError(null);
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
+  };
+
   // ==============================================================================
-  // 📝 PARSEUR MARKDOWN INTÉGRÉ (Design Compact)
+  // 📝 PARSEUR MARKDOWN INTÉGRÉ
   // ==============================================================================
   const renderMarkdownToHtml = (text) => {
     if (!text) return '';
@@ -5985,11 +5785,11 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     
     html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
 
-    // 1. Tableaux (Plus compacts)
+    // 1. Tableaux
     const tableRegex = /(?:^\|.*\|\n?)+/gm;
     html = html.replace(tableRegex, (match) => {
       const rows = match.trim().split('\n');
-      let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-left text-[14px] border-collapse rounded-lg overflow-hidden ring-1 ring-gray-200 shadow-sm">';
+      let tableHtml = '<div class="overflow-x-auto my-3 -mx-4 sm:mx-0 px-4 sm:px-0"><table class="w-full text-left text-[14px] border-collapse rounded-lg overflow-hidden ring-1 ring-gray-200 shadow-sm">';
       let isHeader = true;
       let hasSeenDivider = false;
       
@@ -6010,7 +5810,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
           const tag = isHeader ? 'th' : 'td';
           const classes = isHeader ? 'px-3 py-2 border-b border-gray-200' : 'px-3 py-2 text-[#444746]';
           const cellContent = col.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-          tableHtml += `<${tag} class="${classes}">${cellContent}</${tag}>`;
+          tableHtml += `<${tag} class="${classes} whitespace-nowrap sm:whitespace-normal">${cellContent}</${tag}>`;
         });
         
         tableHtml += '</tr>';
@@ -6022,10 +5822,10 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       return tableHtml;
     });
 
-    // 2. Séparateur horizontal (Marges réduites)
+    // 2. Séparateur horizontal
     html = html.replace(/^---$/gm, '<hr class="my-5 border-t border-gray-200" />');
 
-    // 3. Titres (Marges réduites)
+    // 3. Titres
     html = html.replace(/^### (.*$)/gim, '<h3 class="text-[16px] font-bold text-gray-800 mt-4 mb-1">$1</h3>');
     html = html.replace(/^## (.*$)/gim, '<h2 class="text-[18px] font-bold text-gray-900 mt-5 mb-2 border-b pb-1 border-gray-100">$1</h2>');
     html = html.replace(/^# (.*$)/gim, '<h1 class="text-[20px] font-black text-gray-900 mt-5 mb-3">$1</h1>'); 
@@ -6033,17 +5833,16 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     // 4. Gras
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>');
     
-    // 5. Listes (Espacement réduit)
+    // 5. Listes
     html = html.replace(/^(?:-|\*)\s+(.+)$/gm, '<li class="ml-4 list-disc marker:text-blue-500 mb-0.5">$1</li>');
     html = html.replace(/(<li class="ml-4 list-disc.*<\/li>\n?)+/g, '<ul class="my-2">$&</ul>');
     html = html.replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 list-decimal marker:text-gray-500 mb-0.5 font-medium text-gray-900"><span class="font-normal text-[#444746]">$1</span></li>');
     html = html.replace(/(<li class="ml-4 list-decimal.*<\/li>\n?)+/g, '<ol class="my-2">$&</ol>');
 
-    // 6. Retours à la ligne (Sauts plus petits)
+    // 6. Retours à la ligne
     const parts = html.split(/(<[^>]+>)/g);
     for (let i = 0; i < parts.length; i++) {
       if (!parts[i].startsWith('<')) {
-        // Remplace les doubles sauts de ligne par un petit espace au lieu d'un gros bloc
         parts[i] = parts[i].replace(/\n{2,}/g, '<div class="h-2"></div>').replace(/\n/g, '<br/>');
       }
     }
@@ -6061,7 +5860,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       "Analyse de la requête...",
       "Consultation des modèles...",
       "Élaboration de la stratégie...",
-      "Vérification des données...",
       "Structuration de la réponse..."
     ];
     
@@ -6080,7 +5878,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         currentIndex = (currentIndex + 1) % steps.length;
         setLoadingState({ text: steps[currentIndex], visible: true });
       }, 400); 
-    }, 2500); // Un peu plus rapide pour matcher Haiku
+    }, 2500);
 
     return () => clearInterval(interval);
   }, [loading, isStreaming, lastQuery]);
@@ -6090,13 +5888,14 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       const modal = document.createElement('div');
       modal.id = 'delete-confirm-modal';
       modal.innerHTML = `
-        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-          <div style="background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-width: 400px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-            <div style="font-size: 1.25rem; font-weight: 600; color: #1f2937; margin-bottom: 1rem;">Supprimer la conversation ?</div>
-            <div style="color: #6b7280; margin-bottom: 2rem; font-size: 0.95rem;">Les messages seront définitivement effacés.</div>
-            <div style="display: flex; gap: 1rem; justify-content: center;">
-              <button id="cancelBtn" style="flex: 1; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; font-weight: 500; color: #374151; cursor: pointer;">Annuler</button>
-              <button id="confirmBtn" style="flex: 1; padding: 0.75rem; background: #ef4444; border: none; border-radius: 0.5rem; font-weight: 500; color: white; cursor: pointer;">Supprimer</button>
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
+          <div style="background: white; padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); width: 100%; max-width: 340px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif; animation: popIn 0.2s ease-out;">
+            <style>@keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }</style>
+            <div style="font-size: 1.15rem; font-weight: 600; color: #1f2937; margin-bottom: 0.5rem;">Supprimer la discussion ?</div>
+            <div style="color: #6b7280; margin-bottom: 1.5rem; font-size: 0.9rem;">Cette action est irréversible.</div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+              <button id="cancelBtn" style="flex: 1; padding: 0.875rem; background: #f3f4f6; border: none; border-radius: 0.75rem; font-weight: 600; color: #374151; cursor: pointer; font-size: 0.95rem;">Annuler</button>
+              <button id="confirmBtn" style="flex: 1; padding: 0.875rem; background: #ef4444; border: none; border-radius: 0.75rem; font-weight: 600; color: white; cursor: pointer; font-size: 0.95rem;">Supprimer</button>
             </div>
           </div>
         </div>
@@ -6157,12 +5956,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     };
     initUser();
   }, [propUser, propPlan]);
-
-  const handleNewConversation = () => {
-    setCurrentConversationId(null);
-    setMessages([]);
-    setError(null);
-  };
 
   const handleDeleteConversation = async (conversationId) => {
     if (!userId || !conversationId) return;
@@ -6240,6 +6033,11 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     const tempMessages = [...messages, { role: 'user', content: userMessage, streaming: false, timestamp: new Date() }];
     setMessages(tempMessages);
 
+    // Reset textarea height on send
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/realestate-chat`, {
         method: 'POST',
@@ -6292,9 +6090,16 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // Adjust textarea height automatically
+  const handleInputInput = (e) => {
+    const target = e.target;
+    target.style.height = 'auto';
+    target.style.height = `${Math.min(target.scrollHeight, 150)}px`;
+  };
+
   if (authLoading) {
     return (
-      <div className="h-full flex items-center justify-center bg-white">
+      <div className="h-[100dvh] flex items-center justify-center bg-white">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -6302,14 +6107,14 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   if (!userId) {
     return (
-      <div className="h-full flex items-center justify-center bg-white px-4">
+      <div className="h-[100dvh] flex items-center justify-center bg-white px-6">
         <div className="text-center max-w-md w-full">
-          <Sparkles className="w-12 h-12 text-blue-500 mx-auto mb-6" />
-          <h2 className="text-2xl font-medium text-gray-800 mb-2">Bienvenue sur Optimiplex</h2>
-          <p className="text-gray-500 mb-8">Connectez-vous pour commencer à discuter avec votre assistant.</p>
+          <Sparkles className="w-14 h-14 text-blue-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Bienvenue sur Optimiplex</h2>
+          <p className="text-gray-500 mb-8 text-[15px]">Connectez-vous pour commencer à discuter avec votre assistant.</p>
           <button
             onClick={() => window.location.href = '/login'}
-            className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-colors"
+            className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-colors shadow-sm active:scale-[0.98]"
           >
             Se connecter
           </button>
@@ -6319,50 +6124,67 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   }
 
   return (
+    // Utilisation de 100dvh (Dynamic Viewport Height) essentiel pour les navigateurs mobiles
     <div className="flex h-[100dvh] w-full bg-white text-[#1f1f1f] font-sans overflow-hidden">
       
-      {/* --- SIDEBAR --- */}
-      <div className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-[#f0f4f9] transition-all duration-300 ease-in-out flex flex-col h-full overflow-hidden shrink-0`}>
-        <div className="p-4 h-full flex flex-col min-w-[16rem]">
-          <div className="flex items-center mb-6">
-            <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-200/80 rounded-full transition-colors">
-              <Menu className="w-5 h-5 text-gray-600" />
+      {/* --- OVERLAY MOBILE POUR LA SIDEBAR --- */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* --- SIDEBAR (Tiroir sur mobile, Fixe sur desktop) --- */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 md:relative
+        transform transition-transform duration-300 ease-in-out
+        w-[280px] md:w-64 bg-[#f0f4f9] flex flex-col h-full shrink-0 border-r border-gray-200/50 md:border-none
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:w-0 md:hidden'}
+      `}>
+        <div className="p-4 sm:p-5 h-full flex flex-col min-w-[16rem] safe-area-y">
+          <div className="flex items-center justify-between mb-6">
+            <button 
+              onClick={() => setIsSidebarOpen(false)} 
+              className="p-2 -ml-2 hover:bg-gray-200/80 rounded-full transition-colors active:scale-95 md:hidden"
+            >
+              <Menu className="w-6 h-6 text-gray-700" />
             </button>
           </div>
 
           <button 
-            onClick={handleNewConversation}
-            className="flex items-center gap-3 bg-white hover:bg-gray-50 text-[#1f1f1f] px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 transition-all font-medium mb-6 w-max"
+            onClick={handleNewConversationMobile}
+            className="flex items-center gap-3 bg-white hover:bg-gray-50 text-[#1f1f1f] px-4 py-3 rounded-2xl shadow-sm border border-gray-200/60 transition-all font-semibold mb-6 w-full active:scale-[0.98]"
           >
-            <Plus className="w-5 h-5 text-gray-500" />
+            <Plus className="w-5 h-5 text-blue-600" />
             Nouvelle discussion
           </button>
 
           <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300">
-            <h3 className="text-xs font-medium text-gray-500 mb-3 px-2">Récents</h3>
+            <h3 className="text-[11px] uppercase tracking-wider font-bold text-gray-400 mb-3 px-2">Historique</h3>
             
             {loadingConversations ? (
-              <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
             ) : conversations.length === 0 ? (
-              <p className="text-sm text-gray-400 px-2 italic">Aucun historique</p>
+              <p className="text-sm text-gray-400 px-2 italic">Aucune conversation</p>
             ) : (
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-1">
                 {conversations.map((conv) => (
                   <div key={conv.id} className="relative group">
                     <button 
-                      onClick={() => setCurrentConversationId(conv.id)}
-                      className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-full transition-colors text-sm ${
+                      onClick={() => handleSelectConversation(conv.id)}
+                      className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl transition-colors text-[14px] ${
                         currentConversationId === conv.id 
-                          ? 'bg-[#d3e3fd] text-[#041e49]' 
-                          : 'text-[#444746] hover:bg-gray-200/50'
+                          ? 'bg-[#d3e3fd] text-[#041e49] font-medium' 
+                          : 'text-[#444746] hover:bg-gray-200/60'
                       }`}
                     >
-                      <MessageSquare className="w-4 h-4 shrink-0 opacity-70" />
+                      <MessageSquare className={`w-4 h-4 shrink-0 ${currentConversationId === conv.id ? 'text-blue-600' : 'opacity-60'}`} />
                       <span className="truncate flex-1">{conv.title || 'Nouvelle discussion'}</span>
                     </button>
                     <button
-                      onClick={() => handleDeleteConversation(conv.id)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all bg-[#f0f4f9] group-hover:bg-white"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-red-500 rounded-full md:opacity-0 group-hover:opacity-100 transition-all bg-[#f0f4f9] md:group-hover:bg-white active:scale-90"
                       title="Supprimer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -6373,17 +6195,20 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
             )}
           </div>
 
-          <div className="mt-auto pt-4 flex flex-col gap-1">
+          <div className="mt-auto pt-4 flex flex-col gap-1.5 border-t border-gray-200/50">
             {!isPro && (
                <button 
-                  onClick={() => setShowUpgradeModal?.(true)}
-                  className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-full hover:bg-gray-200/50 transition-colors text-sm text-[#444746]"
+                 onClick={() => {
+                   setShowUpgradeModal?.(true);
+                   if (window.innerWidth < 768) setIsSidebarOpen(false);
+                 }}
+                 className="flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl hover:bg-amber-50/50 text-amber-700 transition-colors text-[14px] font-medium"
                >
-                 <Zap className="w-4 h-4 text-amber-500" />
+                 <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
                  Passer à Optimiplex Pro
                </button>
             )}
-            <button className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-full hover:bg-gray-200/50 transition-colors text-sm text-[#444746]">
+            <button className="flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl hover:bg-gray-200/60 transition-colors text-[14px] text-[#444746] font-medium">
               <Settings className="w-4 h-4 text-gray-500" />
               Paramètres
             </button>
@@ -6391,52 +6216,57 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         </div>
       </div>
 
-      {/* --- ZONE PRINCIPALE DE CHAT --- */}
-      <div className="flex-1 flex flex-col h-full bg-white relative">
+      {/* --- ZONE PRINCIPALE --- */}
+      {/* Utilisation de flex-col strié pour garder l'input en bas de façon fluide, sans absolute */}
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-white relative">
         
-        <header className="flex items-center justify-between px-4 py-3 w-full bg-white z-10 border-b border-gray-50">
-          <div className="flex items-center gap-2">
+        {/* HEADER */}
+        <header className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 w-full bg-white z-10 border-b border-gray-100 shrink-0 safe-area-t">
+          <div className="flex items-center gap-1 sm:gap-2">
             {!isSidebarOpen && (
-              <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-full transition-colors mr-1 shrink-0">
-                <Menu className="w-5 h-5 text-gray-600" />
+              <button 
+                onClick={() => setIsSidebarOpen(true)} 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0 active:scale-95"
+              >
+                <Menu className="w-6 h-6 text-gray-700" />
               </button>
             )}
             
             <div className="relative">
               <button 
                 onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded-xl transition-all"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 hover:bg-gray-50 rounded-xl transition-all active:scale-[0.98]"
               >
-                <h1 className="text-[18px] text-[#1f1f1f] font-medium tracking-tight">Optimiplex</h1>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium shadow-sm transition-colors ${
+                <h1 className="text-[18px] sm:text-[19px] text-[#1f1f1f] font-semibold tracking-tight">Optimiplex</h1>
+                <span className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm transition-colors ${
                   selectedModel === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                 }`}>
                   {selectedModel === 'pro' ? 'Pro' : 'Base'}
                 </span>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isModelDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)}></div>
-                  <div className="absolute top-full left-0 mt-1 w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-full left-0 mt-2 w-[260px] sm:w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
                     <div className="p-2 flex flex-col gap-1">
                       <button 
                         onClick={() => handleModelChange('base')} 
-                        className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors flex flex-col gap-0.5 ${selectedModel === 'base' ? 'bg-gray-50 ring-1 ring-gray-200' : ''}`}
+                        className={`w-full text-left px-3 py-3 rounded-xl hover:bg-gray-50 transition-colors flex flex-col gap-1 ${selectedModel === 'base' ? 'bg-gray-50 ring-1 ring-gray-200' : ''}`}
                       >
-                        <span className="font-medium text-[14px] text-[#1f1f1f]">Optimiplex Base</span>
+                        <span className="font-semibold text-[14px] text-[#1f1f1f]">Optimiplex Base</span>
                         <span className="text-[12px] text-gray-500 leading-snug">Modèle rapide, idéal pour les questions simples.</span>
                       </button>
                       
                       <button 
                         onClick={() => handleModelChange('pro')} 
-                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-start justify-between gap-3 ${
+                        className={`w-full text-left px-3 py-3 rounded-xl transition-colors flex items-start justify-between gap-3 ${
                           selectedModel === 'pro' ? 'bg-blue-50/50 ring-1 ring-blue-100 hover:bg-blue-50' : 'hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-[14px] text-blue-700 flex items-center gap-1.5">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-[14px] text-blue-700 flex items-center gap-1.5">
                             Optimiplex Pro <Sparkles className="w-3 h-3" />
                           </span>
                           <span className="text-[12px] text-gray-500 leading-snug">Analyse profonde et calculs complexes.</span>
@@ -6448,95 +6278,105 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 </>
               )}
             </div>
-
           </div>
           
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
+          <div className="flex items-center shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ring-2 ring-white cursor-pointer">
               {propUser?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
           </div>
         </header>
 
+        {/* CHAT CONTAINER */}
         <main 
           ref={chatContainerRef}
           onScroll={handleContainerScroll}
-          className="flex-1 overflow-y-auto px-4 sm:px-8 pb-32"
+          className="flex-1 overflow-y-auto px-4 sm:px-8 bg-white"
         >
-          <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 pt-4">
+          <div className="max-w-3xl mx-auto w-full flex flex-col gap-5 pt-6 pb-6">
             
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center mt-20 sm:mt-24 px-4">
-                <div className="mb-6 p-3 bg-gradient-to-tr from-blue-50 to-purple-50 rounded-2xl shadow-sm border border-blue-100/50">
-                  <Sparkles className="w-8 h-8 text-blue-600" />
+              <div className="flex flex-col items-center justify-center text-center mt-12 sm:mt-20">
+                <div className="mb-6 p-4 bg-gradient-to-tr from-blue-50 to-indigo-50 rounded-3xl shadow-sm border border-blue-100/50">
+                  <Sparkles className="w-10 h-10 text-blue-600" />
                 </div>
-                <h2 className="text-[2rem] sm:text-[2.2rem] tracking-tight leading-tight font-semibold text-[#1f1f1f] mb-3">
-                  Optimiplex <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Intelligence</span>
+                <h2 className="text-[1.8rem] sm:text-[2.2rem] tracking-tight leading-tight font-bold text-[#1f1f1f] mb-3">
+                  Optimiplex <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Intelligence</span>
                 </h2>
-                <p className="text-[15px] text-[#444746] max-w-lg mx-auto leading-snug">
-                  Votre expert immobilier. Analysez vos rentabilités ou demandez une stratégie d'optimisation.
+                <p className="text-[15px] sm:text-[16px] text-[#444746] max-w-lg mx-auto leading-relaxed px-4">
+                  Votre expert immobilier personnel. Analysez vos rentabilités ou demandez une stratégie d'optimisation.
                 </p>
                 
-                <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full text-left">
-                  <button onClick={() => setInput("Fais l'analyse d'un 6-plex à 750 000$ générant 55 000$ de revenus bruts.")} className="p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm group">
-                    <TrendingUp className="w-5 h-5 text-blue-500 mb-2 group-hover:scale-110 transition-transform" />
-                    <strong className="block text-[14px] text-[#1f1f1f] font-semibold mb-0.5">Calcul de rentabilité</strong>
-                    <span className="text-[12px] text-[#444746]">Analyse de MRB, TGA...</span>
+                <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl text-left px-2">
+                  <button 
+                    onClick={() => setInput("Fais l'analyse d'un 6-plex à 750 000$ générant 55 000$ de revenus bruts.")} 
+                    className="p-4 sm:p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-sm group active:scale-[0.98]"
+                  >
+                    <TrendingUp className="w-6 h-6 text-blue-500 mb-3 group-hover:scale-110 transition-transform" />
+                    <strong className="block text-[15px] text-[#1f1f1f] font-semibold mb-1">Calcul de rentabilité</strong>
+                    <span className="text-[13px] text-[#444746] leading-snug block">Analyse de MRB, TGA et flux de trésorerie...</span>
                   </button>
-                  <button onClick={() => setInput("Explique-moi les règles de base du programme APH Select pour le refinancement.")} className="p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm group">
-                    <Building className="w-5 h-5 text-purple-500 mb-2 group-hover:scale-110 transition-transform" />
-                    <strong className="block text-[14px] text-[#1f1f1f] font-semibold mb-0.5">Stratégie de financement</strong>
-                    <span className="text-[12px] text-[#444746]">SCHL, conventions...</span>
+                  <button 
+                    onClick={() => setInput("Explique-moi les règles de base du programme APH Select pour le refinancement.")} 
+                    className="p-4 sm:p-5 rounded-2xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/30 transition-all shadow-sm group active:scale-[0.98]"
+                  >
+                    <Building className="w-6 h-6 text-purple-500 mb-3 group-hover:scale-110 transition-transform" />
+                    <strong className="block text-[15px] text-[#1f1f1f] font-semibold mb-1">Stratégie de financement</strong>
+                    <span className="text-[13px] text-[#444746] leading-snug block">Programmes SCHL, conventions et leviers...</span>
                   </button>
                 </div>
               </div>
             ) : (
               messages.map((m, idx) => (
-                <div key={idx} className={`flex gap-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={idx} className={`flex gap-2.5 sm:gap-4 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   
                   {m.role === 'assistant' && (
-                    <div className="w-7 h-7 min-w-[1.75rem] bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center mt-0.5 shadow-sm shrink-0">
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 min-w-[2rem] sm:min-w-[2.25rem] bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mt-1 shadow-sm shrink-0">
+                      <Sparkles className="w-4 h-4 text-white" />
                     </div>
                   )}
 
-                  {/* 🚀 DESIGN COMPACT : text-[15px], leading-normal, padding réduit */}
-                  <div className={`px-4 py-2.5 text-[15px] leading-normal ${
+                  <div className={`px-4 sm:px-5 py-3 text-[15px] sm:text-[15.5px] leading-relaxed ${
                     m.role === 'user' 
-                      ? 'bg-[#f0f4f9] text-[#1f1f1f] rounded-[20px] rounded-tr-sm max-w-[80%]' 
-                      : 'bg-transparent text-[#1f1f1f] max-w-[90%]'
+                      ? 'bg-[#f0f4f9] text-[#1f1f1f] rounded-[24px] rounded-tr-[4px] max-w-[85%] sm:max-w-[75%]' 
+                      : 'bg-transparent text-[#1f1f1f] max-w-[95%] sm:max-w-[85%]'
                   }`}
-                  dangerouslySetInnerHTML={{ __html: m.role === 'user' ? `<p class="m-0">${m.content}</p>` : renderMarkdownToHtml(m.content) }}
+                  dangerouslySetInnerHTML={{ __html: m.role === 'user' ? `<p class="m-0 whitespace-pre-wrap">${m.content}</p>` : renderMarkdownToHtml(m.content) }}
                   />
                 </div>
               ))
             )}
 
             {isStreaming && loading && (
-              <div className="flex gap-3 w-full justify-start items-center py-1 h-10 pl-1">
-                <div className="relative w-7 h-7 min-w-[1.75rem] flex items-center justify-center shrink-0">
-                  <div className="absolute inset-0 rounded-full border-[2px] border-blue-100 border-t-blue-600 animate-spin"></div>
-                  <Sparkles className="w-3 h-3 text-blue-600 animate-pulse" />
+              <div className="flex gap-3 w-full justify-start items-center py-2 h-12 pl-1 sm:pl-2">
+                <div className="relative w-8 h-8 min-w-[2rem] flex items-center justify-center shrink-0">
+                  <div className="absolute inset-0 rounded-full border-[2.5px] border-blue-100 border-t-blue-600 animate-spin"></div>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
                 </div>
                 
                 <div className={`flex items-center transition-opacity duration-400 ease-in-out ${loadingState.visible ? 'opacity-100' : 'opacity-0'}`}>
-                  <span className="text-[13px] font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-purple-700">
+                  <span className="text-[14px] font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700">
                     {loadingState.text}
                   </span>
                 </div>
               </div>
             )}
             
-            <div ref={messagesEndRef} className="h-2" />
+            <div ref={messagesEndRef} className="h-1" />
           </div>
         </main>
 
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-8 pb-4 px-4 sm:px-8">
-          <div className="max-w-3xl mx-auto relative">
+        {/* BOTTOM INPUT AREA - Fixé dans le flex-col (pas d'absolute pour éviter les bugs clavier mobile) */}
+        <div 
+          className="shrink-0 bg-white border-t border-transparent"
+          // Utilisation du safe-area pour les iPhones avec la barre horizontale en bas
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="max-w-3xl mx-auto relative px-3 sm:px-8 pt-2 pb-4 sm:pb-6">
             
             {error && (
-              <div className="absolute -top-10 left-0 right-0 text-center">
-                <span className="bg-red-50 text-red-600 text-[13px] py-1 px-3 rounded-full border border-red-100 shadow-sm">
+              <div className="absolute -top-12 left-0 right-0 text-center px-4">
+                <span className="inline-block bg-red-50 text-red-600 text-[13px] font-medium py-1.5 px-4 rounded-full border border-red-100 shadow-sm animate-in slide-in-from-bottom-2">
                   {error}
                 </span>
               </div>
@@ -6544,44 +6384,46 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
             <form 
               onSubmit={handleSend}
-              className="relative bg-[#f0f4f9] rounded-3xl flex items-end gap-1.5 p-1.5 focus-within:bg-white focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] transition-all border border-transparent focus-within:border-gray-200"
+              className="relative bg-[#f0f4f9] rounded-[28px] flex items-end gap-2 p-1.5 sm:p-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 focus-within:shadow-md transition-all border border-gray-200/60 focus-within:border-blue-200"
             >
-             
-              
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onInput={handleInputInput}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend(e);
+                    // Empêcher l'envoi sur mobile si le clavier propose l'autocomplétion
+                    if(window.innerWidth > 768) {
+                       e.preventDefault();
+                       handleSend(e);
+                    }
                   }
                 }}
                 disabled={loading || authLoading}
-                placeholder="Posez votre question à Optimiplex..."
-                className="w-full bg-transparent border-none focus:outline-none resize-none max-h-40 py-3 px-1.5 text-[15px] text-[#1f1f1f] placeholder-gray-500 leading-normal min-h-[44px] disabled:opacity-50"
+                placeholder="Message à Optimiplex..."
+                // CRITIQUE : text-[16px] sur mobile pour empêcher iOS Safari de zoomer
+                className="w-full bg-transparent border-none focus:outline-none resize-none max-h-32 py-3 px-3 sm:px-4 text-[16px] sm:text-[15px] text-[#1f1f1f] placeholder-gray-500 leading-normal min-h-[48px] disabled:opacity-50 scrollbar-thin scrollbar-thumb-gray-300"
                 rows="1"
-                style={{ overflowY: 'auto' }}
               />
 
-              <div className="flex items-center gap-1 mb-0.5 mr-0.5 shrink-0">
+              <div className="flex items-center gap-1 mb-1 sm:mb-1.5 mr-1 sm:mr-1.5 shrink-0">
                 <button 
                   type="submit"
                   disabled={loading || !input.trim() || !userId || authLoading}
-                  className={`p-2.5 rounded-full transition-all shadow-sm ${
+                  className={`p-3 rounded-full transition-all flex items-center justify-center ${
                     loading || !input.trim() 
-                      ? 'text-gray-400 bg-transparent shadow-none' 
-                      : 'bg-[#1f1f1f] text-white hover:bg-black hover:scale-105'
+                      ? 'text-gray-400 bg-gray-100/50' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md active:scale-95'
                   }`}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-5 h-5 ml-0.5" />
                 </button>
               </div>
             </form>
             
-            <div className="text-center mt-2 text-[11px] text-[#8e918f]">
-              Optimiplex peut produire des informations inexactes.
+            <div className="text-center mt-3 text-[11px] sm:text-[12px] text-[#8e918f] px-4">
+              Optimiplex peut produire des informations inexactes. Vérifiez les chiffres importants.
             </div>
           </div>
         </div>
