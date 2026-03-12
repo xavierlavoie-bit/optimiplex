@@ -6,7 +6,8 @@
 import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, 
+import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
+  Settings, ChevronDown,
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -191,9 +192,9 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
   const navItems = [
     { id: 'overview', label: '📈 Vue d\'ensemble' },
+    { id: 'chat', label: '💬 Optimiplex IA' },
     { id: 'optimization', label: '⚡ Optimiseur' },
     { id: 'valuation', label: '📊 Évaluation' },
-    { id: 'chat', label: '💬Chat IA' },
     { id: 'profile', label: '👤 Mon Profil' },
   ];
 
@@ -452,7 +453,7 @@ function DashboardLayout() {
         <div className="px-8 py-5 flex items-center justify-between">
           <h1 className="text-2xl font-black text-gray-900">
             {activeTab === 'profile' ? '👤 Mon Profil' : activeTab === 'optimization' ? '⚡ Optimiseur' : activeTab === 'valuation' ? '📊 Évaluation' :activeTab === '💬 chat'
-    ? 'Chat IA Immobilier': '📈 Tableau de bord'}
+    ? 'Optimiplex IA': '📈 Tableau de bord'}
           </h1>
           <div className="flex items-center space-x-6">
             <div className="text-right hidden sm:block">
@@ -5935,159 +5936,182 @@ function PropertyValuationTab({
 //CHAT TAB
 
 
-
-
-
 function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const isAutoScrollPaused = useRef(false);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('base'); 
 
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [lastQuery, setLastQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingState, setLoadingState] = useState({ text: "", visible: false }); 
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [error, setError] = useState(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
   const [userId, setUserId] = useState(null);
   const [userPlanState, setUserPlanState] = useState(propPlan);
   const [authLoading, setAuthLoading] = useState(true);
 
   const isPro = userPlanState === 'pro' || userPlanState === 'growth' || userPlanState === 'entreprise';
 
-  // 🔥 LOADING INTELLIGENT
-  const getIntelligentSteps = useCallback((messageContent) => {
-    if (!messageContent?.trim()) return [
-      "🔍 Initialisation de la conversation avec Alex...",
-      "📊 Chargement des données immobilières Québec...",
-      "💡 Préparation de la réponse personnalisée...",
-      "✅ Génération du conseil stratégique..."
-    ];
+  useEffect(() => {
+    if (isPro) setSelectedModel('pro');
+  }, [isPro]);
 
-    const contentLower = messageContent.toLowerCase();
+  const handleModelChange = (model) => {
+    if (model === 'pro' && !isPro) {
+      setShowUpgradeModal?.(true);
+      setIsModelDropdownOpen(false);
+      return;
+    }
+    setSelectedModel(model);
+    setIsModelDropdownOpen(false);
+  };
 
-    if (contentLower.includes('refi') || contentLower.includes('refinancer') || contentLower.includes('financement')) {
-      return [
-        "🏠 Analyse de la valeur actuelle de votre immeuble...",
-        "📈 Calcul du ratio prêt-valeur (LTV) et liquidités disponibles...",
-        "🔍 Recherche des plex multifamiliaux à Québec et Montréal...",
-        "🎯 Élaboration de la stratégie de croissance immobilière personnalisée..."
-      ];
+  // ==============================================================================
+  // 📝 PARSEUR MARKDOWN INTÉGRÉ (Design Compact)
+  // ==============================================================================
+  const renderMarkdownToHtml = (text) => {
+    if (!text) return '';
+    let html = text;
+    
+    html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
+
+    // 1. Tableaux (Plus compacts)
+    const tableRegex = /(?:^\|.*\|\n?)+/gm;
+    html = html.replace(tableRegex, (match) => {
+      const rows = match.trim().split('\n');
+      let tableHtml = '<div class="overflow-x-auto my-3"><table class="w-full text-left text-[14px] border-collapse rounded-lg overflow-hidden ring-1 ring-gray-200 shadow-sm">';
+      let isHeader = true;
+      let hasSeenDivider = false;
+      
+      rows.forEach((row, index) => {
+        if (!row.trim()) return;
+        if (/^\|?[\s\-\:]+\|/.test(row)) {
+          tableHtml += '</thead><tbody class="divide-y divide-gray-100">';
+          isHeader = false;
+          hasSeenDivider = true;
+          return;
+        }
+        
+        const cols = row.split('|').slice(1, -1).map(c => c.trim());
+        if (index === 0) tableHtml += '<thead class="bg-gray-50 text-gray-700 font-semibold">';
+        tableHtml += '<tr class="hover:bg-gray-50/50 transition-colors">';
+        
+        cols.forEach(col => {
+          const tag = isHeader ? 'th' : 'td';
+          const classes = isHeader ? 'px-3 py-2 border-b border-gray-200' : 'px-3 py-2 text-[#444746]';
+          const cellContent = col.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          tableHtml += `<${tag} class="${classes}">${cellContent}</${tag}>`;
+        });
+        
+        tableHtml += '</tr>';
+        if (index === 0 && rows.length === 1) tableHtml += '</thead><tbody>'; 
+      });
+      
+      if (!hasSeenDivider && isHeader) tableHtml += '</thead><tbody>'; 
+      tableHtml += '</tbody></table></div>';
+      return tableHtml;
+    });
+
+    // 2. Séparateur horizontal (Marges réduites)
+    html = html.replace(/^---$/gm, '<hr class="my-5 border-t border-gray-200" />');
+
+    // 3. Titres (Marges réduites)
+    html = html.replace(/^### (.*$)/gim, '<h3 class="text-[16px] font-bold text-gray-800 mt-4 mb-1">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 class="text-[18px] font-bold text-gray-900 mt-5 mb-2 border-b pb-1 border-gray-100">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 class="text-[20px] font-black text-gray-900 mt-5 mb-3">$1</h1>'); 
+
+    // 4. Gras
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>');
+    
+    // 5. Listes (Espacement réduit)
+    html = html.replace(/^(?:-|\*)\s+(.+)$/gm, '<li class="ml-4 list-disc marker:text-blue-500 mb-0.5">$1</li>');
+    html = html.replace(/(<li class="ml-4 list-disc.*<\/li>\n?)+/g, '<ul class="my-2">$&</ul>');
+    html = html.replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4 list-decimal marker:text-gray-500 mb-0.5 font-medium text-gray-900"><span class="font-normal text-[#444746]">$1</span></li>');
+    html = html.replace(/(<li class="ml-4 list-decimal.*<\/li>\n?)+/g, '<ol class="my-2">$&</ol>');
+
+    // 6. Retours à la ligne (Sauts plus petits)
+    const parts = html.split(/(<[^>]+>)/g);
+    for (let i = 0; i < parts.length; i++) {
+      if (!parts[i].startsWith('<')) {
+        // Remplace les doubles sauts de ligne par un petit espace au lieu d'un gros bloc
+        parts[i] = parts[i].replace(/\n{2,}/g, '<div class="h-2"></div>').replace(/\n/g, '<br/>');
+      }
     }
-    if (contentLower.includes('reno') || contentLower.includes('rénovation') || contentLower.includes('travaux')) {
-      return [
-        "🔧 Identification des types de travaux les plus rentables...",
-        "💰 Estimation des coûts réels à Montréal et Rive-Sud...",
-        "📊 Calcul du retour sur investissement par type de rénovation...",
-        "✅ Création de la checklist d'exécution complète..."
-      ];
+    return parts.join('');
+  };
+
+  useEffect(() => {
+    if (!loading || !isStreaming) {
+      setLoadingState({ text: "", visible: false });
+      return;
     }
-    if (contentLower.includes('achat') || contentLower.includes('vendre') || contentLower.includes('plex') || contentLower.includes('immeuble')) {
-      return [
-        "🔍 Recherche des opportunités d'achat dans votre marché cible...",
-        "📈 Analyse des tendances de prix et inventaire actuel...",
-        "💼 Évaluation de la rentabilité projetée (cashflow, cap rate)...",
-        "🎯 Stratégie d'acquisition ou de vente optimisée..."
-      ];
-    }
-    if (contentLower.includes('loyer') || contentLower.includes('location') || contentLower.includes('occupation')) {
-      return [
-        "📊 Analyse du marché locatif dans votre secteur...",
-        "🔍 Benchmark des loyers par type d'unité et condition...",
-        "💰 Calcul du loyer optimal avec justification détaillée...",
-        "✅ Stratégies pour maximiser l'occupation et les revenus..."
-      ];
-    }
-    if (contentLower.includes('valeur') || contentLower.includes('évaluation') || contentLower.includes('prix')) {
-      return [
-        "📋 Collecte des données de ventes récentes comparables...",
-        "🏠 Analyse des caractéristiques de votre propriété...",
-        "💎 Calcul de la valeur marchande avec fourchette précise...",
-        "✅ Recommandations pour optimiser la valeur de revente..."
-      ];
-    }
-    return [
-      "🧠 Analyse approfondie de votre question immobilière...",
-      "📈 Recherche des données de marché Québec actualisées...",
-      "💼 Calculs financiers et projections personnalisées...",
-      "🎯 Conseil stratégique adapté à votre situation..."
+
+    const lowerQuery = lastQuery.toLowerCase();
+    let steps = [
+      "Analyse de la requête...",
+      "Consultation des modèles...",
+      "Élaboration de la stratégie...",
+      "Vérification des données...",
+      "Structuration de la réponse..."
     ];
-  }, []);
+    
+    if (lowerQuery.includes('mrb') || lowerQuery.includes('rentabilité') || lowerQuery.includes('plex')) {
+      steps = ["Analyse des métriques...", "Croisement avec le marché...", "Calcul des projections...", "Finalisation du rapport..."];
+    } else if (lowerQuery.includes('reno') || lowerQuery.includes('travaux')) {
+      steps = ["Évaluation des coûts...", "Analyse de la valeur ajoutée...", "Compilation des normes...", "Génération du plan..."];
+    }
+
+    let currentIndex = 0;
+    setLoadingState({ text: steps[currentIndex], visible: true });
+
+    const interval = setInterval(() => {
+      setLoadingState(prev => ({ ...prev, visible: false }));
+      setTimeout(() => {
+        currentIndex = (currentIndex + 1) % steps.length;
+        setLoadingState({ text: steps[currentIndex], visible: true });
+      }, 400); 
+    }, 2500); // Un peu plus rapide pour matcher Haiku
+
+    return () => clearInterval(interval);
+  }, [loading, isStreaming, lastQuery]);
 
   const confirmDelete = () => {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.id = 'delete-confirm-modal';
       modal.innerHTML = `
-        <div style="
-          position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-          background: rgba(0,0,0,0.5); z-index: 9999; 
-          display: flex; align-items: center; justify-content: center; 
-          backdrop-filter: blur(8px);
-        ">
-          <div style="
-            background: white; padding: 2.5rem; border-radius: 1.5rem; 
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); 
-            max-width: 450px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            border: 1px solid rgba(255,255,255,0.2);
-          ">
-            <div style="font-size: 1.5rem; font-weight: 800; color: #1f2937; margin-bottom: 1.25rem; line-height: 1.3;">
-              Supprimer cette conversation ?
-            </div>
-            <div style="color: #6b7280; margin-bottom: 2.5rem; line-height: 1.6; font-size: 1.1rem;">
-              Cette action est irréversible. Tous les messages seront perdus définitivement.
-            </div>
-            <div style="display: flex; gap: 1.25rem; justify-content: center;">
-              <button id="cancelBtn" style="
-                flex: 1; padding: 1rem 2rem; background: #f8fafc; 
-                border: 2px solid #e2e8f0; border-radius: 0.75rem; font-weight: 700; 
-                color: #475569; cursor: pointer; transition: all 0.3s; font-size: 1rem;
-              ">
-                Annuler
-              </button>
-              <button id="confirmBtn" style="
-                flex: 1; padding: 1rem 2rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); 
-                border: none; border-radius: 0.75rem; font-weight: 700; 
-                color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem;
-                box-shadow: 0 4px 14px 0 rgba(239,68,68,0.4);
-              ">
-                Supprimer
-              </button>
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+          <div style="background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-width: 400px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #1f2937; margin-bottom: 1rem;">Supprimer la conversation ?</div>
+            <div style="color: #6b7280; margin-bottom: 2rem; font-size: 0.95rem;">Les messages seront définitivement effacés.</div>
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+              <button id="cancelBtn" style="flex: 1; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; font-weight: 500; color: #374151; cursor: pointer;">Annuler</button>
+              <button id="confirmBtn" style="flex: 1; padding: 0.75rem; background: #ef4444; border: none; border-radius: 0.5rem; font-weight: 500; color: white; cursor: pointer;">Supprimer</button>
             </div>
           </div>
         </div>
       `;
-      
       document.body.appendChild(modal);
-
-      document.getElementById('cancelBtn').onclick = () => {
-        document.body.removeChild(modal);
-        resolve(false);
-      };
-      document.getElementById('confirmBtn').onclick = () => {
-        document.body.removeChild(modal);
-        resolve(true);
-      };
-
-      const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-          document.body.removeChild(modal);
-          resolve(false);
-          document.removeEventListener('keydown', handleEscape);
-        }
-      };
-      document.addEventListener('keydown', handleEscape);
+      document.getElementById('cancelBtn').onclick = () => { document.body.removeChild(modal); resolve(false); };
+      document.getElementById('confirmBtn').onclick = () => { document.body.removeChild(modal); resolve(true); };
     });
   };
 
-  // 🔥 TYPING EFFECT CORRIGÉ
-  // On tape le texte brut (Markdown), le rendu HTML se fait après !
-  const typeMessage = useCallback((fullResponse, index = 0, tempMessages) => {
+  const typeMessage = useCallback((fullResponse, index = 0, tempMessages, currentModel = 'base') => {
     if (index > fullResponse.length) {
       const finalMessages = tempMessages.map(msg => ({ ...msg, streaming: false }));
       setMessages(finalMessages);
+      setIsStreaming(false);
       return;
     }
 
@@ -6099,9 +6123,8 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     );
 
     setMessages(updatedMessages);
-
-    // Vitesse de frappe
-    setTimeout(() => typeMessage(fullResponse, index + 1, updatedMessages), 15);
+    const charsPerFrame = currentModel === 'base' ? 40 : 15;
+    setTimeout(() => typeMessage(fullResponse, index + charsPerFrame, updatedMessages, currentModel), 10);
   }, []);
 
   useEffect(() => {
@@ -6112,17 +6135,13 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         setAuthLoading(false);
         return;
       }
-
       try {
         const savedUser = localStorage.getItem('optimiUser');
         if (savedUser) {
           const parsed = JSON.parse(savedUser);
           setUserId(parsed.uid || parsed.id);
         }
-      } catch (err) {
-        console.error('LocalStorage error:', err);
-      }
-
+      } catch (err) {}
       setAuthLoading(true);
       try {
         const quotaRes = await fetch(`${API_BASE_URL}/api/propertyquota/${propUser?.uid || propUser?.id || 'demo-user-xavier'}`);
@@ -6136,7 +6155,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         setAuthLoading(false);
       }
     };
-
     initUser();
   }, [propUser, propPlan]);
 
@@ -6148,17 +6166,12 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   const handleDeleteConversation = async (conversationId) => {
     if (!userId || !conversationId) return;
-
     const shouldDelete = await confirmDelete();
     if (!shouldDelete) return;
 
     try {
       setLoadingConversations(true);
-      const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversation/${userId}/${conversationId}`, {
-        method: 'DELETE'
-      });
-
-      if (!res.ok) throw new Error(`Erreur suppression: ${res.status}`);
+      await fetch(`${API_BASE_URL}/api/realestate-chat/conversation/${userId}/${conversationId}`, { method: 'DELETE' });
 
       const convRes = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
       const convData = await convRes.json();
@@ -6169,7 +6182,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         setMessages([]);
       }
     } catch (err) {
-      window.alert('Erreur lors de la suppression. Réessayez.');
+      console.error(err);
     } finally {
       setLoadingConversations(false);
     }
@@ -6181,12 +6194,10 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       setLoadingConversations(true);
       try {
         const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversations/${userId}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setConversations(data.conversations || []);
       } catch (err) {
         setConversations([]);
-        if (err.message.includes('404')) setError("Aucune conversation. Cliquez sur ➕ pour commencer !");
       } finally {
         setLoadingConversations(false);
       }
@@ -6200,12 +6211,10 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         setLoading(true);
         try {
           const res = await fetch(`${API_BASE_URL}/api/realestate-chat/conversation/${userId}/${currentConversationId}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           setMessages(data.messages || []);
         } catch (err) {
           setMessages([]);
-          setError('Erreur lors du chargement des messages');
         } finally {
           setLoading(false);
         }
@@ -6218,62 +6227,39 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   const handleSend = async (e) => {
     e?.preventDefault();
-   
     if (!input.trim() || loading || !userId || authLoading) return;
 
     const userMessage = input.trim();
+    setLastQuery(userMessage);
     setInput('');
     setError(null);
     setLoading(true);
     setIsStreaming(true);
-    setCurrentStep(0);
+    isAutoScrollPaused.current = false; 
 
-    const tempMessages = [...messages, {
-      role: 'user',
-      content: userMessage,
-      streaming: false,
-      timestamp: new Date()
-    }];
+    const tempMessages = [...messages, { role: 'user', content: userMessage, streaming: false, timestamp: new Date() }];
     setMessages(tempMessages);
 
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
     try {
-      const steps = getIntelligentSteps(userMessage);
-      for (let i = 0; i < steps.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setCurrentStep(i + 1);
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/realestate-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          message: userMessage,
-          conversationId: currentConversationId
+        body: JSON.stringify({ 
+          userId: userId, 
+          message: userMessage, 
+          conversationId: currentConversationId,
+          model: selectedModel
         })
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error('Erreur de connexion');
 
       const data = await response.json();
-      
-      // On sauvegarde la réponse brute, pas besoin de .replace complexe ici
-      const tempAssistantMsg = {
-        role: 'assistant',
-        content: '',
-        streaming: true,
-        timestamp: new Date()
-      };
+      const tempAssistantMsg = { role: 'assistant', content: '', streaming: true, timestamp: new Date() };
       const newTempMessages = [...tempMessages, tempAssistantMsg];
       setMessages(newTempMessages);
       
-      // On stream le markdown pur
-      typeMessage(data.message, 0, newTempMessages);
+      typeMessage(data.message, 0, newTempMessages, selectedModel);
 
       if (!currentConversationId) {
         setCurrentConversationId(data.conversationId);
@@ -6281,20 +6267,26 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
         const convData = await convRes.json();
         setConversations(convData.conversations || []);
       }
-
     } catch (err) {
-      setError(`Oups ! ${err.message}. Réessayez s'il vous plaît.`);
+      setError("Une erreur s'est produite. Veuillez réessayer.");
       setMessages(tempMessages);
+      setIsStreaming(false);
     } finally {
       setLoading(false);
-      setIsStreaming(false);
-      setCurrentStep(0);
     }
   };
 
+  const handleContainerScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    isAutoScrollPaused.current = scrollHeight - scrollTop - clientHeight > 50;
+  };
+
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+    if (!isAutoScrollPaused.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' });
+    }
+  }, [isStreaming]);
 
   useEffect(() => {
     scrollToBottom();
@@ -6302,38 +6294,24 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   if (authLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20">
-        <div className="text-center p-12 max-w-md mx-auto">
-          <div className="w-24 h-24 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl ring-4 ring-white/50">
-            <Loader2 className="w-16 h-16 animate-spin text-white" />
-          </div>
-          <h2 className="text-3xl font-black text-gray-900 mb-4 bg-gradient-to-r from-gray-900 to-indigo-900 bg-clip-text text-transparent">
-            Connexion à Alex...
-          </h2>
-          <p className="text-xl text-gray-600 font-medium">Chargement de votre compte en cours</p>
-        </div>
+      <div className="h-full flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   if (!userId) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-emerald-50/20 px-4">
-        <div className="text-center max-w-lg w-full">
-          <div className="w-32 h-32 bg-gradient-to-br from-indigo-100 to-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl ring-4 ring-white/30">
-            <MessageCircle className="w-20 h-20 text-indigo-600" />
-          </div>
-          <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6 bg-gradient-to-r from-gray-900 via-gray-800 to-indigo-900 bg-clip-text text-transparent">
-            Connectez-vous pour chatter
-          </h2>
-          <p className="text-2xl text-gray-700 mb-12 font-semibold leading-relaxed">
-            Discutez avec Alex, votre expert immobilier Québec
-          </p>
+      <div className="h-full flex items-center justify-center bg-white px-4">
+        <div className="text-center max-w-md w-full">
+          <Sparkles className="w-12 h-12 text-blue-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-medium text-gray-800 mb-2">Bienvenue sur Optimiplex</h2>
+          <p className="text-gray-500 mb-8">Connectez-vous pour commencer à discuter avec votre assistant.</p>
           <button
             onClick={() => window.location.href = '/login'}
-            className="px-16 py-8 bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-500 text-white font-black text-xl rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 ring-4 ring-indigo-100/50 hover:ring-indigo-200/50"
+            className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-colors"
           >
-            Se connecter maintenant
+            Se connecter
           </button>
         </div>
       </div>
@@ -6341,237 +6319,279 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/20 to-emerald-50/10 p-2 sm:p-4 lg:p-8">
-      <div className="w-full">
-        <div className="bg-white/90 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-8 mb-8 ring-1 ring-white/50">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-            <div className="flex-1">
-              <div className="inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500/90 via-green-500/90 to-teal-500/90 px-6 py-3 rounded-2xl text-white text-sm font-bold mb-6 shadow-lg ring-1 ring-white/30">
-                <Zap className="w-5 h-5" />
-                {isPro ? 'Alex - Expert PRO Illimité' : 'Alex - Assistant Immobilier Québec'}
+    <div className="flex h-[100dvh] w-full bg-white text-[#1f1f1f] font-sans overflow-hidden">
+      
+      {/* --- SIDEBAR --- */}
+      <div className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-[#f0f4f9] transition-all duration-300 ease-in-out flex flex-col h-full overflow-hidden shrink-0`}>
+        <div className="p-4 h-full flex flex-col min-w-[16rem]">
+          <div className="flex items-center mb-6">
+            <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-200/80 rounded-full transition-colors">
+              <Menu className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+
+          <button 
+            onClick={handleNewConversation}
+            className="flex items-center gap-3 bg-white hover:bg-gray-50 text-[#1f1f1f] px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 transition-all font-medium mb-6 w-max"
+          >
+            <Plus className="w-5 h-5 text-gray-500" />
+            Nouvelle discussion
+          </button>
+
+          <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300">
+            <h3 className="text-xs font-medium text-gray-500 mb-3 px-2">Récents</h3>
+            
+            {loadingConversations ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>
+            ) : conversations.length === 0 ? (
+              <p className="text-sm text-gray-400 px-2 italic">Aucun historique</p>
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                {conversations.map((conv) => (
+                  <div key={conv.id} className="relative group">
+                    <button 
+                      onClick={() => setCurrentConversationId(conv.id)}
+                      className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-full transition-colors text-sm ${
+                        currentConversationId === conv.id 
+                          ? 'bg-[#d3e3fd] text-[#041e49]' 
+                          : 'text-[#444746] hover:bg-gray-200/50'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 shrink-0 opacity-70" />
+                      <span className="truncate flex-1">{conv.title || 'Nouvelle discussion'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteConversation(conv.id)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all bg-[#f0f4f9] group-hover:bg-white"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <h1 className="text-5xl lg:text-6xl font-black bg-gradient-to-r from-gray-900 via-gray-800 to-indigo-900 bg-clip-text text-transparent mb-6 leading-tight">
-                Chat Immobilier Québec
-              </h1>
-              <p className="text-2xl text-gray-700 max-w-3xl leading-relaxed font-medium">
-                Parlez directement avec Alex, votre conseiller immobilier expert Québec. Rénovation, plex, refinancement, stratégie — il maîtrise tout le marché local.
-              </p>
-            </div>
-            {!isPro && (
-              <button
-                onClick={() => setShowUpgradeModal?.(true)}
-                className="px-12 py-8 bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-500 text-white font-black text-xl rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 ring-4 ring-indigo-100/50 hover:ring-indigo-200/50 whitespace-nowrap group hover:-translate-y-1"
-              >
-                Passer PRO (19$/mois)
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </button>
             )}
           </div>
+
+          <div className="mt-auto pt-4 flex flex-col gap-1">
+            {!isPro && (
+               <button 
+                  onClick={() => setShowUpgradeModal?.(true)}
+                  className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-full hover:bg-gray-200/50 transition-colors text-sm text-[#444746]"
+               >
+                 <Zap className="w-4 h-4 text-amber-500" />
+                 Passer à Optimiplex Pro
+               </button>
+            )}
+            <button className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-full hover:bg-gray-200/50 transition-colors text-sm text-[#444746]">
+              <Settings className="w-4 h-4 text-gray-500" />
+              Paramètres
+            </button>
+          </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 lg:gap-8 h-[85vh]">
-          <div className="xl:col-span-1">
-            <div className="bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-2xl p-6 h-full flex flex-col sticky top-6 ring-1 ring-white/50">
-              <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
-                <h3 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-                  📱 Conversations
-                </h3>
-                <button
-                  onClick={handleNewConversation}
-                  className="p-3 bg-gradient-to-r from-indigo-100 to-emerald-100 text-indigo-700 rounded-2xl hover:from-indigo-200 hover:to-emerald-200 transition-all duration-300 font-bold shadow-lg hover:shadow-xl hover:scale-105 ring-1 ring-indigo-200/50 w-12 h-12 flex items-center justify-center"
-                  disabled={loadingConversations}
-                  title="Nouvelle conversation"
-                >
-                  ➕
-                </button>
-              </div>
+      {/* --- ZONE PRINCIPALE DE CHAT --- */}
+      <div className="flex-1 flex flex-col h-full bg-white relative">
+        
+        <header className="flex items-center justify-between px-4 py-3 w-full bg-white z-10 border-b border-gray-50">
+          <div className="flex items-center gap-2">
+            {!isSidebarOpen && (
+              <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-full transition-colors mr-1 shrink-0">
+                <Menu className="w-5 h-5 text-gray-600" />
+              </button>
+            )}
+            
+            <div className="relative">
+              <button 
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 rounded-xl transition-all"
+              >
+                <h1 className="text-[18px] text-[#1f1f1f] font-medium tracking-tight">Optimiplex</h1>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium shadow-sm transition-colors ${
+                  selectedModel === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {selectedModel === 'pro' ? 'Pro' : 'Base'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-              {loadingConversations ? (
-                <div className="flex items-center gap-4 text-gray-600 py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                  <span className="font-semibold text-lg">Chargement des conversations...</span>
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-500 py-12">
-                  <MessageCircle className="w-20 h-20 mb-6 opacity-40" />
-                  <p className="font-bold text-2xl mb-3">Aucune conversation</p>
-                  <p className="text-lg opacity-75">Cliquez sur ➕ pour commencer</p>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto space-y-4 pr-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                  {conversations.map((conv) => (
-                    <div key={conv.id} className="relative group">
-                      <button
-                        onClick={() => setCurrentConversationId(conv.id)}
-                        className={`w-full p-6 rounded-3xl border-4 transition-all duration-300 group-hover:shadow-2xl group-hover:scale-[1.01] group-hover:-translate-y-1 ring-1 ring-transparent backdrop-blur-sm ${
-                          currentConversationId === conv.id
-                            ? 'border-emerald-400/80 bg-gradient-to-br from-emerald-50/80 via-green-50/80 to-teal-50/80 shadow-3xl ring-emerald-200/50'
-                            : 'border-transparent bg-white/70 hover:bg-indigo-50/50'
-                        }`}
+              {isModelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)}></div>
+                  <div className="absolute top-full left-0 mt-1 w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                    <div className="p-2 flex flex-col gap-1">
+                      <button 
+                        onClick={() => handleModelChange('base')} 
+                        className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors flex flex-col gap-0.5 ${selectedModel === 'base' ? 'bg-gray-50 ring-1 ring-gray-200' : ''}`}
                       >
-                        <div className="font-black text-xl text-gray-900 truncate mb-2 leading-tight">{conv.title || 'Nouvelle discussion'}</div>
-                        <div className="text-sm text-gray-600 font-medium truncate">{conv.lastUserMessage}</div>
+                        <span className="font-medium text-[14px] text-[#1f1f1f]">Optimiplex Base</span>
+                        <span className="text-[12px] text-gray-500 leading-snug">Modèle rapide, idéal pour les questions simples.</span>
                       </button>
                       
-                      <button
-                        onClick={() => handleDeleteConversation(conv.id)}
-                        className="absolute -top-2 -right-2 w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-2xl shadow-2xl ring-2 ring-white/50 flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 z-10 disabled:opacity-50"
-                        title="Supprimer cette conversation"
-                        disabled={loadingConversations}
+                      <button 
+                        onClick={() => handleModelChange('pro')} 
+                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-start justify-between gap-3 ${
+                          selectedModel === 'pro' ? 'bg-blue-50/50 ring-1 ring-blue-100 hover:bg-blue-50' : 'hover:bg-gray-50'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-[14px] text-blue-700 flex items-center gap-1.5">
+                            Optimiplex Pro <Sparkles className="w-3 h-3" />
+                          </span>
+                          <span className="text-[12px] text-gray-500 leading-snug">Analyse profonde et calculs complexes.</span>
+                        </div>
+                        {!isPro && <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
                       </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                </>
               )}
+            </div>
+
+          </div>
+          
+          <div className="flex items-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
+              {propUser?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
           </div>
+        </header>
 
-          <div className="xl:col-span-4 flex flex-col bg-white/80 backdrop-blur-3xl border border-white/60 rounded-3xl shadow-3xl overflow-hidden ring-1 ring-white/50">
-            <div className="border-b border-white/40 px-10 py-8 bg-gradient-to-r from-emerald-500/5 via-green-500/5 to-teal-500/5 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-black text-gray-900">
-                    {currentConversationId ? '💬 Discussion en cours' : '🆕 Nouvelle conversation'}
-                  </h2>
-                  <p className="text-xl text-gray-600 font-semibold mt-2">
-                    {messages.length} messages • Plan: <span className="font-black text-emerald-600 capitalize">{userPlanState}</span>
-                  </p>
+        <main 
+          ref={chatContainerRef}
+          onScroll={handleContainerScroll}
+          className="flex-1 overflow-y-auto px-4 sm:px-8 pb-32"
+        >
+          <div className="max-w-3xl mx-auto w-full flex flex-col gap-4 pt-4">
+            
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center mt-20 sm:mt-24 px-4">
+                <div className="mb-6 p-3 bg-gradient-to-tr from-blue-50 to-purple-50 rounded-2xl shadow-sm border border-blue-100/50">
+                  <Sparkles className="w-8 h-8 text-blue-600" />
+                </div>
+                <h2 className="text-[2rem] sm:text-[2.2rem] tracking-tight leading-tight font-semibold text-[#1f1f1f] mb-3">
+                  Optimiplex <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Intelligence</span>
+                </h2>
+                <p className="text-[15px] text-[#444746] max-w-lg mx-auto leading-snug">
+                  Votre expert immobilier. Analysez vos rentabilités ou demandez une stratégie d'optimisation.
+                </p>
+                
+                <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full text-left">
+                  <button onClick={() => setInput("Fais l'analyse d'un 6-plex à 750 000$ générant 55 000$ de revenus bruts.")} className="p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm group">
+                    <TrendingUp className="w-5 h-5 text-blue-500 mb-2 group-hover:scale-110 transition-transform" />
+                    <strong className="block text-[14px] text-[#1f1f1f] font-semibold mb-0.5">Calcul de rentabilité</strong>
+                    <span className="text-[12px] text-[#444746]">Analyse de MRB, TGA...</span>
+                  </button>
+                  <button onClick={() => setInput("Explique-moi les règles de base du programme APH Select pour le refinancement.")} className="p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm group">
+                    <Building className="w-5 h-5 text-purple-500 mb-2 group-hover:scale-110 transition-transform" />
+                    <strong className="block text-[14px] text-[#1f1f1f] font-semibold mb-0.5">Stratégie de financement</strong>
+                    <span className="text-[12px] text-[#444746]">SCHL, conventions...</span>
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-10 space-y-10 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-white/50">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-8 py-20">
-                  <div className="w-40 h-40 bg-gradient-to-br from-emerald-100/80 to-green-100/80 rounded-3xl flex items-center justify-center shadow-2xl ring-2 ring-emerald-200/50">
-                    <MessageCircle className="w-24 h-24 text-emerald-500" />
-                  </div>
-                  <div className="text-center space-y-4 max-w-2xl mx-auto">
-                    <h3 className="text-4xl font-black text-gray-900 mb-4 bg-gradient-to-r from-gray-900 to-emerald-900 bg-clip-text text-transparent">
-                      Parlez à Alex
-                    </h3>
-                    <p className="text-2xl font-semibold">Posez-lui n'importe quelle question immobilier Québec</p>
-                    <p className="text-xl opacity-80 italic">"Stratégie plex Montréal ?", "Coût rénovation cuisine ?", "Refinancement comment ?"</p>
-                  </div>
-                </div>
-              ) : (
-                messages.map((m, idx) => (
-                  <div key={idx} className="flex justify-start">
-                    <div 
-                      className={`max-w-4xl bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-8 py-6 shadow-2xl ring-1 ring-gray-200/50 prose prose-slate sm:prose-lg max-w-none ${
-                        m.role === 'user' ? 'bg-gradient-to-r from-indigo-50 to-emerald-50 border-indigo-200/50 ml-auto max-w-3xl prose-p:text-indigo-900' : 'prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-emerald-800'
-                      }`}
-                      // On parse le Markdown UNIQUEMENT au moment de l'affichage
-                      dangerouslySetInnerHTML={{ __html: m.role === 'user' ? `<p>${m.content}</p>` : formatMarkdown(m.content) }}
-                    />
-                  </div>
-                ))
-              )}
-
-              {isStreaming && (
-                <div className="flex justify-start">
-                  <div className="bg-white/95 backdrop-blur-3xl border border-gray-100/50 rounded-3xl px-10 py-8 shadow-2xl max-w-5xl ring-1 ring-gray-200/50">
-                    <div className="flex items-start gap-6">
-                      <div className="flex flex-col items-center pt-2">
-                        <div className="w-4 h-4 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full animate-ping shadow-lg mb-3" />
-                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-emerald-800 font-black text-2xl mb-4 leading-tight bg-gradient-to-r from-emerald-100 to-green-100 px-6 py-3 rounded-2xl ring-1 ring-emerald-200/50">
-                          {getIntelligentSteps(messages[messages.length - 1]?.content || input)[currentStep - 1] || 'Finalisation de la réponse complète...'}
-                        </div>
-                        <div className="flex space-x-3">
-                          {[0,1,2,3].map(i => (
-                            <div
-                              key={i}
-                              className={`w-4 h-4 rounded-2xl shadow-md transition-all duration-300 ${
-                                i < currentStep
-                                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 scale-125 ring-2 ring-emerald-400/50'
-                                  : 'bg-gray-200/50 hover:bg-gray-300'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
+            ) : (
+              messages.map((m, idx) => (
+                <div key={idx} className={`flex gap-3 w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  
+                  {m.role === 'assistant' && (
+                    <div className="w-7 h-7 min-w-[1.75rem] bg-gradient-to-tr from-blue-500 to-purple-500 rounded-full flex items-center justify-center mt-0.5 shadow-sm shrink-0">
+                      <Sparkles className="w-3.5 h-3.5 text-white" />
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              <div ref={messagesEndRef} />
-            </div>
-
-            <div className="border-t border-gray-200/50 px-10 py-10 bg-gradient-to-t from-white/70 backdrop-blur-xl">
-              {error && (
-                <div className="mb-8 p-6 bg-gradient-to-r from-red-50/80 to-pink-50/80 border border-red-200/50 rounded-3xl backdrop-blur-xl ring-1 ring-red-200/50">
-                  <p className="font-bold text-xl text-red-800">{error}</p>
+                  {/* 🚀 DESIGN COMPACT : text-[15px], leading-normal, padding réduit */}
+                  <div className={`px-4 py-2.5 text-[15px] leading-normal ${
+                    m.role === 'user' 
+                      ? 'bg-[#f0f4f9] text-[#1f1f1f] rounded-[20px] rounded-tr-sm max-w-[80%]' 
+                      : 'bg-transparent text-[#1f1f1f] max-w-[90%]'
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: m.role === 'user' ? `<p class="m-0">${m.content}</p>` : renderMarkdownToHtml(m.content) }}
+                  />
                 </div>
-              )}
-              <form onSubmit={handleSend} className="flex items-end gap-6 max-w-6xl mx-auto">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend(e);
-                    }
-                  }}
-                  placeholder="Tapez votre question à Alex... (ex: 'Stratégie plex Montréal ?')"
-                  className="flex-1 px-10 py-8 text-2xl bg-white/80 backdrop-blur-3xl border-2 border-gray-200/50 rounded-3xl focus:border-emerald-400 focus:outline-none focus:ring-8 focus:ring-emerald-100/60 shadow-2xl transition-all duration-300 resize-none placeholder-gray-500 font-semibold hover:shadow-xl hover:border-gray-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading || authLoading}
-                />
-                <button
+              ))
+            )}
+
+            {isStreaming && loading && (
+              <div className="flex gap-3 w-full justify-start items-center py-1 h-10 pl-1">
+                <div className="relative w-7 h-7 min-w-[1.75rem] flex items-center justify-center shrink-0">
+                  <div className="absolute inset-0 rounded-full border-[2px] border-blue-100 border-t-blue-600 animate-spin"></div>
+                  <Sparkles className="w-3 h-3 text-blue-600 animate-pulse" />
+                </div>
+                
+                <div className={`flex items-center transition-opacity duration-400 ease-in-out ${loadingState.visible ? 'opacity-100' : 'opacity-0'}`}>
+                  <span className="text-[13px] font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-purple-700">
+                    {loadingState.text}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} className="h-2" />
+          </div>
+        </main>
+
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-8 pb-4 px-4 sm:px-8">
+          <div className="max-w-3xl mx-auto relative">
+            
+            {error && (
+              <div className="absolute -top-10 left-0 right-0 text-center">
+                <span className="bg-red-50 text-red-600 text-[13px] py-1 px-3 rounded-full border border-red-100 shadow-sm">
+                  {error}
+                </span>
+              </div>
+            )}
+
+            <form 
+              onSubmit={handleSend}
+              className="relative bg-[#f0f4f9] rounded-3xl flex items-end gap-1.5 p-1.5 focus-within:bg-white focus-within:shadow-[0_0_15px_rgba(0,0,0,0.05)] transition-all border border-transparent focus-within:border-gray-200"
+            >
+             
+              
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend(e);
+                  }
+                }}
+                disabled={loading || authLoading}
+                placeholder="Posez votre question à Optimiplex..."
+                className="w-full bg-transparent border-none focus:outline-none resize-none max-h-40 py-3 px-1.5 text-[15px] text-[#1f1f1f] placeholder-gray-500 leading-normal min-h-[44px] disabled:opacity-50"
+                rows="1"
+                style={{ overflowY: 'auto' }}
+              />
+
+              <div className="flex items-center gap-1 mb-0.5 mr-0.5 shrink-0">
+                <button 
                   type="submit"
                   disabled={loading || !input.trim() || !userId || authLoading}
-                  className="w-24 h-24 flex items-center justify-center bg-gradient-to-r from-emerald-600 via-green-600 to-teal-500 text-white rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 group ring-4 ring-emerald-100/50 hover:ring-emerald-200/60"
+                  className={`p-2.5 rounded-full transition-all shadow-sm ${
+                    loading || !input.trim() 
+                      ? 'text-gray-400 bg-transparent shadow-none' 
+                      : 'bg-[#1f1f1f] text-white hover:bg-black hover:scale-105'
+                  }`}
                 >
-                  {loading ? (
-                    <Loader2 className="w-9 h-9 animate-spin" />
-                  ) : (
-                    <Send className="w-9 h-9 group-hover:rotate-12 transition-transform duration-300" />
-                  )}
+                  <Send className="w-4 h-4" />
                 </button>
-              </form>
+              </div>
+            </form>
+            
+            <div className="text-center mt-2 text-[11px] text-[#8e918f]">
+              Optimiplex peut produire des informations inexactes.
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
 }
 
 // Composant MessageBubble manquant - à créer séparément
-function MessageBubble({ message }) {
-  const isUser = message.role === 'user';
-  
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-4xl p-8 rounded-3xl shadow-2xl backdrop-blur-xl ring-1 ring-white/50 ${
-        isUser 
-          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' 
-          : 'bg-white/90 border border-gray-100/50'
-      }`}>
-        <p className="text-xl leading-relaxed whitespace-pre-wrap">{message.content}</p>
-        <p className={`text-xs mt-3 opacity-75 font-medium ${
-          isUser ? 'text-emerald-100' : 'text-gray-500'
-        }`}>
-          {new Date(message.timestamp).toLocaleTimeString('fr-CA', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          })}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-
-
-
 
 // ============================================
 // 🏠 HOME PAGE (Code existant inchangé)
