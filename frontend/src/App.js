@@ -6796,48 +6796,79 @@ function HomePage() {
             </Link>
           </div>
 
-          {/* Hero Visual - Updated for Strategies */}
+          {/* Hero Visual - Updated for Rent Evaluation, Property Eval & Chatbot */}
           <div className="relative z-10 mt-10 sm:mt-16">
             <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-200/50 via-sky-200/40 to-emerald-200/40 rounded-3xl opacity-80 blur-xl" />
             <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-gray-200/70 card-hover">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {/* Card 1: Stratégie IA */}
-                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover text-left">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="text-3xl sm:text-4xl">🧠</div>
-                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Plan de Croissance</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                
+                {/* Card 1: Évaluateur & Optimisateur de Loyer */}
+                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover text-left flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="text-3xl sm:text-4xl">📈</div>
+                      <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Évaluation de Loyer</span>
+                    </div>
+                    <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
+                      Optimisation des Revenus
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
+                      L'IA a comparé vos baux aux annonces actives de votre secteur et identifié un important potentiel d'optimisation.
+                    </p>
                   </div>
-                  <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
-                    Stratégie d'Optimisation
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
-                    L'IA a identifié un levier de refinancement SCHL basé sur les taux actuels et vos comparables Web.
-                  </p>
-                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                    <p className="text-xs font-bold text-indigo-700">Recommandation :</p>
-                    <p className="text-sm font-black text-indigo-900">Augmentation de la valeur nette de +125k $</p>
+                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 mt-2">
+                    <p className="text-xs font-bold text-indigo-700">Manque à gagner récupérable :</p>
+                    <p className="text-sm sm:text-base font-black text-indigo-900 flex items-center gap-1">
+                      <span className="text-lg">💰</span> + 1 450 $ / mois
+                    </p>
                   </div>
                 </div>
 
-                {/* Card 2: Analyse Web Total */}
-                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover text-left">
-                   <div className="flex justify-between items-start mb-3">
-                    <div className="text-3xl sm:text-4xl">🌐</div>
-                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Web Total Search</span>
+                {/* Card 2: Évaluateur de Propriété (NOUVEAU) */}
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-blue-50/80 via-white to-blue-50/50 rounded-2xl border border-blue-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-200/40 transition card-hover text-left flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="text-3xl sm:text-4xl">🏢</div>
+                      <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Valeur Marchande Live</span>
+                    </div>
+                    <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
+                      Évaluation de Propriété
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
+                      L'IA calcule la valeur de votre immeuble en croisant les données du marché en temps réel et l'historique des ventes récentes.
+                    </p>
                   </div>
-                  <h3 className="font-black text-emerald-900 mb-2 text-lg sm:text-xl">
-                    Analyse du Marché Live
-                  </h3>
-                  <p className="text-xs sm:text-sm text-emerald-700 font-semibold mb-3">
-                    Données consolidées de Centris, JLR, Kijiji et Registres Fonciers.
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-black text-emerald-700 mb-2">
-                    Marché Haussier
-                  </p>
-                  <p className="text-xs text-emerald-600 font-black">
-                    IA scanne 1 500+ nouvelles annonces/jour
-                  </p>
+                  <div className="p-3 bg-blue-600 rounded-xl shadow-inner mt-2">
+                    <p className="text-xs font-bold text-blue-100">Valeur estimée actuelle :</p>
+                    <p className="text-sm sm:text-base font-black text-white flex items-center justify-between">
+                      <span>1 250 000 $</span>
+                      <span className="text-xs bg-blue-500 px-1.5 py-0.5 rounded font-bold text-white">+12%</span>
+                    </p>
+                  </div>
                 </div>
+
+                {/* Card 3: Chatbot IA Stratégique */}
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover text-left flex flex-col justify-between md:col-span-2 lg:col-span-1">
+                   <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="text-3xl sm:text-4xl">💬</div>
+                      <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Assistant IA 24/7</span>
+                    </div>
+                    <h3 className="font-black text-emerald-900 mb-2 text-lg sm:text-xl">
+                      Chatbot Stratégique
+                    </h3>
+                    <p className="text-xs sm:text-sm text-emerald-700 font-semibold mb-3">
+                      Discutez avec votre assistant pour simuler des scénarios ou générer vos avis d'augmentation conformes.
+                    </p>
+                  </div>
+                  <div className="bg-white/90 rounded-xl p-3 border border-emerald-200 shadow-sm relative mt-2">
+                    <div className="absolute -left-2 -top-2 bg-emerald-500 rounded-full w-4 h-4 border-2 border-white animate-pulse"></div>
+                    <p className="text-[11px] sm:text-xs text-gray-700 italic font-medium">
+                      « Comment puis-je maximiser la rentabilité de l'unité #4 cette année en respectant les grilles du TAL ? »
+                    </p>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -6860,7 +6891,7 @@ function HomePage() {
                 icon: '🔍',
                 title: 'Scan du Web Immobilier',
                 description:
-                  'Notre IA explore tout l\'Internet (annonces, articles, registres) pour capter chaque mouvement du marché en temps réel.',
+                  'Notre IA explore tout l\'Internet (annonces actives, articles, données publiques) pour capter chaque mouvement du marché en temps réel.',
               },
               {
                 icon: '🧠',
@@ -6878,7 +6909,7 @@ function HomePage() {
                 icon: '📊',
                 title: 'Analyses Multi-Sources',
                 description:
-                  'Fusion des données Centris, JLR, SCHL et données Web éparses pour une vision à 360 degrés.',
+                  'Fusion des annonces actives, des historiques de transactions et des comparables Web pour une vision à 360 degrés.',
               },
               {
                 icon: '⚡',
@@ -6917,94 +6948,111 @@ function HomePage() {
             Tarification <span className="text-indigo-600 underline decoration-indigo-200">transparente</span>
           </h2>
           <p className="fade-in-up text-lg sm:text-xl text-gray-600 text-center max-w-2xl mx-auto mb-12 sm:mb-16">
-            Débloquez la puissance de l'Intelligence Web avec nos plans Pro.
+            Débloquez la puissance de l'Intelligence Web avec nos plans flexibles.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+          {/* Passage de lg:grid-cols-3 à lg:grid-cols-4 pour inclure le plan À la carte */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-6">
             {[
               {
                 name: 'Essai',
                 price: 'Gratuit',
                 description: 'Pour découvrir l\'interface',
                 features: [
-                  '1 évaluation statique/mois',
+                  '1 évaluation offerte',
                   'Conseils de base',
                   'Support standard',
                 ],
                 highlighted: false,
+                buttonText: 'Commencer',
+              },
+              {
+                name: 'À la carte',
+                price: '5$',
+                period: '/ analyse',
+                description: 'Pour un besoin ponctuel',
+                features: [
+                  'Achat par crédits',
+                  'Scan Web en direct',
+                  'Sans abonnement',
+                  'Crédits valides à vie',
+                ],
+                highlighted: false,
+                buttonText: 'Acheter des crédits',
               },
               {
                 name: 'Pro',
-                price: '$29',
-                period: '/mois',
+                price: '29$',
+                period: '/ mois',
                 description: 'Le cerveau de votre parc',
                 features: [
-                  '20 analyses Stratégiques/mois',
-                  'Scan Web & Centris en direct',
-                  'Accès aux transactions JLR',
-                  'Recommandations d\'optimisation',
-                  'Résidentiel + Commercial',
+                  '20 analyses / mois',
+                  'Scan du Web en direct',
+                  'Transactions récentes',
+                  'Recommandations IA',
                 ],
                 highlighted: true,
+                buttonText: 'Activer l\'Intelligence',
               },
               {
                 name: 'Growth',
-                price: '$69',
-                period: '/mois',
-                description: 'Pour gestionnaires experts',
+                price: '69$',
+                period: '/ mois',
+                description: 'Gestionnaires experts',
                 features: [
-                  'Analyses & Stratégies illimitées',
-                  'Scan Web Temps Réel Global',
-                  'Plans d\'action personnalisés',
-                  'Support 24/7 prioritaire',
+                  'Analyses illimitées',
+                  'Scan Temps Réel Global',
+                  'Plans d\'action IA',
+                  'Support prioritaire',
                 ],
                 highlighted: false,
+                buttonText: 'Passer à Growth',
               },
             ].map((plan, i) => (
               <div
                 key={i}
-                className={`fade-in-up rounded-2xl border p-6 sm:p-8 transition-all backdrop-blur-xl card-hover glow-on-hover ${
+                className={`fade-in-up rounded-2xl border p-6 sm:p-7 transition-all backdrop-blur-xl card-hover glow-on-hover flex flex-col ${
                   plan.highlighted
-                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-50/50 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03]'
+                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-50/50 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03] z-10'
                     : 'border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40'
                 }`}
               >
                 {plan.highlighted && (
-                  <div className="mb-4 inline-block px-3 py-1 bg-indigo-600 text-white text-xs font-black rounded-full uppercase tracking-widest animate-pulse">
+                  <div className="mb-4 inline-block px-3 py-1 bg-indigo-600 text-white text-[10px] sm:text-xs font-black rounded-full uppercase tracking-widest animate-pulse w-fit">
                     🚀 Meilleure Valeur
                   </div>
                 )}
                 <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">
                   {plan.name}
                 </h3>
-                <p className="text-xs sm:text-sm text-gray-600 mb-6 font-medium uppercase tracking-tight">{plan.description}</p>
+                <p className="text-[11px] sm:text-xs text-gray-600 mb-6 font-medium uppercase tracking-tight h-8">{plan.description}</p>
                 <div className="mb-6 sm:mb-8">
                   <span className="text-3xl sm:text-4xl font-black text-gray-900">
                     {plan.price}
                   </span>
                   {plan.period && (
-                    <span className="text-gray-600 text-sm sm:text-base font-bold">
+                    <span className="text-gray-600 text-xs sm:text-sm font-bold ml-1">
                       {plan.period}
                     </span>
                   )}
                 </div>
                 <Link
                   to="/register"
-                  className={`block w-full py-3.5 px-6 rounded-xl font-black mb-6 sm:mb-8 text-center transition-all text-sm sm:text-base ${
+                  className={`block w-full py-3 px-4 rounded-xl font-black mb-6 sm:mb-8 text-center transition-all text-sm ${
                     plan.highlighted
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
                       : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  {plan.price === 'Gratuit' ? 'Commencer' : 'Activer l\'Intelligence Pro'}
+                  {plan.buttonText}
                 </Link>
-                <ul className="space-y-3">
+                <ul className="space-y-3 mt-auto">
                   {plan.features.map((feature, j) => (
                     <li
                       key={j}
-                      className="flex items-start gap-3 text-gray-700 text-sm sm:text-base"
+                      className="flex items-start gap-2 text-gray-700 text-xs sm:text-sm"
                     >
-                      <CheckCircle2 size={18} className={plan.highlighted ? "text-indigo-600 mt-0.5 shrink-0" : "text-gray-400 mt-0.5 shrink-0"} />
+                      <CheckCircle2 size={16} className={plan.highlighted ? "text-indigo-600 mt-0.5 shrink-0" : "text-gray-400 mt-0.5 shrink-0"} />
                       <span className={feature.includes('Pas de') ? "text-gray-400 line-through font-medium" : "font-bold text-gray-800"}>
                         {feature}
                       </span>
