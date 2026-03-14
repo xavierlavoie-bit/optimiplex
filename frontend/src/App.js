@@ -192,9 +192,9 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
   const navItems = [
     { id: 'overview', label: '📈 Vue d\'ensemble' },
+    { id: 'valuation', label: '📊 Évaluation' },
     { id: 'chat', label: '💬 Optimiplex IA' },
     { id: 'optimization', label: '⚡ Optimiseur' },
-    { id: 'valuation', label: '📊 Évaluation' },
     { id: 'profile', label: '👤 Mon Profil' },
   ];
 
