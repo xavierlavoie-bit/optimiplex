@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
-  Settings, ChevronDown, Star, Shield, CheckCircle2
+  Settings, ChevronDown, Star, Shield, CheckCircle2, Share2
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -569,7 +569,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
       features: [
         '20 analyses / mois',
-        'Recherche Centris & JLR en temps réel 🚀',
+        'Recherche en temps réel 🚀',
         'Chatbot avec RECHERCHE INTERNET 🌐',
         'Analyses financières Pro (TGA, MRB)',
         'Support email prioritaire'
@@ -816,7 +816,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
           {/* MARKET FOOTER */}
           <div className="mt-16 p-8 bg-gray-50 rounded-3xl border border-gray-100">
             <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-              <Search size={24} className="text-indigo-600" /> Données en temps réel (Centris & JLR)
+              <Search size={24} className="text-indigo-600" /> Données en temps réel
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="flex gap-4">
@@ -834,7 +834,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
                 </div>
                 <div>
                   <p className="font-bold text-gray-900 text-sm">Évaluations de Valeur</p>
-                  <p className="text-xs text-gray-500 mt-1">Estimations utilisant les comparables vendus réels de JLR (Tous plans).</p>
+                  <p className="text-xs text-gray-500 mt-1">Estimations utilisant les comparables vendus réels (Tous plans).</p>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -860,54 +860,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 // ============================================
 // 💳 STRIPE CHECKOUT BUTTON
 // ============================================
-function StripeCheckoutButton({ plan, planInfo, user, setUserPlan, setShowUpgradeModal }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleCheckout = async () => {
-    setLoading(true);
-    try {
-      if (!planInfo[plan]?.priceId) {
-        alert('Ce plan ne peut pas être acheté');
-        setLoading(false);
-        return;
-      }
-
-      const response = await axios.post(
-        `${API_BASE_URL}/api/stripe/create-checkout-session`,
-        {
-          userId: user.uid,
-          userEmail: user.email,
-          plan: plan,
-          priceId: planInfo[plan].priceId
-        }
-      );
-
-      if (response.data && response.data.sessionUrl) {
-        // Stockez le plan visé localement avant redirection
-        localStorage.setItem('pendingPlan', plan);
-        window.location.href = response.data.sessionUrl;
-      } else {
-        throw new Error('Pas d\'URL de session reçue');
-      }
-    } catch (error) {
-      console.error('Erreur Stripe:', error);
-      alert('Erreur: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button 
-      onClick={handleCheckout} 
-      disabled={loading}
-      className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold disabled:opacity-50"
-    >
-      {loading ? 'Redirection...' : `Passer à ${planInfo[plan].name}`}
-    </button>
-  );
-}
-
 
 
 
@@ -1337,12 +1289,12 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           try {
             const ref = collection(db, 'users', user.uid, collName);
             const snap = await getDocs(query(ref));
-            snap.docs.forEach(doc => {
+            snap.docs.forEach(docSnap => {
               allData.push({
-                id: doc.id,
+                id: docSnap.id,
                 collection: collName,
                 proprietype: typeOverride,
-                ...doc.data()
+                ...docSnap.data()
               });
             });
           } catch (e) {
@@ -1401,7 +1353,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   }, [user?.uid]);
 
   // ============================================
-  // ACTIONS
+  // ACTIONS & PARTAGE
   // ============================================
   const handleDelete = async (analysisId, collectionName, e) => {
     if (e) e.stopPropagation();
@@ -1440,14 +1392,92 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     }
   };
 
+  const handleShare = async (analyse, e) => {
+    if (e) e.stopPropagation();
+    if (!analyse) return;
+    
+    const isValuation = getAnalysisType(analyse) === 'valuation';
+    const city = analyse.ville || 'ma propriété';
+    let shareText = '';
+    
+    // Remplacer ce lien par le vrai lien de ton application
+    const APP_LINK = "https://optimiplex.com"; 
+    
+    if (isValuation) {
+      const val = formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne);
+      shareText = `📊 J'ai évalué ma propriété à ${city} à ${val}$ avec l'IA !\n\nDécouvrez la valeur réelle de votre bien et analysez le marché en quelques secondes. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+    } else {
+      const gain = formatCurrency(analyse.result?.recommandation?.gainannuel || analyse.result?.recommendations?.gainannuel);
+      shareText = `💰 J'ai trouvé comment générer +${gain}$/an avec mon immeuble à ${city} grâce à l'IA !\n\nCalculez le potentiel d'optimisation de vos revenus locatifs. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+    }
+
+    // API de partage native (Mobile, Safari, etc.)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Mon Analyse Immobilière IA',
+          text: shareText,
+        });
+        return;
+      } catch (err) {
+        console.log('Partage annulé ou non supporté par ce moyen', err);
+      }
+    } 
+    
+    // Fallback: Copie dans le presse-papier pour ordinateur
+    const textArea = document.createElement("textarea");
+    textArea.value = shareText;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      alert('✨ Le texte de partage a été copié dans votre presse-papier ! Vous pouvez maintenant le coller sur Facebook, LinkedIn ou par courriel.');
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+      alert('Erreur lors de la copie du texte de partage.');
+    }
+    document.body.removeChild(textArea);
+  };
+
   // ============================================
   // UTILITAIRES D'AFFICHAGE
   // ============================================
-  const formatCurrency = (val) => val ? Math.round(Number(val)).toLocaleString('fr-CA') : '0';
+  const formatCurrency = (val) => {
+      if (val === null || val === undefined || isNaN(val)) return 'N/A';
+      return Math.round(Number(val)).toLocaleString('fr-CA');
+  };
   
   const formatPercent = (val) => {
     if (val === undefined || val === null) return '-';
     return `${Number(val).toFixed(2)}%`;
+  };
+
+  const calculateWelcomeTax = (price) => {
+    if (!price || isNaN(price)) return 0;
+    let tax = 0;
+    const p = Number(price);
+
+    // Tranches Québec Standards (approximatives 2024)
+    if (p > 500000) {
+      tax += (p - 500000) * 0.02;
+      tax += (500000 - 294600) * 0.015;
+      tax += (294600 - 58900) * 0.01;
+      tax += 58900 * 0.005;
+    } else if (p > 294600) {
+      tax += (p - 294600) * 0.015;
+      tax += (294600 - 58900) * 0.01;
+      tax += 58900 * 0.005;
+    } else if (p > 58900) {
+      tax += (p - 58900) * 0.01;
+      tax += 58900 * 0.005;
+    } else {
+      tax += p * 0.005;
+    }
+    return tax;
   };
 
   const getAnalysisType = (analyse) => {
@@ -1464,8 +1494,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
   const getResidentialPercentage = (analyse) => {
     const data = analyse.result?.analyse || {};
-    const val = data.pourcentageGain ?? 
-                data.pourcentageGainTotal ?? 
+    const val = data.pourcentageGainTotal ?? 
+                data.pourcentageGain ?? 
                 data.appreciation ?? 
                 data.evolution ?? 
                 0;
@@ -1485,7 +1515,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     return '🏠';
   };
 
-  const getPropertyLabel = (analyse) => analyse.titre || analyse.typeappart || analyse.proprietetype || 'Propriété';
+  const getPropertyLabel = (analyse) => analyse.titre || analyse.addresseComplete || analyse.typeappart || analyse.proprietetype || 'Propriété';
 
   const filteredAnalyses = analyses.filter(a => {
     if (listFilter === 'all') return true;
@@ -1516,20 +1546,25 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
     const analyseData = result.analyse || {};
     const metrics = result.metriquesCommerciales || {};
-    const comparable = result.comparable || {};
-    const secteurAnalysis = analyseData.secteurAnalysis || analyseData.quartierAnalysis || analyseData.analyseSecteur;
+    const comparable = result.comparable || {}; 
+    const comparablesArray = result.comparables || []; 
+    
+    const secteurAnalysis = analyseData.analyseSecteur || analyseData.secteurAnalysis || analyseData.quartierAnalysis;
     const qualiteAnalysis = comparable.evaluation_qualite || comparable.evaluationQualite;
     const soldReference = comparable.soldReference;
+    
     const facteurs = result.facteursPrix || result.facteurs_prix || {};
     const positifs = facteurs.positifs || facteurs.augmentent || [];
     const negatifs = facteurs.negatifs || facteurs.diminuent || [];
     const incertitudes = facteurs.incertitudes || [];
+    
     const recs = result.recommendations || result.recommandation || {};
     const renovations = recs.renovationsRentables || recs.ameliorationsValeur || [];
     const optRevenus = recs.optimisationRevenu || [];
     const redDepenses = recs.reduceExpenses || [];
     const strategie = recs.strategieVente || recs.strategie;
     const timing = recs.timing || recs.venteMeilleuresChances;
+    
     const marketAnalysis = result.marketanalysis || {};
     const marketingKit = result.marketingkit || {};
     const justification = recs.justification || recs.raisonnement || []; 
@@ -1537,6 +1572,9 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const prochainesEtabpes = recs.prochainesetapes || [];
 
     const gainPct = getResidentialPercentage(selectedAnalysis);
+    const appreciationDollars = analyseData.appreciationTotale;
+    
+    const welcomeTax = calculateWelcomeTax(result.estimationActuelle?.valeurMoyenne);
 
     return (
       <div className="p-8 space-y-8 bg-gray-50/50">
@@ -1550,12 +1588,19 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl filter drop-shadow-md">{getPropertyIcon(selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
+                <span className="text-4xl filter drop-shadow-md">{getPropertyIcon(selectedAnalysis.proprietyType || selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
                 <div>
                   <h4 className="font-black text-gray-900 text-2xl leading-tight">{getPropertyLabel(selectedAnalysis)}</h4>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-1 font-medium">
-                    <MapPin size={16} className="text-gray-500" />
-                    <span>{selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`}</span>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mt-1 font-medium">
+                    <span className="flex items-center gap-1">
+                      <MapPin size={16} className="text-gray-500" />
+                      {selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`} {selectedAnalysis.codePostal && `(${selectedAnalysis.codePostal})`}
+                    </span>
+                    {selectedAnalysis.anneeConstruction && (
+                      <span className="bg-white/50 px-2 py-0.5 rounded border border-gray-200/50">
+                        Construction: {selectedAnalysis.anneeConstruction}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1583,7 +1628,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     <span className="text-2xl">💎</span> Estimation de Valeur
                   </h4>
                   {result.estimationActuelle?.confiance && (
-                    <span className="text-xs font-bold uppercase tracking-wider bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-200">
+                    <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${
+                        result.estimationActuelle.confiance === 'haute' ? 'bg-green-100 text-green-700 border-green-200' :
+                        result.estimationActuelle.confiance === 'moyenne' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                        'bg-orange-100 text-orange-700 border-orange-200'
+                    }`}>
                        Confiance {result.estimationActuelle.confiance}
                     </span>
                   )}
@@ -1613,23 +1662,48 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </div>
               </div>
 
-              {/* KPI Secondaires */}
+              {/* KPI Secondaires (Gain/Appréciation & Taxe de Bienvenue) */}
               <div className="space-y-4">
-                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center h-full text-center">
+                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center text-center">
                     <p className="text-xs text-gray-500 font-bold uppercase mb-2">
-                      {isCom ? 'Cap Rate Actuel' : 'Gain/Perte Potentiel'}
+                      {isCom ? 'Cap Rate Actuel' : 'Gain Historique Potentiel'}
                     </p>
-                    <p className={`text-4xl font-black ${
-                      isCom 
-                        ? 'text-indigo-600' 
-                        : gainPct >= 0 ? 'text-green-500' : 'text-red-500'
-                    }`}>
-                      {isCom 
-                        ? formatPercent(metrics.capRate)
-                        : `${gainPct > 0 ? '+' : ''}${gainPct.toFixed(2)}%`
-                      }
+                    
+                    {isCom ? (
+                        <>
+                            <p className="text-4xl font-black text-indigo-600">{formatPercent(metrics.capRate)}</p>
+                            <p className="text-2xl mt-2">🏢</p>
+                        </>
+                    ) : (
+                        <>
+                            {(appreciationDollars !== null && appreciationDollars !== undefined) ? (
+                                <div>
+                                    <p className={`text-3xl font-black ${appreciationDollars >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {appreciationDollars > 0 ? '+' : ''}${formatCurrency(appreciationDollars)}
+                                    </p>
+                                    <p className={`text-sm font-bold mt-1 ${gainPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      ({gainPct > 0 ? '+' : ''}{gainPct.toFixed(1)}%)
+                                    </p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-xl font-bold text-gray-400">Non calculé</p>
+                                    <p className="text-xs text-gray-500 mt-2">Prix d'achat initial non fourni</p>
+                                </div>
+                            )}
+                        </>
+                    )}
+                 </div>
+
+                 {/* Taxe de Bienvenue */}
+                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center text-center">
+                    <p className="text-xs text-gray-500 font-bold uppercase mb-2 flex justify-center items-center gap-1">
+                      💸 Frais de mutation
                     </p>
-                    <p className="text-2xl mt-2">{isCom ? '🏢' : gainPct >= 0 ? '🚀' : '📉'}</p>
+                    <p className="text-2xl font-black text-gray-900">
+                      ${formatCurrency(welcomeTax)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">Taxe de bienvenue est.</p>
                  </div>
               </div>
             </div>
@@ -1661,47 +1735,35 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                     <p className="text-xs font-bold text-gray-400 uppercase mb-2">Tendance Marché</p>
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{analyseData.marketTrend === 'acheteur' ? '🛒' : '🔥'}</span>
+                      <span className="text-3xl">
+                        {analyseData.marketTrend.toLowerCase().includes('acheteur') ? '🛒' : 
+                         analyseData.marketTrend.toLowerCase().includes('equilibre') ? '⚖️' : '🔥'}
+                      </span>
                       <p className="text-lg font-black text-gray-900 capitalize">
-                        {analyseData.marketTrend === 'acheteur' ? 'Favori Acheteur' : analyseData.marketTrend}
+                        {analyseData.marketTrend.toLowerCase().includes('acheteur') ? 'Favori Acheteur' : 
+                         analyseData.marketTrend.toLowerCase().includes('equilibre') ? 'Marché Équilibré' : 
+                         'Favori Vendeur'}
                       </p>
                     </div>
                   </div>
                 )}
                 
-                {/* Comparables Stats */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-4">
-                    {comparable.prixPiedCarreEstime ? 'Prix / pi² Estimé' : 'Métriques Comparables'}
-                  </p>
-                  
-                    {comparable.prixPiedCarreEstime ? (
-                       <div className="text-center py-2">
-                         <span className="text-3xl font-black text-purple-600">${comparable.prixPiedCarreEstime}</span>
-                         <span className="text-sm text-gray-500 font-bold"> / pi²</span>
-                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-500 text-sm font-bold">Moyen</span>
-                          <span className="font-black text-gray-900">${comparable.prix_moyen || comparable.prixMoyen}/pi²</span>
-                        </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                           <div className="bg-gradient-to-r from-blue-400 to-indigo-500 h-full rounded-full" style={{ width: '60%' }}></div>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-400 font-mono">
-                          <span>Min: ${comparable.prix_min}</span>
-                          <span>Max: ${comparable.prix_max}</span>
-                        </div>
-                      </div>
-                    )}
-                </div>
+                {/* Historique Achat si fourni */}
+                {selectedAnalysis.prixAchat && selectedAnalysis.anneeAchat && (
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-2">Historique d'achat</p>
+                    <div className="flex justify-between items-center">
+                       <span className="font-bold text-gray-700">Acheté en {selectedAnalysis.anneeAchat}</span>
+                       <span className="font-black text-gray-900">${formatCurrency(selectedAnalysis.prixAchat)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Texte Principal Droite */}
+              {/* Texte Principal Droite (Analyse Secteur) */}
               <div className="md:col-span-2 space-y-4">
                 {secteurAnalysis && (
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-full">
                     <h5 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-lg">
                       📍 Analyse du Secteur
                     </h5>
@@ -1710,30 +1772,76 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     </p>
                   </div>
                 )}
-
-                {(qualiteAnalysis || soldReference) && (
-                   <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
-                    <h5 className="font-black text-purple-900 mb-3 flex items-center gap-2 text-lg">
-                      {isCom ? '💼 Analyse Qualitative' : '🏡 Profil & Comparables'}
-                    </h5>
-                    <p className="text-sm text-purple-900 leading-relaxed italic text-justify">
-                      "{isCom ? qualiteAnalysis : soldReference}"
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
 
+            {/* --- NOUVEAU FORMAT : TABLEAU DES COMPARABLES --- */}
+            {comparablesArray.length > 0 && (
+                <div className="space-y-4 mt-8">
+                  <h4 className="font-black text-gray-900 text-xl flex items-center gap-2">
+                    🏘️ Propriétés Comparables du Marché
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {comparablesArray.map((comp, idx) => (
+                      <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-400' : 'bg-green-400'}`}></div>
+                        
+                        <div className="flex justify-between items-start pl-2 mb-3">
+                          <div className="pr-2">
+                             <p className="font-bold text-gray-900 text-sm md:text-base leading-tight">{comp.adresse}</p>
+                             <p className="text-xs text-gray-500 mt-1">{comp.date}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded font-bold uppercase shrink-0 border ${
+                              comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'
+                          }`}>
+                              {comp.statut}
+                          </span>
+                        </div>
+                        
+                        <p className="text-2xl font-black text-indigo-900 pl-2 mb-3">
+                          {comp.prix ? `$${formatCurrency(comp.prix)}` : 'Sur demande / Non affiché'}
+                        </p>
+                        
+                        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100">
+                          {comp.caracteristiques}
+                        </div>
+
+                        {comp.url && comp.url !== "null" && comp.url !== "" && (
+                          <div className="pl-2">
+                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                              Voir l'annonce
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+            )}
+
+            {/* Ancien format (si encore présent pour d'anciennes analyses) */}
+            {comparablesArray.length === 0 && (qualiteAnalysis || soldReference) && (
+              <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
+                <h5 className="font-black text-purple-900 mb-3 flex items-center gap-2 text-lg">
+                  {isCom ? '💼 Analyse Qualitative' : '🏡 Profil & Comparables'}
+                </h5>
+                <p className="text-sm text-purple-900 leading-relaxed italic text-justify">
+                  "{isCom ? qualiteAnalysis : soldReference}"
+                </p>
+              </div>
+            )}
+
             {/* --- FACTEURS D'INFLUENCE (Emojis & Couleurs) --- */}
             {(positifs.length > 0 || negatifs.length > 0 || incertitudes.length > 0) && (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-4">
                 <h4 className="font-black text-gray-900 text-xl">🎯 Facteurs d'Influence</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {incertitudes.length > 0 && (
                     <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-5">
                       <h5 className="font-black text-amber-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ⚠️ Incertitudes & Risques
+                        ⚠️ Incertitudes & Risques à vérifier
                       </h5>
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {incertitudes.map((item, idx) => (
@@ -1748,12 +1856,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   {positifs.length > 0 && (
                     <div className="bg-white border border-green-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-green-50/50 to-white">
                       <h5 className="font-black text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ✅ Points Positifs
+                        ✅ Points Positifs (Valeur Ajoutée)
                       </h5>
-                      <ul className="space-y-2">
+                      <ul className="space-y-3">
                         {positifs.map((item, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-green-500 font-bold shrink-0">+</span> {item}
+                            <span className="text-green-500 font-bold shrink-0">+</span> 
+                            <span className="leading-snug">{item}</span>
                           </li>
                         ))}
                       </ul>
@@ -1763,12 +1872,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   {negatifs.length > 0 && (
                     <div className="bg-white border border-red-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-red-50/50 to-white">
                       <h5 className="font-black text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ❌ Points Négatifs
+                        ❌ Points Négatifs (Désuétude)
                       </h5>
-                      <ul className="space-y-2">
+                      <ul className="space-y-3">
                         {negatifs.map((item, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-red-500 font-bold shrink-0">-</span> {item}
+                            <span className="text-red-500 font-bold shrink-0">-</span>
+                            <span className="leading-snug">{item}</span>
                           </li>
                         ))}
                       </ul>
@@ -2105,7 +2215,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             ) : filteredAnalyses.map((analyse) => {
               const analysisType = getAnalysisType(analyse);
               const isValuation = analysisType === 'valuation';
-              const isOptimization = analysisType === 'optimization';
               const isEditing = editingId === analyse.id;
               
               const residentialGain = getResidentialPercentage(analyse);
@@ -2123,7 +2232,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   <div className="flex items-center gap-4">
                     {/* ICONE EMOJI GROS */}
                     <div className="text-4xl filter drop-shadow-sm transition-transform group-hover:scale-110">
-                      {getPropertyIcon(analyse.proprietype || analyse.proprietetype)}
+                      {getPropertyIcon(analyse.proprietyType || analyse.proprietype || analyse.proprietetype)}
                     </div>
 
                     {/* INFOS PRINCIPALES */}
@@ -2147,14 +2256,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                             <h3 className="font-black text-gray-900 text-lg truncate group-hover:text-indigo-600 transition-colors">
                               {getPropertyLabel(analyse)}
                             </h3>
-                            <button onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || ''); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 transition-all"><Edit2 size={14} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || analyse.addresseComplete || ''); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 transition-all"><Edit2 size={14} /></button>
                           </div>
                         )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500 font-medium">
                          <span className="flex items-center gap-1"><MapPin size={12}/> {analyse.ville}</span>
                          <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                         <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp).toLocaleDateString('fr-CA')}</span>
+                         <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp || Date.now()).toLocaleDateString('fr-CA')}</span>
                       </div>
                     </div>
 
@@ -2190,6 +2299,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     {/* ACTIONS */}
                     <div className="flex items-center gap-2 pl-4 border-l border-gray-100">
                       <button 
+                        onClick={(e) => handleShare(analyse, e)} 
+                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Partager"
+                      >
+                        <Share2 size={18} />
+                      </button>
+                      <button 
                         onClick={(e) => handleDelete(analyse.id, analyse.collection, e)} 
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                         title="Supprimer"
@@ -2221,6 +2337,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </h3>
               </div>
               <div className="flex items-center gap-2">
+                 <button 
+                    onClick={(e) => handleShare(selectedAnalysis, e)} 
+                    className="flex items-center gap-2 px-3 py-2 text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all mr-1"
+                    title="Partager cette analyse"
+                 >
+                    <Share2 size={18} />
+                    <span className="hidden sm:inline text-sm">Partager</span>
+                 </button>
                  <button onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
                     <Trash2 size={20} />
                  </button>
@@ -2238,6 +2362,12 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
             {/* Footer */}
             <div className="bg-gray-50 border-t border-gray-200 px-8 py-4 flex justify-end gap-3">
+              <button 
+                onClick={(e) => handleShare(selectedAnalysis, e)} 
+                className="px-6 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center gap-2"
+              >
+                <Share2 size={18} /> Partager les résultats
+              </button>
               <button onClick={() => setSelectedAnalysis(null)} className="px-6 py-3 bg-white border border-gray-300 text-gray-800 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm">
                 Fermer
               </button>
@@ -3615,15 +3745,8 @@ function PropertyValuationTab({
   setShowUpgradeModal,
 }) {
   const [evaluationType, setEvaluationType] = useState('residential');
-  const [loading, setLoading] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [slideProgress, setSlideProgress] = useState(0);
 
-  const isSubmittingRef = useRef(false);
-
-  // ✅ État quota avec crédits
+  // État quota avec crédits
   const [quotaInfo, setQuotaInfo] = useState({
     remaining: 0,
     limit: 1,
@@ -3634,419 +3757,9 @@ function PropertyValuationTab({
     credits: 0 // Nouveau champ
   });
 
-  const [error, setError] = useState('');
-  const [slideErrors, setSlideErrors] = useState({});
+  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
 
-  const resultRef = useRef(null);
-
-  const loadingMessages = {
-    residential: [
-      '🔍 Analyse de la propriété résidentielle...',
-      '📊 Récupération des données du marché...',
-      '🤖 IA prédit la valeur actuelle...',
-      '📈 Calcul de l’appréciation...',
-      '💰 Génération du rapport...',
-      '✅ Finalisation de l’évaluation...',
-    ],
-    commercial: [
-      '🏪 Analyse de la propriété commerciale...',
-      '📊 Calcul des revenus et dépenses...',
-      '💹 Analyse des métriques commerciales...',
-      '🤖 IA évalue le potentiel de rentabilité...',
-      '📈 Optimisation des stratégies...',
-      '💰 Génération du rapport complet...',
-    ],
-  };
-
-  const PLAN_LIMITS = {
-    essai: 1,
-    pro: 5,
-    growth: 999,
-    entreprise: 999,
-  };
-
-  // ------------ FORM STATES ------------
-
-  const [formDataResidential, setFormDataResidential] = useState({
-    titre: '',
-    proprietyType: 'unifamilial',
-    ville: '',
-    quartier: '',
-    codePostal: '',
-    addresseComplete: '',
-    prixAchat: '',
-    anneeAchat: new Date().getFullYear() - 3,
-    anneeConstruction: 1990,
-    surfaceHabitee: '',
-    surfaceLot: '',
-    nombreChambres: 3,
-    nombreSallesBain: 2,
-    garage: 0,
-    sous_sol: 'none',
-    etatGeneral: 'bon',
-    piscine: false,
-    terrain_detail: '',
-    notes_additionnelles: '',
-  });
-
-  const [formDataCommercial, setFormDataCommercial] = useState({
-    titre: '',
-    proprietyType: 'immeuble_revenus',
-    ville: '',
-    quartier: '',
-    codePostal: '',
-    addresseComplete: '',
-    prixAchat: '',
-    anneeAchat: new Date().getFullYear() - 3,
-    anneeConstruction: 1990,
-    surfaceTotale: '',
-    surfaceLocable: '',
-    etatGeneral: 'bon',
-    renovations: [],
-    accessibilite: 'tres_bonne',
-    parking: 6,
-    terrain_detail: '',
-    notes_additionnelles: '',
-    nombreUnites: 6,
-    tauxOccupation: 95,
-    loyerMoyenParUnite: 1200,
-    revenuBrutAnnuel: '',
-    depensesAnnuelles: '',
-    nombreChambres: 50,        // pour hôtel
-    tauxOccupationHotel: 70,   // pour hôtel
-    tariffMoyenParNuit: 150,   // pour hôtel
-    clienteleActive: 'stable', // pour hôtel / commerce
-  });
-
-  const slidesResidential = [
-    {
-      id: 'location',
-      title: 'Localisation',
-      description: 'Où se situe votre propriété?',
-      icon: '📍',
-      required: ['ville', 'proprietyType'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
-    },
-    {
-      id: 'acquisition',
-      title: 'Acquisition',
-      description: "Informations d'achat",
-      icon: '💰',
-      required: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
-      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      description: 'Taille et surface',
-      icon: '📏',
-      required: [],
-      fields: ['surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'garage'],
-    },
-    {
-      id: 'condition',
-      title: 'État et condition',
-      description: 'Caractéristiques de la propriété',
-      icon: '🏗️',
-      required: ['etatGeneral'],
-      fields: ['sous_sol', 'etatGeneral'],
-    },
-    {
-      id: 'amenities',
-      title: 'Aménagements',
-      description: 'Équipements spéciaux',
-      icon: '✨',
-      required: [],
-      fields: ['piscine', 'terrain_detail'],
-    },
-    {
-      id: 'details',
-      title: 'Détails additionnels',
-      description: 'Informations complémentaires',
-      icon: '📝',
-      required: [],
-      fields: ['notes_additionnelles'],
-    },
-  ];
-
-  const slidesCommercial = [
-    {
-      id: 'location-com',
-      title: 'Localisation',
-      description: 'Où se situe votre propriété?',
-      icon: '📍',
-      required: ['ville', 'proprietyType'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
-    },
-    {
-      id: 'acquisition-com',
-      title: 'Acquisition',
-      description: "Informations d'achat",
-      icon: '💰',
-      required: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
-      fields: ['prixAchat', 'anneeAchat', 'anneeConstruction'],
-    },
-    {
-      id: 'dimensions-com',
-      title: 'Infrastructure',
-      description: 'Surface et caractéristiques',
-      icon: '📏',
-      required: [],
-      fields: ['surfaceTotale', 'surfaceLocable', 'parking', 'accessibilite'],
-    },
-    {
-      id: 'specific-com',
-      title: 'Détails spécifiques',
-      description: 'Données du type de propriété',
-      icon: '💹',
-      required: [],
-      fields: [
-        'nombreUnites',
-        'tauxOccupation',
-        'loyerMoyenParUnite',
-        'nombreChambres',
-        'tauxOccupationHotel',
-        'tariffMoyenParNuit',
-        'clienteleActive',
-      ],
-    },
-    {
-      id: 'financial-com',
-      title: 'Détails financiers',
-      description: 'Revenus et dépenses',
-      icon: '💰',
-      required: ['revenuBrutAnnuel', 'depensesAnnuelles'],
-      fields: ['revenuBrutAnnuel', 'depensesAnnuelles'],
-    },
-    {
-      id: 'condition-com',
-      title: 'État de la propriété',
-      description: 'Condition et rénovations',
-      icon: '🔧',
-      required: [],
-      fields: ['etatGeneral', 'renovations'],
-    },
-    {
-      id: 'details-com',
-      title: 'Notes finales',
-      description: 'Informations additionnelles',
-      icon: '📝',
-      required: [],
-      fields: ['terrain_detail', 'notes_additionnelles'],
-    },
-  ];
-
-  const slides = evaluationType === 'residential' ? slidesResidential : slidesCommercial;
-  const formData = evaluationType === 'residential' ? formDataResidential : formDataCommercial;
-  const setFormData =
-    evaluationType === 'residential' ? setFormDataResidential : setFormDataCommercial;
-
-  const propertyTypesResidential = [
-    { value: 'unifamilial', label: 'Unifamilial', icon: '🏠' },
-    { value: 'jumelee', label: 'Jumelée', icon: '🏘️' },
-    { value: 'duplex', label: 'Duplex', icon: '🏢' },
-    { value: 'triplex', label: 'Triplex', icon: '🏢' },
-    { value: '4plex', label: '4-plex', icon: '🏗️' },
-    { value: 'condo', label: 'Condo', icon: '🏙️' },
-  ];
-
-  const propertyTypesCommercial = [
-    { value: 'immeuble_revenus', label: 'Immeuble à revenus', icon: '🏢' },
-    { value: 'hotel', label: 'Hôtel', icon: '🏨' },
-    { value: 'depanneur', label: 'Dépanneur', icon: '🏪' },
-    { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
-    { value: 'bureau', label: 'Bureau', icon: '📋' },
-    { value: 'commerce', label: 'Autre commerce', icon: '🛍️' },
-    { value: 'terrain_commercial', label: 'Terrain', icon: '🌳' },
-  ];
-
-  const propertyTypes =
-    evaluationType === 'residential' ? propertyTypesResidential : propertyTypesCommercial;
-
-  const etatsGeneraux = [
-    { value: 'excellent', label: 'Excellent', icon: '⭐' },
-    { value: 'bon', label: 'Bon', icon: '👍' },
-    { value: 'moyen', label: 'Moyen', icon: '➖' },
-    { value: 'faible', label: 'Faible', icon: '⚠️' },
-    { value: 'renovation', label: 'À rénover', icon: '🔨' },
-  ];
-
-  const typesUnderground = [
-    { value: 'none', label: 'Aucun', icon: '❌' },
-    { value: 'partial', label: 'Partiellement fini', icon: '🔨' },
-    { value: 'full', label: 'Entièrement fini', icon: '✅' },
-  ];
-
-  const accessibiliteOptions = [
-    { value: 'tres_bonne', label: 'Très bonne', icon: '✅' },
-    { value: 'bonne', label: 'Bonne', icon: '👍' },
-    { value: 'moyenne', label: 'Moyenne', icon: '➖' },
-    { value: 'limitee', label: 'Limitée', icon: '⚠️' },
-  ];
-
-  const clienteleOptions = [
-    { value: 'stable', label: 'Stable', icon: '➡️' },
-    { value: 'croissance', label: 'En croissance', icon: '📈' },
-    { value: 'decline', label: 'En déclin', icon: '📉' },
-  ];
-
-  // ------------ HELPERS ------------
-
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setSlideErrors((prev) => {
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  };
-
-  const validateCurrentSlide = () => {
-    const cfg = slides[currentSlide];
-    const errors = {};
-    cfg.required.forEach((field) => {
-      const value = formData[field];
-      if (value === '' || value === null || value === undefined) {
-        errors[field] = true;
-      }
-    });
-    setSlideErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const submitEvaluation = async () => {
-    // ✅ VÉRIFICATION PRINCIPALE : Quota OU Crédits
-    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
-
-    if (!hasAccess) {
-      setError("Quota épuisé et pas de crédits disponibles.");
-      return;
-    }
-
-    if (isSubmittingRef.current) return; 
-    isSubmittingRef.current = true;
-    
-    try {
-      setLoading(true);
-      setError('');
-
-      if (evaluationType === 'commercial') {
-        const requiredFields = ['ville', 'revenuBrutAnnuel', 'depensesAnnuelles'];
-        if (formData.proprietyType === 'immeuble_revenus') {
-          requiredFields.push('nombreUnites', 'tauxOccupation', 'loyerMoyenParUnite');
-        }
-        if (formData.proprietyType === 'hotel') {
-          requiredFields.push('nombreChambres', 'tauxOccupationHotel', 'tariffMoyenParNuit');
-        }
-        const missing = requiredFields.filter((f) => {
-          const v = formData[f];
-          return v === '' || v === null || v === undefined;
-        });
-        if (missing.length > 0) {
-          setError(`Champs obligatoires manquants: ${missing.join(', ')}`);
-          setLoading(false);
-          isSubmittingRef.current = false;
-          return;
-        }
-      }
-
-      const endpoint =
-        evaluationType === 'residential'
-          ? `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`
-          : `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator-commercial`;
-
-      const payload =
-        evaluationType === 'residential'
-          ? {
-              userId: user?.uid,
-              ...formData,
-            }
-          : {
-              userId: user?.uid,
-              ...formData,
-              proprietyType: formData.proprietyType,
-              typeCom: formData.proprietyType,
-              surfaceTotale: Number(formData.surfaceTotale) || 0,
-              surfaceLocable: Number(formData.surfaceLocable) || 0,
-              accessibilite: formData.accessibilite || 'moyenne',
-              parking: Number(formData.parking) || 0,
-              ...(formData.proprietyType === 'immeuble_revenus' && {
-                nombreUnites: Number(formData.nombreUnites) || 0,
-                tauxOccupation: Number(formData.tauxOccupation) || 0,
-                loyerMoyenParUnite: Number(formData.loyerMoyenParUnite) || 0,
-                revenus_bruts_annuels: Number(formData.revenuBrutAnnuel) || 0,
-                depenses_annuelles: Number(formData.depensesAnnuelles) || 0,
-              }),
-              ...(formData.proprietyType === 'hotel' && {
-                nombreChambres: Number(formData.nombreChambres) || 0,
-                tauxOccupationHotel: Number(formData.tauxOccupationHotel) || 0,
-                tariffMoyenParNuit: Number(formData.tariffMoyenParNuit) || 0,
-                revenuBrutAnnuel: Number(formData.revenuBrutAnnuel) || 0,
-                depensesAnnuelles: Number(formData.depensesAnnuelles) || 0,
-              }),
-              etatGeneral: formData.etatGeneral || 'bon',
-              renovations: formData.renovations || [],
-              terrain_detail: formData.terrain_detail || '',
-              notes_additionnelles: formData.notes_additionnelles || '',
-            };
-
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || `Erreur HTTP ${resp.status}`);
-      }
-
-      const result = await resp.json();
-
-      // ✅ MISE À JOUR OPTIMISTE
-      if (!quotaInfo.isUnlimited) {
-        if (quotaInfo.remaining > 0) {
-           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
-        } else {
-           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
-        }
-      }
-
-      setSelectedProperty(result);
-      setShowForm(false);
-      setCurrentSlide(0);
-
-      setTimeout(() => {
-        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } catch (e) {
-      console.error(e);
-      setError(e.message || "Erreur lors de l'évaluation");
-    } finally {
-      setLoading(false);
-      isSubmittingRef.current = false;
-    }
-  };
-
-  const nextSlide = () => {
-    if (!validateCurrentSlide()) return;
-    if (currentSlide < slides.length - 1) {
-      setCurrentSlide((s) => s + 1);
-    } else {
-      // Call submit only once
-      submitEvaluation();
-    }
-  };
-
-  const previousSlide = () => {
-    if (currentSlide > 0) setCurrentSlide((s) => s - 1);
-  };
-
-  useEffect(() => {
-    setSlideProgress(((currentSlide + 1) / slides.length) * 100);
-  }, [currentSlide, slides.length]);
-
-  // ✅ CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
+  // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
     const loadQuota = async () => {
       try {
@@ -4059,7 +3772,7 @@ function PropertyValuationTab({
         const userPlanNow = userData.plan || 'essai';
         const planLimit = PLAN_LIMITS[userPlanNow] || 1;
         
-        // ✅ Récupération des crédits
+        // Récupération des crédits
         const creditsBalance = userData.creditsBalance || 0;
 
         const now = new Date();
@@ -4091,7 +3804,7 @@ function PropertyValuationTab({
           plan: userPlanNow,
           resetDate: resetDate,
           isUnlimited: planLimit >= 999,
-          credits: creditsBalance // ✅ Stockage
+          credits: creditsBalance 
         });
 
       } catch (error) {
@@ -4102,1374 +3815,11 @@ function PropertyValuationTab({
     if (user?.uid) loadQuota();
   }, [user?.uid]);
 
-  // ------------ SLIDE RENDERERS ------------
-
-  const renderLocationSlideResidential = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Titre (optionnel)
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Maison familiale Lévis"
-          value={formData.titre}
-          onChange={(e) => handleChange('titre', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Type de propriété *{' '}
-          {slideErrors.proprietyType && (
-            <span className="text-red-500">requis</span>
-          )}
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {propertyTypes.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => handleChange('proprietyType', t.value)}
-              className={`p-2 rounded-lg text-center transition border-2 ${
-                formData.proprietyType === t.value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              <div className="text-lg">{t.icon}</div>
-              <div className="text-xs font-medium">{t.label}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Lévis"
-          value={formData.ville}
-          onChange={(e) => handleChange('ville', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-            slideErrors.ville
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-indigo-500'
-          }`}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Quartier
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: Desjardins"
-              value={formData.quartier}
-              onChange={(e) => handleChange('quartier', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Code Postal
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: G6V 8T4"
-              value={formData.codePostal}
-              onChange={(e) => handleChange('codePostal', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Adresse
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: 123 rue Exemple"
-          value={formData.addresseComplete}
-          onChange={(e) => handleChange('addresseComplete', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-    </div>
-  );
-
-  const renderLocationSlideCommercial = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Titre (optionnel)
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: 6-plex Sainte-Foy"
-          value={formData.titre}
-          onChange={(e) => handleChange('titre', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Type de propriété *{' '}
-          {slideErrors.proprietyType && (
-            <span className="text-red-500">requis</span>
-          )}
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {propertyTypes.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              onClick={() => handleChange('proprietyType', t.value)}
-              className={`p-2 rounded-lg text-center transition border-2 ${
-                formData.proprietyType === t.value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              <div className="text-lg">{t.icon}</div>
-              <div className="text-xs font-medium">{t.label}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Québec"
-          value={formData.ville}
-          onChange={(e) => handleChange('ville', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-            slideErrors.ville
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-indigo-500'
-          }`}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Quartier
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: Ste-Foy"
-              value={formData.quartier}
-              onChange={(e) => handleChange('quartier', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Code Postal
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: G1V 2M2"
-              value={formData.codePostal}
-              onChange={(e) => handleChange('codePostal', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Adresse
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: 456 Avenue Principale"
-          value={formData.addresseComplete}
-          onChange={(e) => handleChange('addresseComplete', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-    </div>
-  );
-
-  const renderAcquisitionSlide = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Prix d'achat ($) *{' '}
-          {slideErrors.prixAchat && <span className="text-red-500">requis</span>}
-        </label>
-        <input
-          type="number"
-          placeholder="Ex: 350000"
-          value={formData.prixAchat}
-          onChange={(e) => handleChange('prixAchat', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-            slideErrors.prixAchat
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-indigo-500'
-          }`}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Année d'achat *{' '}
-            {slideErrors.anneeAchat && (
-              <span className="text-red-500">requis</span>
-            )}
-          </label>
-          <input
-            type="number"
-            min="1950"
-            max={new Date().getFullYear()}
-            value={formData.anneeAchat}
-            onChange={(e) =>
-              handleChange('anneeAchat', parseInt(e.target.value, 10) || '')
-            }
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-              slideErrors.anneeAchat
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:ring-indigo-500'
-            }`}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Année construction *{' '}
-            {slideErrors.anneeConstruction && (
-              <span className="text-red-500">requis</span>
-            )}
-          </label>
-          <input
-            type="number"
-            min="1800"
-            max={new Date().getFullYear()}
-            value={formData.anneeConstruction}
-            onChange={(e) =>
-              handleChange(
-                'anneeConstruction',
-                parseInt(e.target.value, 10) || ''
-              )
-            }
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-              slideErrors.anneeConstruction
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:ring-indigo-500'
-            }`}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDimensionsSlideResidential = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Surface habitable (pi²)
-          </label>
-          <input
-            type="number"
-            value={formData.surfaceHabitee}
-            onChange={(e) => handleChange('surfaceHabitee', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Surface du lot (pi²)
-          </label>
-          <input
-            type="number"
-            value={formData.surfaceLot}
-            onChange={(e) => handleChange('surfaceLot', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Chambres
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={formData.nombreChambres}
-            onChange={(e) =>
-              handleChange('nombreChambres', parseInt(e.target.value, 10) || 0)
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Salles de bain
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={formData.nombreSallesBain}
-            onChange={(e) =>
-              handleChange(
-                'nombreSallesBain',
-                parseInt(e.target.value, 10) || 0
-              )
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Garage
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={formData.garage}
-            onChange={(e) =>
-              handleChange('garage', parseInt(e.target.value, 10) || 0)
-            }
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDimensionsSlideCommercial = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Surface totale (pi²)
-          </label>
-          <input
-            type="number"
-            value={formData.surfaceTotale}
-            onChange={(e) => handleChange('surfaceTotale', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Surface locable (pi²)
-          </label>
-          <input
-            type="number"
-            value={formData.surfaceLocable}
-            onChange={(e) => handleChange('surfaceLocable', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Places de stationnement
-        </label>
-        <input
-          type="number"
-          value={formData.parking}
-          onChange={(e) =>
-            handleChange('parking', parseInt(e.target.value, 10) || 0)
-          }
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Accessibilité
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {accessibiliteOptions.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleChange('accessibilite', opt.value)}
-              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
-                formData.accessibilite === opt.value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              {opt.icon} {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSpecificSlideCommercial = () => {
-    const isImmeuble = formData.proprietyType === 'immeuble_revenus';
-    const isHotel = formData.proprietyType === 'hotel';
-    return (
-      <div className="space-y-4">
-        {isImmeuble && (
-          <>
-            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-sm mb-4">
-              <p className="font-semibold text-indigo-900">
-                📊 Immeuble à revenus (logements)
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nombre d'unités
-                </label>
-                <input
-                  type="number"
-                  value={formData.nombreUnites}
-                  onChange={(e) =>
-                    handleChange(
-                      'nombreUnites',
-                      parseInt(e.target.value, 10) || 0
-                    )
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Taux occupation (%)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.tauxOccupation}
-                  onChange={(e) =>
-                    handleChange(
-                      'tauxOccupation',
-                      parseInt(e.target.value, 10) || 0
-                    )
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Loyer moyen/unité ($/mois)
-              </label>
-              <input
-                type="number"
-                value={formData.loyerMoyenParUnite}
-                onChange={(e) =>
-                  handleChange(
-                    'loyerMoyenParUnite',
-                    parseInt(e.target.value, 10) || 0
-                  )
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </>
-        )}
-
-        {isHotel && (
-          <>
-            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-sm mb-4">
-              <p className="font-semibold text-indigo-900">🏨 Hôtel</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nombre de chambres
-                </label>
-                <input
-                  type="number"
-                  value={formData.nombreChambres}
-                  onChange={(e) =>
-                    handleChange(
-                      'nombreChambres',
-                      parseInt(e.target.value, 10) || 0
-                    )
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Taux occupation (%)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.tauxOccupationHotel}
-                  onChange={(e) =>
-                    handleChange(
-                      'tauxOccupationHotel',
-                      parseInt(e.target.value, 10) || 0
-                    )
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tarif moyen/nuit ($)
-              </label>
-              <input
-                type="number"
-                value={formData.tariffMoyenParNuit}
-                onChange={(e) =>
-                  handleChange(
-                    'tariffMoyenParNuit',
-                    parseInt(e.target.value, 10) || 0
-                  )
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </>
-        )}
-
-        {!isImmeuble && !isHotel && (
-          <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm">
-            <p className="font-semibold text-gray-800">
-              Aucun champ spécifique requis pour ce type commercial.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderFinancialSlideCommercial = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Revenus bruts annuels ($) *{' '}
-          {slideErrors.revenuBrutAnnuel && (
-            <span className="text-red-500">requis</span>
-          )}
-        </label>
-        <input
-          type="number"
-          placeholder="Avant dépenses"
-          value={formData.revenuBrutAnnuel}
-          onChange={(e) => handleChange('revenuBrutAnnuel', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-            slideErrors.revenuBrutAnnuel
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-indigo-500'
-          }`}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Dépenses annuelles ($) *{' '}
-          {slideErrors.depensesAnnuelles && (
-            <span className="text-red-500">requis</span>
-          )}
-        </label>
-        <input
-          type="number"
-          placeholder="Taxes, maintenance, assurance..."
-          value={formData.depensesAnnuelles}
-          onChange={(e) => handleChange('depensesAnnuelles', e.target.value)}
-          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-            slideErrors.depensesAnnuelles
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-indigo-500'
-          }`}
-        />
-      </div>
-
-      {formData.revenuBrutAnnuel && formData.depensesAnnuelles && (
-        <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-          <p className="text-sm font-semibold text-green-900">
-            RNE:{' '}
-            {(
-              parseInt(formData.revenuBrutAnnuel, 10) -
-              parseInt(formData.depensesAnnuelles, 10)
-            ).toLocaleString('fr-CA')}
-          </p>
-          <p className="text-xs text-green-800">
-            Ratio dépenses:{' '}
-            {(
-              (parseInt(formData.depensesAnnuelles, 10) /
-                parseInt(formData.revenuBrutAnnuel, 10)) *
-              100
-            ).toFixed(1)}
-            %
-          </p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderConditionSlide = () => (
-    <div className="space-y-4">
-      {evaluationType === 'residential' && (
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Sous-sol
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {typesUnderground.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => handleChange('sous_sol', t.value)}
-                className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
-                  formData.sous_sol === t.value
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-                }`}
-              >
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          État général *{' '}
-          {slideErrors.etatGeneral && (
-            <span className="text-red-500">requis</span>
-          )}
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {etatsGeneraux.map((etat) => (
-            <button
-              key={etat.value}
-              type="button"
-              onClick={() => handleChange('etatGeneral', etat.value)}
-              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
-                formData.etatGeneral === etat.value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              {etat.icon} {etat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAmenitiesSlide = () => (
-    <div className="space-y-4">
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        Piscine
-      </label>
-      <div className="flex gap-2">
-        {[true, false].map((val) => (
-          <button
-            key={String(val)}
-            type="button"
-            onClick={() => handleChange('piscine', val)}
-            className={`flex-1 py-2 rounded-lg transition border-2 font-medium ${
-              formData.piscine === val
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-            }`}
-          >
-            {val ? '✅ Oui' : '❌ Non'}
-          </button>
-        ))}
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Particularités du terrain
-        </label>
-        <input
-          type="text"
-          placeholder="Vue, boisé, coin tranquille..."
-          value={formData.terrain_detail}
-          onChange={(e) => handleChange('terrain_detail', e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-    </div>
-  );
-
-  const renderConditionCommercialSlide = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          État général
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {etatsGeneraux.map((etat) => (
-            <button
-              key={etat.value}
-              type="button"
-              onClick={() => handleChange('etatGeneral', etat.value)}
-              className={`p-2 rounded-lg transition border-2 text-sm font-medium ${
-                formData.etatGeneral === etat.value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
-              {etat.icon} {etat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Rénovations effectuées
-        </label>
-        <div className="space-y-2">
-          {['toiture', 'systeme_hvac', 'electricite', 'plomberie', 'facade'].map(
-            (reno) => (
-              <label
-                key={reno}
-                className="flex items-center cursor-pointer text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.renovations?.includes(reno)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      handleChange('renovations', [
-                        ...(formData.renovations || []),
-                        reno,
-                      ]);
-                    } else {
-                      handleChange(
-                        'renovations',
-                        (formData.renovations || []).filter((r) => r !== reno)
-                      );
-                    }
-                  }}
-                  className="mr-2 w-4 h-4 cursor-pointer"
-                />
-                <span className="capitalize">
-                  {reno.replace('_', ' ')}
-                </span>
-              </label>
-            )
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDetailsSlide = () => (
-    <div className="space-y-6">
-  {/* AVIS IMPORTANT */}
-  <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
-    <div className="flex items-start gap-3">
-      {/* Assurez-vous d'avoir importé AlertTriangle ou Info de lucide-react */}
-      <div className="text-amber-600 mt-0.5">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </div>
-      <div>
-        <p className="font-bold text-amber-900 text-sm">Qualité de l'analyse</p>
-        <p className="text-amber-800 text-sm mt-1 leading-relaxed">
-          Pour une analyse qui reflète le mieux la valeur réelle, il est crucial de fournir un <strong>maximum de détails</strong> sur la propriété. L'IA prend en compte chaque information (rénovations, état, matériaux) pour affiner son estimation.
-        </p>
-      </div>
-    </div>
-  </div>
-
-  {/* CHAMP DE SAISIE */}
-  <div>
-    <label className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-      Notes additionnelles
-      <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Recommandé</span>
-    </label>
-    <textarea
-      placeholder="Ex: Toiture refaite en 2022, cuisine haut de gamme, secteur très calme..."
-      value={formData.notes_additionnelles}
-      onChange={(e) => handleChange('notes_additionnelles', e.target.value)}
-      rows={5}
-      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm placeholder:text-gray-400"
-    />
-  </div>
-</div>
-  );
-
-  // ------------ RESULT RENDERERS ------------
-
-  const renderHeroValuation = () => {
-    const est = selectedProperty.estimationActuelle || {};
-    return (
-      <div className="relative overflow-hidden rounded-2xl shadow-lg">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600" />
-        <div className="relative p-8 md:p-12 text-white">
-          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-             <div>
-                <p className="text-sm md:text-base font-semibold opacity-90 mb-2">
-                  📊 Valeur Estimée Actuelle
-                </p>
-                <h2 className="text-4xl md:text-5xl font-black">
-                  {est.valeurMoyenne
-                    ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
-                    : 'N/A'}
-                </h2>
-             </div>
-             {est.confiance && (
-                <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg self-start">
-                    <p className="text-xs opacity-80 uppercase font-bold tracking-wider">Confiance</p>
-                    <p className="font-bold text-lg capitalize">{est.confiance}</p>
-                </div>
-             )}
-          </div>
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
-            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg">
-              <p className="text-xs md:text-sm opacity-80">Valeur basse</p>
-              <p className="text-lg md:text-xl font-bold">
-                {est.valeurBasse
-                  ? `${est.valeurBasse.toLocaleString('fr-CA')} $`
-                  : 'N/A'}
-              </p>
-            </div>
-            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg border-2 border-white/30">
-              <p className="text-xs md:text-sm opacity-80">Valeur moyenne</p>
-              <p className="text-lg md:text-xl font-bold">
-                {est.valeurMoyenne
-                  ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $`
-                  : 'N/A'}
-              </p>
-            </div>
-            <div className="bg-white/10 backdrop-blur p-3 md:p-4 rounded-lg">
-              <p className="text-xs md:text-sm opacity-80">Valeur haute</p>
-              <p className="text-lg md:text-xl font-bold">
-                {est.valeurHaute
-                  ? `${est.valeurHaute.toLocaleString('fr-CA')} $`
-                  : 'N/A'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Résidentiel: analyse d’appréciation basée sur ta structure
-  const renderResidentialAppreciation = () => {
-    const analyse = selectedProperty.analyse || {};
-    return (
-      <div className="bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-300 rounded-2xl p-6 md:p-8 shadow-lg">
-        <h3 className="text-2xl md:text-3xl font-black text-cyan-900 mb-6 flex items-center gap-3">
-          📊 Appréciation & Performance
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {typeof analyse.appreciationTotale === 'number' && (
-            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
-              <p className="text-xs font-semibold text-cyan-600 uppercase">
-                Appréciation totale
-              </p>
-              <p className={`text-2xl font-black mt-2 ${analyse.appreciationTotale >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
-                {analyse.appreciationTotale.toLocaleString('fr-CA')} $
-              </p>
-            </div>
-          )}
-          {(typeof analyse.appreciationAnnuelle === 'number' || typeof analyse.appreciationAnnuelleMoyenne === 'number') && (
-            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
-              <p className="text-xs font-semibold text-cyan-600 uppercase">
-                Appréciation/an
-              </p>
-              <p className={`text-2xl font-black mt-2 ${(analyse.appreciationAnnuelle || analyse.appreciationAnnuelleMoyenne) >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
-                {(analyse.appreciationAnnuelle || analyse.appreciationAnnuelleMoyenne || 0).toLocaleString('fr-CA')} $
-              </p>
-            </div>
-          )}
-          {(typeof analyse.pourcentageGain === 'number' || typeof analyse.pourcentageGainTotal === 'number') && (
-            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
-              <p className="text-xs font-semibold text-cyan-600 uppercase">
-                % Gain
-              </p>
-              <p className={`text-2xl font-black mt-2 ${(analyse.pourcentageGain || analyse.pourcentageGainTotal) >= 0 ? 'text-cyan-700' : 'text-red-600'}`}>
-                {(analyse.pourcentageGain || analyse.pourcentageGainTotal || 0).toFixed(2)} %
-              </p>
-            </div>
-          )}
-          {typeof analyse.yearsToBreakEven === 'number' && (
-            <div className="bg-white p-4 rounded-lg border-2 border-cyan-200">
-              <p className="text-xs font-semibold text-cyan-600 uppercase">
-                Années pour break-even
-              </p>
-              <p className="text-2xl font-black text-cyan-700 mt-2">
-                {analyse.yearsToBreakEven}
-              </p>
-            </div>
-          )}
-        </div>
-        {(analyse.marketTrend || analyse.performanceMarche) && (
-          <div className="mt-4 pt-4 border-t border-cyan-200 flex flex-wrap gap-4">
-            {analyse.marketTrend && (
-                <div>
-                    <p className="text-sm font-bold text-cyan-900 mb-1">
-                    Tendance du marché:
-                    </p>
-                    <p className="text-lg font-black text-cyan-700 capitalize">
-                    {analyse.marketTrend === 'haussier'
-                        ? '📈 Haussière'
-                        : analyse.marketTrend === 'baissier' || analyse.marketTrend === 'acheteur' // Le backend renvoie 'acheteur' parfois
-                        ? '📉 Baissière / Acheteur'
-                        : '➡️ Stable'}
-                    </p>
-                </div>
-            )}
-            {analyse.performanceMarche && (
-                <div>
-                    <p className="text-sm font-bold text-cyan-900 mb-1">
-                    Performance vs Marché:
-                    </p>
-                    <p className="text-lg font-black text-cyan-700 capitalize">
-                        {analyse.performanceMarche}
-                    </p>
-                </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Commercial: analyse avec metriquesCommerciales, cap rate, NOI, etc.
-  const renderCommercialMetrics = () => {
-    const m = selectedProperty.metriquesCommerciales || {};
-    if (!m) return null;
-    return (
-      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-2xl p-6 md:p-8 shadow-lg">
-        <h3 className="text-2xl md:text-3xl font-black text-indigo-900 mb-6 flex items-center gap-3">
-          📈 Métriques Commerciales Clés
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {typeof m.capRate === 'number' && (
-            <div className="bg-white p-6 rounded-lg border-2 border-indigo-200 shadow-sm">
-              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-widest">
-                Cap Rate
-              </p>
-              <p className="text-4xl font-black text-indigo-700 mt-3">
-                {m.capRate.toFixed(2)} %
-              </p>
-            </div>
-          )}
-          {typeof m.noiAnnuel === 'number' && (
-            <div className="bg-white p-6 rounded-lg border-2 border-green-200 shadow-sm">
-              <p className="text-xs font-semibold text-green-600 uppercase tracking-widest">
-                RNE Annuel
-              </p>
-              <p className="text-3xl font-black text-green-700 mt-3">
-                {m.noiAnnuel.toLocaleString('fr-CA')} $
-              </p>
-            </div>
-          )}
-          {typeof m.cashOnCash === 'number' && (
-            <div className="bg-white p-6 rounded-lg border-2 border-purple-200 shadow-sm">
-              <p className="text-xs font-semibold text-purple-600 uppercase tracking-widest">
-                Cash-on-Cash
-              </p>
-              <p className="text-4xl font-black text-purple-700 mt-3">
-                {m.cashOnCash.toFixed(2)} %
-              </p>
-            </div>
-          )}
-          {typeof m.multiplicateurRevenu === 'number' && (
-            <div className="bg-white p-6 rounded-lg border-2 border-orange-200 shadow-sm">
-              <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest">
-                Multiplicateur Revenu
-              </p>
-              <p className="text-4xl font-black text-orange-700 mt-3">
-                {m.multiplicateurRevenu.toFixed(2)}x
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderResidentialQuartierAndComparables = () => {
-    const analyse = selectedProperty.analyse || {};
-    const comp = selectedProperty.comparable || {};
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {(analyse.quartierAnalysis || analyse.analyseSecteur) && (
-          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
-            <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
-              🎯 Analyse du Quartier
-            </h3>
-            <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
-              {analyse.analyseSecteur || analyse.quartierAnalysis}
-            </p>
-          </div>
-        )}
-
-        {(comp.evaluationQualite || comp.soldReference) && (
-          <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-2xl p-6 md:p-8 shadow-lg">
-            <h3 className="text-2xl md:text-3xl font-black text-purple-900 mb-4 flex items-center gap-3">
-              🏘️ Comparables
-            </h3>
-            {comp.soldReference && (
-                <div className="mb-4 bg-white/50 p-3 rounded-lg border border-purple-200">
-                    <p className="text-xs font-bold text-purple-800 uppercase mb-1">Transaction de référence</p>
-                    <p className="text-sm text-gray-800 italic">"{comp.soldReference}"</p>
-                </div>
-            )}
-            {comp.evaluationQualite && (
-                 <div className="mb-4">
-                    <p className="text-xs font-bold text-purple-800 uppercase mb-1">Qualité</p>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                    {comp.evaluationQualite}
-                    </p>
-                </div>
-            )}
-            {comp.prixPiedCarreEstime && (
-                <div className="mt-4 pt-4 border-t border-purple-200">
-                    <p className="text-sm font-bold text-purple-900">
-                        Prix au pi² estimé: <span className="text-lg">{comp.prixPiedCarreEstime} $</span>
-                    </p>
-                </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderResidentialFacteursPrix = () => {
-    const f = selectedProperty.facteursPrix || {};
-    // Supporte les deux formats de nommage (ancien vs nouveau prompt)
-    const positives = f.augmentent || f.positifs || [];
-    const negatives = f.diminuent || f.negatifs || [];
-    const neutrals = f.neutre || [];
-    const uncertainties = f.incertitudes || [];
-
-    if (!positives.length && !negatives.length && !neutrals.length && !uncertainties.length) return null;
-
-    return (
-      <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
-        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
-          🎯 Facteurs de Prix
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {positives.length > 0 && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
-              <p className="font-black text-green-700 mb-3 text-sm uppercase">
-                ✅ Augmentent la valeur
-              </p>
-              <ul className="space-y-2">
-                {positives.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-green-600 font-bold flex-shrink-0">+</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {negatives.length > 0 && (
-            <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
-              <p className="font-black text-red-700 mb-3 text-sm uppercase">
-                ❌ Diminuent la valeur
-              </p>
-              <ul className="space-y-2">
-                {negatives.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-red-600 font-bold flex-shrink-0">-</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {uncertainties.length > 0 && (
-            <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-xl border-2 border-orange-300">
-              <p className="font-black text-orange-700 mb-3 text-sm uppercase">
-                ⚠️ Incertitudes / Risques
-              </p>
-              <ul className="space-y-2">
-                {uncertainties.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-orange-600 font-bold flex-shrink-0">?</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {neutrals.length > 0 && (
-            <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
-              <p className="font-black text-gray-700 mb-3 text-sm uppercase">
-                ➖ Facteurs neutres
-              </p>
-              <ul className="space-y-2">
-                {neutrals.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-gray-600 font-bold flex-shrink-0">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCommercialFacteursPrix = () => {
-    const f = selectedProperty.facteurs_prix || selectedProperty.facteursPrix || {}; // Support legacy name
-    const positives = f.augmentent || f.positifs || [];
-    const negatives = f.diminuent || f.negatifs || [];
-    const neutrals = f.neutre || [];
-    
-    if (!positives.length && !negatives.length && !neutrals.length) return null;
-    
-    return (
-      <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 md:p-8 shadow-lg">
-        <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-6 flex items-center gap-3">
-          🎯 Facteurs de Prix
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {positives.length > 0 && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-300">
-              <p className="font-black text-green-700 mb-3 text-sm uppercase">
-                ✅ Augmentent la valeur
-              </p>
-              <ul className="space-y-2">
-                {positives.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-green-600 font-bold flex-shrink-0">+</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {negatives.length > 0 && (
-            <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-300">
-              <p className="font-black text-red-700 mb-3 text-sm uppercase">
-                ❌ Diminuent la valeur
-              </p>
-              <ul className="space-y-2">
-                {negatives.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-red-600 font-bold flex-shrink-0">-</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {neutrals.length > 0 && (
-            <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border-2 border-gray-300">
-              <p className="font-black text-gray-700 mb-3 text-sm uppercase">
-                ➖ Facteurs neutres
-              </p>
-              <ul className="space-y-2">
-                {neutrals.map((item, idx) => (
-                  <li
-                    key={idx}
-                    className="flex gap-2 text-xs md:text-sm text-gray-800"
-                  >
-                    <span className="text-gray-600 font-bold flex-shrink-0">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCommercialSecteurAndComparables = () => {
-    const analyse = selectedProperty.analyse || {};
-    const comp = selectedProperty.comparable || {};
-    return (
-      <div className="space-y-6">
-        {(analyse.secteurAnalysis || analyse.analyseSecteur) && (
-          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-300 rounded-2xl p-6 md:p-8 shadow-lg">
-            <h3 className="text-2xl md:text-3xl font-black text-amber-900 mb-4 flex items-center gap-3">
-              🎯 Analyse du Secteur
-            </h3>
-            <p className="text-gray-800 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
-              {analyse.secteurAnalysis || analyse.analyseSecteur}
-            </p>
-          </div>
-        )}
-
-        {comp.evaluation_qualite && (
-          <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-2xl p-6 md:p-8 shadow-lg">
-            <h3 className="text-2xl md:text-3xl font-black text-purple-900 mb-4 flex items-center gap-3">
-              🏘️ Comparables & Qualité d’évaluation
-            </h3>
-            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {comp.evaluation_qualite}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderRecommendations = () => {
-    const r = selectedProperty.recommendations || {};
-    if (!r) return null;
-
-    // Mapping pour supporter les deux formats de réponse JSON
-    const renovations = r.ameliorationsValeur || r.renovationsRentables || [];
-    const strategy = r.strategie || r.strategieVente;
-
-    return (
-      <div className="bg-gradient-to-br from-lime-50 to-green-50 border-2 border-lime-300 rounded-2xl p-6 md:p-8 shadow-lg">
-        <h3 className="text-2xl md:text-3xl font-black text-lime-900 mb-6 flex items-center gap-3">
-          💡 Recommandations Stratégiques
-        </h3>
-        
-        {renovations.length > 0 && (
-          <div className="mb-6">
-            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
-              🔨 Améliorations pour augmenter la valeur
-            </p>
-            <ul className="space-y-2">
-              {renovations.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex gap-3 text-sm md:text-base text-gray-800"
-                >
-                  <span className="text-lime-600 font-bold flex-shrink-0">
-                    ✓
-                  </span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {r.optimisationRevenu?.length > 0 && (
-          <div className="mb-6 pt-4 border-t border-lime-300">
-            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
-              💰 Optimisation des revenus
-            </p>
-            <ul className="space-y-2">
-              {r.optimisationRevenu.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex gap-3 text-sm md:text-base text-gray-800"
-                >
-                  <span className="text-lime-600 font-bold flex-shrink-0">
-                    $
-                  </span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {r.reduceExpenses?.length > 0 && (
-          <div className="mb-6 pt-4 border-t border-lime-300">
-            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
-              📉 Réduction des dépenses
-            </p>
-            <ul className="space-y-2">
-              {r.reduceExpenses.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex gap-3 text-sm md:text-base text-gray-800"
-                >
-                  <span className="text-lime-600 font-bold flex-shrink-0">
-                    ✂️
-                  </span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {strategy && (
-          <div className="mt-6 pt-4 border-t border-lime-300 bg-white p-4 rounded-lg">
-            <p className="font-bold text-lime-800 mb-3 text-sm uppercase tracking-widest">
-              📋 Stratégie complète
-            </p>
-            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {strategy}
-            </p>
-          </div>
-        )}
-
-        {r.timing && (
-          <div className="mt-4 bg-white p-4 rounded-lg border-2 border-amber-300">
-            <p className="font-bold text-amber-800 mb-3 text-sm uppercase tracking-widest">
-              ⏱️ Timing optimal
-            </p>
-            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {r.timing}
-            </p>
-          </div>
-        )}
-
-        {r.venteMeilleuresChances && (
-          <div className="mt-4 bg-white p-4 rounded-lg border-2 border-blue-300">
-            <p className="font-bold text-blue-800 mb-3 text-sm uppercase tracking-widest">
-              📅 Fenêtre de vente optimale
-            </p>
-            <p className="text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
-              {r.venteMeilleuresChances}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const isButtonDisabled = loading || (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+  const isButtonDisabled = (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
 
   return (
     <div className="space-y-6">
-      <LoadingSpinner
-        isLoading={loading}
-        messages={loadingMessages[evaluationType]}
-        estimatedTime={evaluationType === 'commercial' ? 90 : 60}
-      />
-
-      {/* ✅ QUOTA CARD AVEC CRÉDITS */}
+      {/* QUOTA CARD AVEC CRÉDITS */}
       {quotaInfo && (
         <div className={`p-6 rounded-xl border-2 ${
           !isButtonDisabled ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'
@@ -5504,12 +3854,7 @@ function PropertyValuationTab({
           <button
             key={type}
             type="button"
-            onClick={() => {
-              setEvaluationType(type);
-              setCurrentSlide(0);
-              setShowForm(false);
-              setSelectedProperty(null);
-            }}
+            onClick={() => setEvaluationType(type)}
             disabled={isButtonDisabled}
             className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
               evaluationType === type
@@ -5526,130 +3871,1791 @@ function PropertyValuationTab({
         ))}
       </div>
 
+      {/* RENDER ACTIVE VALUATION COMPONENT */}
+      {evaluationType === 'residential' ? (
+        <ResidentialValuation 
+          user={user} 
+          quotaInfo={quotaInfo} 
+          setQuotaInfo={setQuotaInfo} 
+          isButtonDisabled={isButtonDisabled}
+        />
+      ) : (
+        <CommercialValuation 
+          user={user} 
+          quotaInfo={quotaInfo} 
+          setQuotaInfo={setQuotaInfo} 
+          isButtonDisabled={isButtonDisabled}
+        />
+      )}
+    </div>
+  );
+}
+
+function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
+  const [loading, setLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slideProgress, setSlideProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [slideErrors, setSlideErrors] = useState({});
+  
+  const isSubmittingRef = useRef(false);
+  const resultRef = useRef(null);
+
+  const [formData, setFormData] = useState({
+    titre: '',
+    proprietyType: 'unifamilial',
+    ville: '',
+    quartier: '',
+    codePostal: '',
+    addresseComplete: '',
+    prixAchat: '',
+    anneeAchat: '',
+    anneeConstruction: 1990,
+    surfaceHabitee: '',
+    surfaceLot: '',
+    nombreChambres: 3,
+    nombreSallesBain: 2,
+    garage: 0,
+    sous_sol: 'none',
+    etatGeneral: 'bon',
+    toitureAnnee: '',
+    fenetresAnnee: '',
+    plomberieEtat: 'inconnu',
+    electriciteEtat: 'inconnu',
+    piscine: false,
+    terrain_detail: '',
+    notes_additionnelles: '',
+  });
+
+  const loadingMessages = [
+    '🔍 Analyse de la propriété résidentielle...',
+    '📊 Récupération des comparables du secteur sur le Web...',
+    '🤖 Évaluation des composantes (Toiture, Électricité, etc.)...',
+    '📈 Calcul de la valeur marchande actuelle...',
+    '🔗 Extraction des liens Centris et DuProprio...',
+    '✅ Finalisation du rapport...',
+  ];
+
+  const slides = [
+    {
+      id: 'location',
+      title: 'Localisation',
+      description: 'Où se situe votre propriété?',
+      icon: '📍',
+      required: ['ville', 'proprietyType'],
+      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
+    },
+    {
+      id: 'dimensions',
+      title: 'Dimensions',
+      description: 'Taille et superficie',
+      icon: '📏',
+      required: ['anneeConstruction'],
+      fields: ['anneeConstruction', 'surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'garage'],
+    },
+    {
+      id: 'components',
+      title: 'Composantes',
+      description: 'État des systèmes majeurs',
+      icon: '🔧',
+      required: [],
+      fields: ['toitureAnnee', 'fenetresAnnee', 'plomberieEtat', 'electriciteEtat'],
+    },
+    {
+      id: 'condition',
+      title: 'État et condition',
+      description: 'Finition et sous-sol',
+      icon: '🏗️',
+      required: ['etatGeneral'],
+      fields: ['sous_sol', 'etatGeneral'],
+    },
+    {
+      id: 'acquisition',
+      title: 'Historique (Optionnel)',
+      description: "Pour calculer votre plus-value",
+      icon: '💰',
+      required: [],
+      fields: ['prixAchat', 'anneeAchat'],
+    },
+    {
+      id: 'amenities',
+      title: 'Extras & Détails',
+      description: 'Équipements et notes',
+      icon: '✨',
+      required: [],
+      fields: ['piscine', 'terrain_detail', 'notes_additionnelles'],
+    },
+  ];
+
+  const propertyTypes = [
+    { value: 'unifamilial', label: 'Unifamilial', icon: '🏠' },
+    { value: 'jumelee', label: 'Jumelée', icon: '🏘️' },
+    { value: 'duplex', label: 'Duplex', icon: '🏢' },
+    { value: 'triplex', label: 'Triplex', icon: '🏢' },
+    { value: '4plex', label: '4-plex', icon: '🏗️' },
+    { value: 'condo', label: 'Condo', icon: '🏙️' },
+  ];
+
+  const etatsGeneraux = [
+    { value: 'excellent', label: 'Clé en main', icon: '⭐' },
+    { value: 'bon', label: 'Bon', icon: '👍' },
+    { value: 'moyen', label: 'Moyen', icon: '➖' },
+    { value: 'faible', label: 'Défraîchi', icon: '⚠️' },
+    { value: 'renovation', label: 'À rénover', icon: '🔨' },
+  ];
+
+  const typesUnderground = [
+    { value: 'none', label: 'Aucun / Vide Sanitaire', icon: '❌' },
+    { value: 'partial', label: 'Partiellement fini', icon: '🔨' },
+    { value: 'full', label: 'Entièrement fini', icon: '✅' },
+  ];
+
+  const etatSystemes = [
+    { value: 'inconnu', label: 'Inconnu' },
+    { value: 'origine', label: "D'origine / Vieux" },
+    { value: 'partiel', label: 'Partiellement refait' },
+    { value: 'recent', label: 'Récent / À jour' },
+  ];
+
+  useEffect(() => {
+    setSlideProgress(((currentSlide + 1) / slides.length) * 100);
+  }, [currentSlide, slides.length]);
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setSlideErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const validateCurrentSlide = () => {
+    const cfg = slides[currentSlide];
+    const errors = {};
+    cfg.required.forEach((field) => {
+      const value = formData[field];
+      if (value === '' || value === null || value === undefined) {
+        errors[field] = true;
+      }
+    });
+    setSlideErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const nextSlide = () => {
+    if (!validateCurrentSlide()) return;
+    if (currentSlide < slides.length - 1) {
+      setCurrentSlide((s) => s + 1);
+    } else {
+      submitEvaluation();
+    }
+  };
+
+  const previousSlide = () => {
+    if (currentSlide > 0) setCurrentSlide((s) => s - 1);
+  };
+
+  const submitEvaluation = async () => {
+    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
+    if (!hasAccess) {
+      setError("Quota épuisé et pas de crédits disponibles.");
+      return;
+    }
+
+    if (isSubmittingRef.current) return; 
+    isSubmittingRef.current = true;
+    
+    try {
+      setLoading(true);
+      setError('');
+
+      // C'EST ICI LE VRAI APPEL !
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`;
+      const payload = { userId: user?.uid, ...formData };
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Erreur HTTP ${resp.status}`);
+      }
+
+      const result = await resp.json();
+
+      // MISE À JOUR DU QUOTA
+      if (!quotaInfo.isUnlimited) {
+        if (quotaInfo.remaining > 0) {
+           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
+        } else {
+           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        }
+      }
+
+      // ON UTILISE LE VRAI RÉSULTAT DU BACKEND
+      setSelectedProperty(result);
+      setShowForm(false);
+      setCurrentSlide(0);
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Erreur lors de l'évaluation");
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  // --- RENDERERS DE SLIDES (FORMULAIRE) ---
+
+  const renderLocationSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Titre (optionnel)</label>
+        <input type="text" placeholder="Ex: Maison familiale Lévis" value={formData.titre} onChange={(e) => handleChange('titre', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Type de propriété * {slideErrors.proprietyType && <span className="text-red-500">requis</span>}
+        </label>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {propertyTypes.map((t) => (
+            <button key={t.value} type="button" onClick={() => handleChange('proprietyType', t.value)} className={`p-2 rounded-lg text-center transition border-2 ${formData.proprietyType === t.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300'}`}>
+              <div className="text-lg">{t.icon}</div>
+              <div className="text-xs font-medium">{t.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}
+        </label>
+        <input type="text" placeholder="Ex: Lévis" value={formData.ville} onChange={(e) => handleChange('ville', e.target.value)} className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${slideErrors.ville ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Quartier</label>
+            <input type="text" placeholder="Ex: Desjardins" value={formData.quartier} onChange={(e) => handleChange('quartier', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Code Postal</label>
+            <input type="text" placeholder="Ex: G6V 8T4" value={formData.codePostal} onChange={(e) => handleChange('codePostal', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Adresse</label>
+        <input type="text" placeholder="Ex: 123 rue Exemple" value={formData.addresseComplete} onChange={(e) => handleChange('addresseComplete', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+    </div>
+  );
+
+  const renderDimensionsSlide = () => (
+    <div className="space-y-4">
+      <div>
+         <label className="block text-sm font-semibold text-gray-700 mb-2">
+           Année de construction * {slideErrors.anneeConstruction && <span className="text-red-500">requis</span>}
+         </label>
+         <input type="number" min="1800" max={new Date().getFullYear()} value={formData.anneeConstruction} onChange={(e) => handleChange('anneeConstruction', parseInt(e.target.value, 10) || '')} className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${slideErrors.anneeConstruction ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Surface habitable (pi²)</label>
+          <input type="number" value={formData.surfaceHabitee} onChange={(e) => handleChange('surfaceHabitee', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Surface du lot (pi²)</label>
+          <input type="number" value={formData.surfaceLot} onChange={(e) => handleChange('surfaceLot', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Chambres</label>
+          <input type="number" min="0" value={formData.nombreChambres} onChange={(e) => handleChange('nombreChambres', parseInt(e.target.value, 10) || 0)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Salles bain</label>
+          <input type="number" min="0" value={formData.nombreSallesBain} onChange={(e) => handleChange('nombreSallesBain', parseInt(e.target.value, 10) || 0)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Garage</label>
+          <input type="number" min="0" value={formData.garage} onChange={(e) => handleChange('garage', parseInt(e.target.value, 10) || 0)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderComponentsSlide = () => (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 text-sm text-blue-800 rounded-r">
+        Ces informations permettent à l'IA d'ajuster l'évaluation selon la désuétude physique du bâtiment.
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Année Toiture (approx.)</label>
+          <input type="number" placeholder="Ex: 2018" min="1950" max={new Date().getFullYear()} value={formData.toitureAnnee} onChange={(e) => handleChange('toitureAnnee', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Année Fenêtres (approx.)</label>
+          <input type="number" placeholder="Ex: 2015" min="1950" max={new Date().getFullYear()} value={formData.fenetresAnnee} onChange={(e) => handleChange('fenetresAnnee', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Plomberie</label>
+          <select value={formData.plomberieEtat} onChange={(e) => handleChange('plomberieEtat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            {etatSystemes.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Électricité (Panneau/Fils)</label>
+          <select value={formData.electriciteEtat} onChange={(e) => handleChange('electriciteEtat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            {etatSystemes.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderConditionSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Sous-sol</label>
+        <div className="grid grid-cols-3 gap-2">
+          {typesUnderground.map((t) => (
+            <button key={t.value} type="button" onClick={() => handleChange('sous_sol', t.value)} className={`p-2 rounded-lg transition border-2 text-sm font-medium flex flex-col items-center justify-center text-center ${formData.sous_sol === t.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300'}`}>
+              <span className="mb-1">{t.icon}</span> <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          État général des finitions * {slideErrors.etatGeneral && <span className="text-red-500">requis</span>}
+        </label>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {etatsGeneraux.map((etat) => (
+            <button key={etat.value} type="button" onClick={() => handleChange('etatGeneral', etat.value)} className={`p-2 rounded-lg transition border-2 text-sm font-medium flex items-center justify-center gap-2 ${formData.etatGeneral === etat.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300'}`}>
+              {etat.icon} {etat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAcquisitionSlide = () => (
+    <div className="space-y-4">
+      <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 mb-4 text-sm text-emerald-800 rounded-r">
+        Ces informations sont <strong>100% optionnelles</strong>. Remplissez-les uniquement si vous souhaitez que l'IA calcule votre plus-value potentielle.
+      </div>
+      
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Prix d'achat ($)</label>
+        <input type="number" placeholder="Ex: 350000" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Année d'achat</label>
+        <input type="number" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+    </div>
+  );
+
+  const renderAmenitiesSlide = () => (
+    <div className="space-y-4">
+      <label className="block text-sm font-semibold text-gray-700 mb-2">Piscine</label>
+      <div className="flex gap-2">
+        {[true, false].map((val) => (
+          <button key={String(val)} type="button" onClick={() => handleChange('piscine', val)} className={`flex-1 py-2 rounded-lg transition border-2 font-medium ${formData.piscine === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300'}`}>
+            {val ? '✅ Oui' : '❌ Non'}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Particularités du terrain</label>
+        <input type="text" placeholder="Vue, boisé, coin tranquille..." value={formData.terrain_detail} onChange={(e) => handleChange('terrain_detail', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+
+      <div>
+        <label className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+          Notes additionnelles (Rénovations récentes, etc.)
+        </label>
+        <textarea placeholder="Ex: Cuisine refaite en 2022 avec comptoirs en quartz..." value={formData.notes_additionnelles} onChange={(e) => handleChange('notes_additionnelles', e.target.value)} rows={4} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm placeholder:text-gray-400" />
+      </div>
+    </div>
+  );
+
+  // --- RENDERERS DE RESULTATS ---
+
+  const renderHeroValuation = () => {
+    const est = selectedProperty.estimationActuelle || {};
+    return (
+      <div className="relative overflow-hidden rounded-2xl shadow-xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 via-blue-600 to-indigo-900" />
+        
+        {/* Cercles de design de fond */}
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-10 rounded-full blur-2xl"></div>
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 opacity-20 rounded-full blur-2xl"></div>
+
+        <div className="relative p-8 md:p-12 text-white">
+          <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+             <div>
+                <p className="text-sm md:text-base font-semibold opacity-90 mb-2 tracking-wider uppercase flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span> Valeur Marchande Estimée
+                </p>
+                <h2 className="text-5xl md:text-6xl font-black drop-shadow-md">
+                  {est.valeurMoyenne ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $` : 'N/A'}
+                </h2>
+             </div>
+             {est.confiance && (
+                <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-xl border border-white/20">
+                    <p className="text-xs opacity-80 uppercase font-bold tracking-wider mb-1">Indice de confiance</p>
+                    <p className="font-bold text-xl capitalize flex items-center gap-2">
+                      {est.confiance === 'haute' ? '🟢' : est.confiance === 'moyenne' ? '🟡' : '🔴'} {est.confiance}
+                    </p>
+                </div>
+             )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+              <p className="text-xs md:text-sm opacity-80 uppercase tracking-wide">Fourchette basse</p>
+              <p className="text-xl md:text-2xl font-bold mt-1">
+                {est.valeurBasse ? `${est.valeurBasse.toLocaleString('fr-CA')} $` : 'N/A'}
+              </p>
+            </div>
+            <div className="hidden md:block bg-white/20 backdrop-blur-md p-4 rounded-xl border-2 border-white/40 transform scale-105 shadow-lg">
+              <p className="text-xs md:text-sm text-white uppercase tracking-wide font-semibold">Cible médiane</p>
+              <p className="text-xl md:text-2xl font-black mt-1">
+                {est.valeurMoyenne ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $` : 'N/A'}
+              </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
+              <p className="text-xs md:text-sm opacity-80 uppercase tracking-wide">Fourchette haute</p>
+              <p className="text-xl md:text-2xl font-bold mt-1">
+                {est.valeurHaute ? `${est.valeurHaute.toLocaleString('fr-CA')} $` : 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderResidentialAppreciation = () => {
+    const analyse = selectedProperty.analyse || {};
+    
+    // N'affiche le bloc que s'il y a des données pertinentes à montrer
+    const showFinancials = analyse.appreciationTotale || analyse.pourcentageGainTotal;
+    const showMarket = analyse.marketTrend;
+
+    if (!showFinancials && !showMarket) return null;
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
+          📈 Analyse Financière & Marché
+        </h3>
+        
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Bloc Financier (Optionnel) */}
+          {showFinancials && (
+             <div className="flex-1 grid grid-cols-2 gap-4">
+                {typeof analyse.appreciationTotale === 'number' && (
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                    <p className="text-xs font-semibold text-emerald-700 uppercase">Gain en capital</p>
+                    <p className={`text-2xl font-black mt-1 ${analyse.appreciationTotale >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {analyse.appreciationTotale > 0 ? '+' : ''}{analyse.appreciationTotale.toLocaleString('fr-CA')} $
+                    </p>
+                  </div>
+                )}
+                {typeof analyse.pourcentageGainTotal === 'number' && (
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                    <p className="text-xs font-semibold text-emerald-700 uppercase">Retour (ROI)</p>
+                    <p className={`text-2xl font-black mt-1 ${analyse.pourcentageGainTotal >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {analyse.pourcentageGainTotal > 0 ? '+' : ''}{analyse.pourcentageGainTotal.toFixed(1)} %
+                    </p>
+                  </div>
+                )}
+             </div>
+          )}
+
+          {/* Bloc Tendance Marché */}
+          {showMarket && (
+             <div className="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-100 flex flex-col justify-center">
+                <p className="text-sm font-bold text-blue-900 mb-2 uppercase tracking-wide">Dynamique actuelle</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">
+                    {analyse.marketTrend.toLowerCase().includes('vendeur') ? '🔥' : analyse.marketTrend.toLowerCase().includes('acheteur') ? '🧊' : '⚖️'}
+                  </span>
+                  <div>
+                    <p className="text-lg font-black text-blue-800 capitalize">Marché {analyse.marketTrend}</p>
+                    <p className="text-xs text-blue-600 mt-1">Selon l'inventaire actuel et les taux</p>
+                  </div>
+                </div>
+             </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderComparablesAndSecteur = () => {
+    const analyse = selectedProperty.analyse || {};
+    const comparables = selectedProperty.comparables || [];
+
+    return (
+      <div className="space-y-6">
+        {/* Analyse du secteur */}
+        {analyse.analyseSecteur && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-lg md:text-xl font-black text-amber-900 mb-3 flex items-center gap-2">
+              🎯 Analyse du Secteur
+            </h3>
+            <p className="text-amber-900/80 leading-relaxed text-sm md:text-base">
+              {analyse.analyseSecteur}
+            </p>
+          </div>
+        )}
+
+        {/* Liste des comparables (Grosse amélioration ici) */}
+        {comparables.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+             <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
+                🏘️ Propriétés Comparables
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {comparables.map((comp, idx) => (
+                   <div key={idx} className="border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                      
+                      {/* Liseret de couleur selon le statut */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-400' : 'bg-green-400'}`}></div>
+                      
+                      <div className="flex justify-between items-start mb-3 pl-2">
+                         <div>
+                            <p className="font-bold text-gray-900 text-lg">{comp.adresse}</p>
+                            <p className="text-xs text-gray-500">{comp.date}</p>
+                         </div>
+                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wide ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                           {comp.statut}
+                         </span>
+                      </div>
+                      
+                      <p className="text-2xl font-black text-indigo-900 mb-3 pl-2">
+                         {typeof comp.prix === 'number' ? `${comp.prix.toLocaleString('fr-CA')} $` : comp.prix}
+                      </p>
+                      
+                      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100">
+                         {comp.caracteristiques}
+                      </div>
+
+                      {/* Bouton pour ouvrir l'URL si elle existe */}
+                      {comp.url && comp.url !== "null" && comp.url !== "" && (
+                         <div className="pl-2">
+                           <a 
+                             href={comp.url} 
+                             target="_blank" 
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg"
+                           >
+                             Voir l'annonce
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                           </a>
+                         </div>
+                      )}
+                   </div>
+                ))}
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFacteursPrix = () => {
+    const f = selectedProperty.facteursPrix || {};
+    const positives = f.positifs || [];
+    const negatives = f.negatifs || [];
+    const uncertainties = f.incertitudes || [];
+
+    if (!positives.length && !negatives.length && !uncertainties.length) return null;
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">⚖️ Facteurs d'Influence</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {positives.length > 0 && (
+            <div className="bg-green-50 p-5 rounded-xl border border-green-100">
+              <p className="font-bold text-green-800 mb-3 text-sm uppercase tracking-wide">Points forts (+)</p>
+              <ul className="space-y-2">
+                {positives.map((item, idx) => (
+                  <li key={idx} className="flex gap-2 text-sm text-gray-800">
+                    <span className="text-green-600 font-bold">✓</span> <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {negatives.length > 0 && (
+            <div className="bg-red-50 p-5 rounded-xl border border-red-100">
+              <p className="font-bold text-red-800 mb-3 text-sm uppercase tracking-wide">Points faibles (-)</p>
+              <ul className="space-y-2">
+                {negatives.map((item, idx) => (
+                  <li key={idx} className="flex gap-2 text-sm text-gray-800">
+                    <span className="text-red-500 font-bold">✕</span> <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRecommendations = () => {
+    const r = selectedProperty.recommendations || {};
+    if (!r) return null;
+
+    const renovations = r.renovationsRentables || [];
+    const strategy = r.strategieVente;
+
+    return (
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-6 flex items-center gap-3">💡 Recommandations Stratégiques</h3>
+        
+        {renovations.length > 0 && (
+          <div className="mb-6">
+            <p className="font-bold text-indigo-800 mb-3 text-sm uppercase tracking-wide">🔨 Rénovations à haut ROI</p>
+            <ul className="space-y-2 bg-white/60 p-4 rounded-xl border border-indigo-100/50">
+              {renovations.map((item, idx) => (
+                <li key={idx} className="flex gap-3 text-sm md:text-base text-gray-800">
+                  <span className="text-indigo-600 font-bold">»</span> <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {strategy && (
+          <div>
+            <p className="font-bold text-indigo-800 mb-3 text-sm uppercase tracking-wide">📋 Stratégie de mise en marché</p>
+            <p className="text-sm md:text-base text-gray-800 leading-relaxed bg-white/60 p-4 rounded-xl border border-indigo-100/50">
+                {strategy}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto w-full font-sans">
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} />
+      
       {/* FORM MODAL */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-blue-600 px-8 py-8 border-b border-indigo-700/20">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header Modal */}
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-6 border-b border-indigo-700/20 shrink-0">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h2 className="text-3xl font-black text-white mb-2">
+                  <h2 className="text-2xl md:text-3xl font-black text-white mb-1 flex items-center gap-2">
                     {slides[currentSlide].icon} {slides[currentSlide].title}
                   </h2>
-                  <p className="text-indigo-100">
-                    {slides[currentSlide].description}
-                  </p>
+                  <p className="text-indigo-100 text-sm md:text-base">{slides[currentSlide].description}</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setCurrentSlide(0);
-                    setSlideErrors({});
-                  }}
+                  onClick={() => { setShowForm(false); setCurrentSlide(0); setSlideErrors({}); }}
                   className="text-white hover:bg-white/20 p-2 rounded-lg transition"
                 >
                   ✕
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-white/20 rounded-full h-2">
-                  <div
-                    className="bg-white h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${slideProgress}%` }}
-                  />
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-indigo-900/40 rounded-full h-2 overflow-hidden">
+                  <div className="bg-white h-full rounded-full transition-all duration-300 ease-out" style={{ width: `${slideProgress}%` }} />
                 </div>
-                <span className="text-white text-sm font-medium whitespace-nowrap">
-                  {currentSlide + 1}/{slides.length}
+                <span className="text-white text-xs font-bold whitespace-nowrap bg-white/20 px-2 py-1 rounded-md">
+                  {currentSlide + 1} / {slides.length}
                 </span>
               </div>
             </div>
 
-            <div className="px-8 py-8">
-              <div className="mb-6">
-                {slides[currentSlide].id === 'location' &&
-                  renderLocationSlideResidential()}
-                {slides[currentSlide].id === 'location-com' &&
-                  renderLocationSlideCommercial()}
-                {(slides[currentSlide].id === 'acquisition' ||
-                  slides[currentSlide].id === 'acquisition-com') &&
-                  renderAcquisitionSlide()}
-                {slides[currentSlide].id === 'dimensions' &&
-                  renderDimensionsSlideResidential()}
-                {slides[currentSlide].id === 'dimensions-com' &&
-                  renderDimensionsSlideCommercial()}
-                {slides[currentSlide].id === 'condition' &&
-                  renderConditionSlide()}
-                {slides[currentSlide].id === 'condition-com' &&
-                  renderConditionCommercialSlide()}
-                {slides[currentSlide].id === 'amenities' &&
-                  renderAmenitiesSlide()}
-                {slides[currentSlide].id === 'specific-com' &&
-                  renderSpecificSlideCommercial()}
-                {slides[currentSlide].id === 'financial-com' &&
-                  renderFinancialSlideCommercial()}
-                {(slides[currentSlide].id === 'details' ||
-                  slides[currentSlide].id === 'details-com') &&
-                  renderDetailsSlide()}
+            {/* Body Modal */}
+            <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-slate-50">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                {slides[currentSlide].id === 'location' && renderLocationSlide()}
+                {slides[currentSlide].id === 'dimensions' && renderDimensionsSlide()}
+                {slides[currentSlide].id === 'components' && renderComponentsSlide()}
+                {slides[currentSlide].id === 'condition' && renderConditionSlide()}
+                {slides[currentSlide].id === 'acquisition' && renderAcquisitionSlide()}
+                {slides[currentSlide].id === 'amenities' && renderAmenitiesSlide()}
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-6 text-red-700 text-sm">
-                  <p className="font-semibold">❌ Erreur</p>
-                  <p>{error}</p>
+                <div className="bg-red-50 border border-red-200 p-4 rounded-xl mt-6 text-red-700 text-sm flex gap-3 items-start">
+                  <span className="text-xl">❌</span>
+                  <div>
+                    <p className="font-bold">Erreur</p>
+                    <p>{error}</p>
+                  </div>
                 </div>
               )}
 
               {Object.keys(slideErrors).length > 0 && (
-                <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg mb-6 text-orange-700 text-sm">
-                  <p className="font-semibold">⚠️ Champs obligatoires</p>
-                  <ul className="mt-2 space-y-1">
-                    {Object.entries(slideErrors).map(([field]) => {
-                      const labels = {
-                        ville: 'Ville',
-                        proprietyType: 'Type de propriété',
-                        prixAchat: "Prix d'achat",
-                        anneeAchat: "Année d'achat",
-                        anneeConstruction: 'Année de construction',
-                        etatGeneral: 'État général',
-                        revenuBrutAnnuel: 'Revenus bruts annuels',
-                        depensesAnnuelles: 'Dépenses annuelles',
-                      };
-                      return (
-                        <li key={field}>• {labels[field] || field}</li>
-                      );
-                    })}
-                  </ul>
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl mt-6 text-orange-700 text-sm flex gap-3 items-start">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                     <p className="font-bold">Champs obligatoires manquants</p>
+                     <ul className="mt-1 space-y-1">
+                       {Object.entries(slideErrors).map(([field]) => {
+                         const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', etatGeneral: 'État général' };
+                         return <li key={field}>• {labels[field] || field}</li>;
+                       })}
+                     </ul>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="sticky bottom-0 bg-gray-50 px-8 py-6 border-t border-gray-200 flex gap-3">
+            {/* Footer Modal */}
+            <div className="bg-white px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
               {currentSlide > 0 && (
                 <button
                   type="button"
                   onClick={previousSlide}
-                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition"
+                  className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition"
                   disabled={loading}
                 >
-                  ← Précédent
+                  ← Retour
                 </button>
               )}
               <button
                 type="button"
                 onClick={nextSlide}
                 disabled={loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⟳</span> Traitement...
-                  </span>
-                ) : currentSlide === slides.length - 1 ? (
-                  '✅ Évaluer la propriété'
-                ) : (
-                  'Suivant →'
-                )}
+                {loading ? 'Traitement...' : currentSlide === slides.length - 1 ? '✅ Générer l\'évaluation' : 'Suivant →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOUTON D'APPEL À L'ACTION (Si aucun formulaire ouvert et aucun résultat) */}
+      {!showForm && !selectedProperty && !loading && (
+        <div className="flex justify-center my-12">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            disabled={isButtonDisabled}
+            className={`px-8 md:px-12 py-5 font-black text-lg md:text-xl rounded-2xl shadow-xl transform hover:-translate-y-1 transition-all flex items-center gap-3 ${
+              isButtonDisabled
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-80 shadow-none'
+                : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-indigo-500/30'
+            }`}
+          >
+            {isButtonDisabled ? '❌ Quota épuisé' : (
+                <>
+                  <span className="text-2xl">🚀</span>
+                  Lancer une Évaluation Résidentielle
+                </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* RÉSULTATS */}
+      {selectedProperty && (
+        <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          {renderHeroValuation()}
+          {renderResidentialAppreciation()}
+          {renderComparablesAndSecteur()}
+          {renderFacteursPrix()}
+          {renderRecommendations()}
+
+          <div className="flex justify-center pt-8 pb-12">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedProperty(null);
+                setShowForm(false);
+                setCurrentSlide(0);
+              }}
+              className="px-8 py-3 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-bold rounded-xl transition-all hover:bg-gray-50 flex items-center gap-2 shadow-sm"
+            >
+              ← Recommencer une évaluation
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
+  const [loading, setLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slideProgress, setSlideProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [slideErrors, setSlideErrors] = useState({});
+  
+  const isSubmittingRef = useRef(false);
+  const resultRef = useRef(null);
+
+  const [formData, setFormData] = useState({
+    titre: '',
+    proprietyType: 'immeuble_revenus',
+    ville: '',
+    quartier: '',
+    codePostal: '',
+    addresseComplete: '',
+    prixAchat: '', // Rendu optionnel
+    anneeAchat: '', // Rendu optionnel
+    anneeConstruction: 1990,
+    surfaceTotale: '',
+    surfaceLocable: '',
+    etatGeneral: 'bon',
+    renovations: [],
+    accessibilite: 'tres_bonne',
+    parking: 6,
+    terrain_detail: '',
+    notes_additionnelles: '',
+    nombreUnites: 6,
+    tauxOccupation: 95,
+    loyerMoyenParUnite: 1200,
+    revenuBrutAnnuel: '',
+    depensesAnnuelles: '',
+    nombreChambres: 50,
+    tauxOccupationHotel: 70,
+    tariffMoyenParNuit: 150,
+    clienteleActive: 'stable',
+  });
+
+  const loadingMessages = [
+    '🏪 Analyse de l\'actif commercial...',
+    '📊 Structuration des données financières...',
+    '🌐 Recherche de comparables sur Centris/LoopNet...',
+    '💹 Calcul du Cap Rate et du RNE...',
+    '🤖 Évaluation du positionnement de marché...',
+    '💰 Génération du rapport de rentabilité...',
+  ];
+
+  const propertyTypes = [
+    { value: 'immeuble_revenus', label: 'Immeuble à revenus', icon: '🏢' },
+    { value: 'hotel', label: 'Hôtel', icon: '🏨' },
+    { value: 'depanneur', label: 'Dépanneur', icon: '🏪' },
+    { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
+    { value: 'bureau', label: 'Bureau', icon: '📋' },
+    { value: 'commerce', label: 'Autre commerce', icon: '🛍️' },
+    { value: 'terrain_commercial', label: 'Terrain', icon: '🌳' },
+  ];
+
+  const etatsGeneraux = [
+    { value: 'excellent', label: 'Excellent', icon: '⭐' },
+    { value: 'bon', label: 'Bon', icon: '👍' },
+    { value: 'moyen', label: 'Moyen', icon: '➖' },
+    { value: 'faible', label: 'Faible', icon: '⚠️' },
+    { value: 'renovation', label: 'À rénover', icon: '🔨' },
+  ];
+
+  const accessibiliteOptions = [
+    { value: 'tres_bonne', label: 'Très bonne', icon: '✅' },
+    { value: 'bonne', label: 'Bonne', icon: '👍' },
+    { value: 'moyenne', label: 'Moyenne', icon: '➖' },
+    { value: 'limitee', label: 'Limitée', icon: '⚠️' },
+  ];
+
+  // ============================================
+  // GÉNÉRATION DYNAMIQUE DES SLIDES SELON LE TYPE
+  // ============================================
+  const getActiveSlides = () => {
+    const type = formData.proprietyType;
+    const isTerrain = type === 'terrain_commercial';
+    const isImmeuble = type === 'immeuble_revenus';
+    const isHotel = type === 'hotel';
+
+    const dynamicSlides = [
+      {
+        id: 'location',
+        title: 'Localisation',
+        description: 'Où se situe l\'actif commercial?',
+        icon: '📍',
+        required: ['ville', 'proprietyType'],
+      }
+    ];
+
+    dynamicSlides.push({
+      id: 'acquisition',
+      title: 'Historique (Optionnel)',
+      description: "Pour calculer la plus-value et le ROI",
+      icon: '💰',
+      required: isTerrain ? [] : ['anneeConstruction'], // Construction requise sauf pour terrain
+    });
+
+    dynamicSlides.push({
+      id: 'dimensions',
+      title: isTerrain ? 'Détails du terrain' : 'Infrastructure',
+      description: 'Superficie et accessibilité',
+      icon: '📏',
+      required: [],
+    });
+
+    if (isImmeuble || isHotel) {
+      dynamicSlides.push({
+        id: 'specific',
+        title: 'Exploitation',
+        description: 'Détails spécifiques à l\'activité',
+        icon: '💹',
+        required: [],
+      });
+    }
+
+    if (!isTerrain) {
+      dynamicSlides.push({
+        id: 'financial',
+        title: 'Données Financières',
+        description: 'Revenus et dépenses annuelles',
+        icon: '💵',
+        required: ['revenuBrutAnnuel', 'depensesAnnuelles'],
+      });
+
+      dynamicSlides.push({
+        id: 'condition',
+        title: 'État de la bâtisse',
+        description: 'Condition et rénovations',
+        icon: '🔧',
+        required: ['etatGeneral'],
+      });
+    }
+
+    dynamicSlides.push({
+      id: 'details',
+      title: 'Notes & Stratégie',
+      description: 'Informations additionnelles pour l\'IA',
+      icon: '📝',
+      required: [],
+    });
+
+    return dynamicSlides;
+  };
+
+  const activeSlides = getActiveSlides();
+
+  useEffect(() => {
+    setSlideProgress(((currentSlide + 1) / activeSlides.length) * 100);
+  }, [currentSlide, activeSlides.length]);
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setSlideErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const validateCurrentSlide = () => {
+    const cfg = activeSlides[currentSlide];
+    const errors = {};
+    if (cfg.required) {
+      cfg.required.forEach((field) => {
+        const value = formData[field];
+        if (value === '' || value === null || value === undefined) {
+          errors[field] = true;
+        }
+      });
+    }
+    setSlideErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const nextSlide = () => {
+    if (!validateCurrentSlide()) return;
+    if (currentSlide < activeSlides.length - 1) {
+      setCurrentSlide((s) => s + 1);
+    } else {
+      submitEvaluation();
+    }
+  };
+
+  const previousSlide = () => {
+    if (currentSlide > 0) setCurrentSlide((s) => s - 1);
+  };
+
+  // ============================================
+  // LOGIQUE DE PARTAGE (SHARE)
+  // ============================================
+  const handleShare = async () => {
+    const est = selectedProperty?.estimationActuelle?.valeurMoyenne;
+    if (!est) return;
+
+    const city = formData.ville || 'mon actif commercial';
+    const val = est.toLocaleString('fr-CA');
+    const typeLabel = propertyTypes.find(t => t.value === formData.proprietyType)?.label || 'Immeuble commercial';
+    
+    const APP_LINK = "https://optimiplex.com"; 
+    
+    const shareText = `🏢 Je viens d'évaluer mon ${typeLabel.toLowerCase()} à ${city} à ${val}$ avec l'IA !\n\nDécouvrez la valeur réelle de vos actifs commerciaux, analysez les Cap Rates du marché et optimisez vos revenus en quelques secondes. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Mon Évaluation Commerciale IA', text: shareText });
+        return;
+      } catch (err) {
+        console.log('Partage natif ignoré', err);
+      }
+    } 
+    
+    const textArea = document.createElement("textarea");
+    textArea.value = shareText;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      alert('✨ Le texte de partage a été copié dans votre presse-papier !');
+    } catch (err) {
+      alert('Erreur lors de la copie du texte.');
+    }
+    document.body.removeChild(textArea);
+  };
+
+  const submitEvaluation = async () => {
+    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
+    if (!hasAccess) {
+      setError("Quota épuisé et pas de crédits disponibles.");
+      return;
+    }
+
+    if (isSubmittingRef.current) return; 
+    isSubmittingRef.current = true;
+    
+    try {
+      setLoading(true);
+      setError('');
+
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator-commercial`;
+      const payload = {
+        userId: user?.uid,
+        ...formData,
+        typeCom: formData.proprietyType,
+        surfaceTotale: Number(formData.surfaceTotale) || 0,
+        surfaceLocable: Number(formData.surfaceLocable) || 0,
+        accessibilite: formData.accessibilite || 'moyenne',
+        parking: Number(formData.parking) || 0,
+        ...(formData.proprietyType === 'immeuble_revenus' && {
+          nombreUnites: Number(formData.nombreUnites) || 0,
+          tauxOccupation: Number(formData.tauxOccupation) || 0,
+          loyerMoyenParUnite: Number(formData.loyerMoyenParUnite) || 0,
+        }),
+        ...(formData.proprietyType === 'hotel' && {
+          nombreChambres: Number(formData.nombreChambres) || 0,
+          tauxOccupationHotel: Number(formData.tauxOccupationHotel) || 0,
+          tariffMoyenParNuit: Number(formData.tariffMoyenParNuit) || 0,
+        }),
+        // Si terrain, revenus/dépenses peuvent être 0
+        revenus_bruts_annuels: formData.proprietyType !== 'terrain_commercial' ? (Number(formData.revenuBrutAnnuel) || 0) : 0,
+        depenses_annuelles: formData.proprietyType !== 'terrain_commercial' ? (Number(formData.depensesAnnuelles) || 0) : 0,
+      };
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Erreur HTTP ${resp.status}`);
+      }
+
+      const result = await resp.json();
+
+      if (!quotaInfo.isUnlimited) {
+        if (quotaInfo.remaining > 0) {
+           setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
+        } else {
+           setQuotaInfo(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        }
+      }
+
+      setSelectedProperty(result);
+      setShowForm(false);
+      setCurrentSlide(0);
+
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || "Erreur lors de l'évaluation");
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  // --- RENDERERS DE SLIDES ---
+
+  const renderLocationSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">Nom du dossier (optionnel)</label>
+        <input type="text" placeholder="Ex: 6-plex Sainte-Foy" value={formData.titre} onChange={(e) => handleChange('titre', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Type d'actif * {slideErrors.proprietyType && <span className="text-red-500">requis</span>}
+        </label>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {propertyTypes.map((t) => (
+            <button
+              key={t.value} type="button" onClick={() => handleChange('proprietyType', t.value)}
+              className={`p-3 rounded-xl flex flex-col items-center justify-center text-center transition border-2 ${
+                formData.proprietyType === t.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'
+              }`}
+            >
+              <div className="mb-1">{t.icon}</div>
+              <div className="text-xs font-bold leading-tight">{t.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}</label>
+            <input type="text" placeholder="Ex: Québec" value={formData.ville} onChange={(e) => handleChange('ville', e.target.value)} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 ${slideErrors.ville ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+        </div>
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Quartier</label>
+            <input type="text" placeholder="Ex: Ste-Foy" value={formData.quartier} onChange={(e) => handleChange('quartier', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAcquisitionSlide = () => {
+    const isTerrain = formData.proprietyType === 'terrain_commercial';
+    return (
+      <div className="space-y-4">
+        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-4 rounded-r-xl text-sm text-emerald-800 font-medium">
+          Les données d'achat sont <strong>optionnelles</strong>. Remplissez-les uniquement pour calculer le rendement sur investissement (ROI).
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Prix d'achat ($)</label>
+            <input type="number" placeholder="Optionnel" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Année d'achat</label>
+            <input type="number" placeholder="Optionnel" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        {!isTerrain && (
+          <div className="pt-4 border-t border-gray-100 mt-4">
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              Année de construction * {slideErrors.anneeConstruction && <span className="text-red-500">requis</span>}
+            </label>
+            <input type="number" min="1800" max={new Date().getFullYear()} value={formData.anneeConstruction} onChange={(e) => handleChange('anneeConstruction', parseInt(e.target.value, 10) || '')} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 ${slideErrors.anneeConstruction ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDimensionsSlide = () => {
+    const isTerrain = formData.proprietyType === 'terrain_commercial';
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Superficie totale (pi²)</label>
+            <input type="number" value={formData.surfaceTotale} onChange={(e) => handleChange('surfaceTotale', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          {!isTerrain && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Superficie locable (pi²)</label>
+              <input type="number" value={formData.surfaceLocable} onChange={(e) => handleChange('surfaceLocable', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {!isTerrain && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Stationnements</label>
+              <input type="number" value={formData.parking} onChange={(e) => handleChange('parking', parseInt(e.target.value, 10) || 0)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Accessibilité (Transport, routes)</label>
+            <select value={formData.accessibilite} onChange={(e) => handleChange('accessibilite', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white">
+              {accessibiliteOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSpecificSlide = () => {
+    const isImmeuble = formData.proprietyType === 'immeuble_revenus';
+    const isHotel = formData.proprietyType === 'hotel';
+    return (
+      <div className="space-y-4">
+        {isImmeuble && (
+          <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
+            <p className="font-black text-indigo-900 mb-4 flex items-center gap-2"> 🏢Opérations Locatives</p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Unités</label>
+                <input type="number" value={formData.nombreUnites} onChange={(e) => handleChange('nombreUnites', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Occupation (%)</label>
+                <input type="number" min="0" max="100" value={formData.tauxOccupation} onChange={(e) => handleChange('tauxOccupation', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Loyer moyen/unité/mois ($)</label>
+              <input type="number" value={formData.loyerMoyenParUnite} onChange={(e) => handleChange('loyerMoyenParUnite', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+        )}
+
+        {isHotel && (
+          <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
+            <p className="font-black text-indigo-900 mb-4 flex items-center gap-2">🏨Opérations Hôtelières</p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Chambres</label>
+                <input type="number" value={formData.nombreChambres} onChange={(e) => handleChange('nombreChambres', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Occupation (%)</label>
+                <input type="number" min="0" max="100" value={formData.tauxOccupationHotel} onChange={(e) => handleChange('tauxOccupationHotel', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Tarif moyen/nuit (ADR) ($)</label>
+              <input type="number" value={formData.tariffMoyenParNuit} onChange={(e) => handleChange('tariffMoyenParNuit', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFinancialSlide = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Revenus bruts annuels ($) * {slideErrors.revenuBrutAnnuel && <span className="text-red-500">requis</span>}
+        </label>
+        <input type="number" placeholder="Avant dépenses" value={formData.revenuBrutAnnuel} onChange={(e) => handleChange('revenuBrutAnnuel', e.target.value)} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 ${slideErrors.revenuBrutAnnuel ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Dépenses annuelles ($) * {slideErrors.depensesAnnuelles && <span className="text-red-500">requis</span>}
+        </label>
+        <input type="number" placeholder="Taxes, entretien, assurances..." value={formData.depensesAnnuelles} onChange={(e) => handleChange('depensesAnnuelles', e.target.value)} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 ${slideErrors.depensesAnnuelles ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
+      </div>
+
+      {formData.revenuBrutAnnuel && formData.depensesAnnuelles && (
+        <div className="bg-green-50 border border-green-200 p-4 rounded-xl flex justify-between items-center mt-4 shadow-sm">
+          <div>
+             <p className="text-xs font-bold text-green-700 uppercase tracking-wide">Revenu Net (RNE)</p>
+             <p className="text-2xl font-black text-green-900">${(parseInt(formData.revenuBrutAnnuel, 10) - parseInt(formData.depensesAnnuelles, 10)).toLocaleString('fr-CA')}</p>
+          </div>
+          <div className="text-right">
+             <p className="text-xs font-bold text-green-700 uppercase tracking-wide">Ratio Dépenses</p>
+             <p className="text-xl font-bold text-green-800">{((parseInt(formData.depensesAnnuelles, 10) / parseInt(formData.revenuBrutAnnuel, 10)) * 100).toFixed(1)}%</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderConditionSlide = () => (
+    <div className="space-y-6">
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">État général de la bâtisse *</label>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {etatsGeneraux.map((etat) => (
+            <button key={etat.value} type="button" onClick={() => handleChange('etatGeneral', etat.value)} className={`p-3 rounded-xl transition border-2 text-sm font-bold flex items-center justify-center gap-2 ${formData.etatGeneral === etat.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}>
+              {etat.icon} {etat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm">
+        <label className="block text-sm font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">Investissements / Rénovations effectuées</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {['toiture', 'systeme_hvac', 'electricite', 'plomberie', 'facade', 'stationnement'].map((reno) => (
+            <label key={reno} className="flex items-center cursor-pointer text-sm font-medium text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 hover:border-indigo-200 transition-colors">
+              <input type="checkbox" checked={formData.renovations?.includes(reno)} onChange={(e) => {
+                  if (e.target.checked) handleChange('renovations', [...(formData.renovations || []), reno]);
+                  else handleChange('renovations', (formData.renovations || []).filter((r) => r !== reno));
+                }} className="mr-3 w-5 h-5 cursor-pointer accent-indigo-600 rounded border-gray-300" />
+              <span className="capitalize">{reno.replace('_', ' ')}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDetailsSlide = () => (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm text-amber-900 text-sm leading-relaxed">
+        <strong>Conseil de pro :</strong> Indiquez toute particularité (baux long terme, locataires majeurs, zonage spécial, contraintes environnementales) pour affiner l'évaluation de l'IA.
+      </div>
+      <div>
+        <label className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+          Notes additionnelles
+        </label>
+        <textarea placeholder="Ex: Bail de la pharmacie renouvelé jusqu'en 2030, Toiture refaite en 2023..." value={formData.notes_additionnelles} onChange={(e) => handleChange('notes_additionnelles', e.target.value)} rows={5} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm placeholder:text-gray-400 shadow-sm" />
+      </div>
+    </div>
+  );
+
+  // ============================================
+  // RENDERERS DE RESULTATS (STYLE VIBRANT & SAAS)
+  // ============================================
+
+  const renderHeroValuation = () => {
+    const est = selectedProperty.estimationActuelle || {};
+    return (
+      <div className="relative overflow-hidden rounded-3xl shadow-2xl border border-indigo-200">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800" />
+        <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative p-8 md:p-12 text-white">
+          <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
+             <div>
+                <p className="text-sm md:text-base font-bold text-indigo-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span className="text-2xl">🏢</span> Valeur Commerciale Estimée
+                </p>
+                <h2 className="text-5xl md:text-7xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-100 drop-shadow-sm">
+                  {est.valeurMoyenne ? `$${est.valeurMoyenne.toLocaleString('fr-CA')}` : 'N/A'}
+                </h2>
+             </div>
+             
+             <div className="flex flex-col items-end gap-3">
+                 {est.confiance && (
+                    <div className="bg-white/10 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl flex items-center gap-3">
+                        <span className="text-2xl">🎯</span>
+                        <div>
+                          <p className="text-[10px] text-indigo-300 uppercase font-bold tracking-wider leading-none">Confiance IA</p>
+                          <p className="font-black text-lg text-white capitalize leading-none mt-1">{est.confiance}</p>
+                        </div>
+                    </div>
+                 )}
+                 <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl transition-all font-bold text-sm">
+                    <Share2 size={16} /> Partager
+                 </button>
+             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-800/50 backdrop-blur-md p-5 rounded-2xl border border-white/5 shadow-inner">
+              <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1">Valeur basse (📉)</p>
+              <p className="text-2xl font-black">{est.valeurBasse ? `$${est.valeurBasse.toLocaleString('fr-CA')}` : 'N/A'}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border-2 border-indigo-400/50 shadow-[0_0_30px_rgba(99,102,241,0.2)] transform md:-translate-y-2">
+              <p className="text-xs text-white font-bold uppercase tracking-wider mb-1 text-center">Cible Médiane (💎)</p>
+              <p className="text-3xl font-black text-center text-white">{est.valeurMoyenne ? `$${est.valeurMoyenne.toLocaleString('fr-CA')}` : 'N/A'}</p>
+            </div>
+            <div className="bg-slate-800/50 backdrop-blur-md p-5 rounded-2xl border border-white/5 shadow-inner">
+              <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1">Valeur haute (📈)</p>
+              <p className="text-2xl font-black">{est.valeurHaute ? `$${est.valeurHaute.toLocaleString('fr-CA')}` : 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCommercialMetrics = () => {
+    const m = selectedProperty.metriquesCommerciales || {};
+    const analyseData = selectedProperty.analyse || {};
+    
+    // N'afficher que s'il y a des métriques pertinentes
+    if (!m.capRate && !m.noiAnnuel) return null;
+    
+    return (
+      <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+           <span className="bg-indigo-50 text-indigo-600 p-2 rounded-xl text-2xl shadow-sm">📊</span> Métriques Financières
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {typeof m.capRate === 'number' && (
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-indigo-200 transition-colors">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cap Rate</p>
+              <p className="text-3xl font-black text-indigo-600">{m.capRate.toFixed(2)}%</p>
+            </div>
+          )}
+          {typeof m.noiAnnuel === 'number' && (
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-emerald-200 transition-colors">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">RNE Annuel</p>
+              <p className="text-3xl font-black text-emerald-600">${m.noiAnnuel.toLocaleString('fr-CA')}</p>
+            </div>
+          )}
+          {typeof m.cashOnCash === 'number' && m.cashOnCash > 0 && (
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-purple-200 transition-colors">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cash-on-Cash</p>
+              <p className="text-3xl font-black text-purple-600">{m.cashOnCash.toFixed(2)}%</p>
+            </div>
+          )}
+          {typeof m.multiplicateurRevenu === 'number' && m.multiplicateurRevenu > 0 && (
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 hover:border-orange-200 transition-colors">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">MRB</p>
+              <p className="text-3xl font-black text-orange-600">{m.multiplicateurRevenu.toFixed(2)}x</p>
+            </div>
+          )}
+        </div>
+
+        {/* Section Appréciation (Si historique fourni) */}
+        {typeof analyseData.appreciationTotale === 'number' && (
+          <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between bg-emerald-50/50 p-5 rounded-2xl">
+             <div>
+                <p className="text-sm font-bold text-emerald-800 uppercase tracking-wide">Plus-Value Estimée (Gain)</p>
+                <p className="text-xs text-emerald-600 mt-1 font-medium">Depuis l'acquisition</p>
+             </div>
+             <div className="text-right">
+                <p className={`text-3xl font-black ${analyseData.appreciationTotale >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {analyseData.appreciationTotale >= 0 ? '+' : ''}${analyseData.appreciationTotale.toLocaleString('fr-CA')}
+                </p>
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCommercialSecteurAndComparables = () => {
+    const analyse = selectedProperty.analyse || {};
+    const comparables = selectedProperty.comparables || [];
+
+    return (
+      <div className="space-y-6">
+        {/* Analyse du secteur */}
+        {(analyse.secteurAnalysis || analyse.analyseSecteur) && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 md:p-8 shadow-sm">
+            <h3 className="text-xl md:text-2xl font-black text-amber-900 mb-4 flex items-center gap-3">
+              <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">📍</span> Analyse du Secteur
+            </h3>
+            <p className="text-amber-900/80 leading-relaxed text-sm md:text-base whitespace-pre-wrap text-justify font-medium">
+              {analyse.secteurAnalysis || analyse.analyseSecteur}
+            </p>
+          </div>
+        )}
+
+        {/* Liste des comparables (Format cartes avec URL) */}
+        {comparables.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+             <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+                <span className="bg-indigo-50 p-2 rounded-xl text-2xl shadow-sm">🏢</span> Propriétés Comparables
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {comparables.map((comp, idx) => (
+                   <div key={idx} className="border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50">
+                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-slate-400' : 'bg-green-500'}`}></div>
+                      
+                      <div className="flex justify-between items-start mb-4 pl-2">
+                         <div className="pr-4">
+                            <p className="font-bold text-gray-900 text-sm md:text-base leading-snug">{comp.adresse}</p>
+                            <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">{comp.date}</p>
+                         </div>
+                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0 border shadow-sm ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-white text-slate-600 border-slate-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                           {comp.statut}
+                         </span>
+                      </div>
+                      
+                      <p className="text-3xl font-black text-indigo-900 mb-4 pl-2 tracking-tight">
+                         {typeof comp.prix === 'number' && comp.prix > 0 ? `$${comp.prix.toLocaleString('fr-CA')}` : 'Non affiché'}
+                      </p>
+                      
+                      <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-5 ml-2 border border-gray-100 shadow-inner font-medium">
+                         {comp.caracteristiques}
+                      </div>
+
+                      {comp.url && comp.url !== "null" && (
+                         <div className="pl-2">
+                           <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm shadow-indigo-200">
+                             Consulter l'annonce
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                           </a>
+                         </div>
+                      )}
+                   </div>
+                ))}
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCommercialFacteursPrix = () => {
+    const f = selectedProperty.facteursPrix || selectedProperty.facteurs_prix || {};
+    const positives = f.augmentent || f.positifs || [];
+    const negatives = f.diminuent || f.negatifs || [];
+    const incertitudes = f.incertitudes || [];
+    
+    if (!positives.length && !negatives.length && !incertitudes.length) return null;
+    
+    return (
+      <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          <span className="bg-slate-100 p-2 rounded-xl text-2xl shadow-sm">⚖️</span> Facteurs de Valeur
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {incertitudes.length > 0 && (
+             <div className="md:col-span-2 bg-amber-50/80 border border-amber-200 rounded-2xl p-6">
+               <p className="font-black text-amber-800 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                 ⚠️ Incertitudes & Risques perçus
+               </p>
+               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {incertitudes.map((item, idx) => (
+                   <li key={idx} className="flex gap-3 text-sm text-amber-900 font-medium">
+                     <span className="shrink-0 text-amber-500">•</span>
+                     <span className="leading-snug">{item}</span>
+                   </li>
+                 ))}
+               </ul>
+             </div>
+          )}
+          {positives.length > 0 && (
+            <div className="bg-white border border-green-200 rounded-2xl p-6 shadow-sm">
+              <p className="font-black text-green-700 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                ✅ Points Forts (+)
+              </p>
+              <ul className="space-y-3">
+                {positives.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-green-500 font-bold flex-shrink-0 mt-0.5">+</span>
+                    <span className="leading-snug">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {negatives.length > 0 && (
+            <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm">
+              <p className="font-black text-red-700 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                ❌ Désuétude & Points Faibles (-)
+              </p>
+              <ul className="space-y-3">
+                {negatives.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-red-500 font-bold flex-shrink-0 mt-0.5">-</span>
+                    <span className="leading-snug">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRecommendations = () => {
+    const r = selectedProperty.recommendations || selectedProperty.recommandation || {};
+    if (!r) return null;
+
+    const renovations = r.ameliorationsValeur || r.renovationsRentables || [];
+    const strategy = r.strategie || r.strategieVente;
+    const optRevenus = r.optimisationRevenu || [];
+    const redDepenses = r.reduceExpenses || [];
+
+    return (
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-3xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-2xl font-black text-indigo-900 mb-8 flex items-center gap-3">
+           <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">💡</span> Recommandations & Stratégie
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {renovations.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 border border-indigo-50 shadow-sm">
+              <p className="font-black text-indigo-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                🔨 Rénovations à haut ROI
+              </p>
+              <ul className="space-y-3">
+                {renovations.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-indigo-500 font-bold flex-shrink-0">»</span>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {optRevenus.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 border border-emerald-50 shadow-sm">
+              <p className="font-black text-emerald-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                💰 Optimisation Revenus
+              </p>
+              <ul className="space-y-3">
+                {optRevenus.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-emerald-500 font-bold flex-shrink-0">$</span>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {redDepenses.length > 0 && (
+            <div className="bg-white rounded-2xl p-6 border border-blue-50 shadow-sm">
+              <p className="font-black text-blue-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                📉 Réduction Dépenses
+              </p>
+              <ul className="space-y-3">
+                {redDepenses.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-blue-500 font-bold flex-shrink-0">🔻</span>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {strategy && (
+          <div className="bg-white rounded-2xl p-6 md:p-8 border border-indigo-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+            <p className="font-black text-indigo-900 mb-4 text-sm uppercase tracking-widest">
+               📋 Stratégie de Marché Conseillée
+            </p>
+            <p className="text-sm md:text-base text-gray-700 leading-loose whitespace-pre-line text-justify font-medium">{strategy}</p>
+          </div>
+        )}
+
+        {(r.timing || r.venteMeilleuresChances) && (
+          <div className="mt-6 bg-white/60 p-6 rounded-2xl border border-indigo-200/50">
+            <p className="font-black text-indigo-800 mb-3 text-xs uppercase tracking-widest">⏳ Timing / Fenêtre de vente</p>
+            <div className="space-y-3">
+               {r.timing && <p className="text-sm text-gray-800 font-medium leading-relaxed">{r.timing}</p>}
+               {r.venteMeilleuresChances && <p className="text-sm text-gray-800 font-medium leading-relaxed">{r.venteMeilleuresChances}</p>}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={60} />
+
+      {/* FORM MODAL */}
+      {showForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto flex flex-col border border-gray-100">
+            <div className="sticky top-0 bg-white px-8 py-6 border-b border-gray-100 z-10">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900 mb-1 flex items-center gap-3">
+                    <span className="text-3xl filter drop-shadow-sm">{activeSlides[currentSlide].icon}</span> 
+                    {activeSlides[currentSlide].title}
+                  </h2>
+                  <p className="text-gray-500 font-medium">{activeSlides[currentSlide].description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setCurrentSlide(0); setSlideErrors({}); }}
+                  className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div className="bg-indigo-600 h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${slideProgress}%` }} />
+                </div>
+                <span className="text-indigo-600 text-xs font-black uppercase tracking-wider whitespace-nowrap">
+                  Étape {currentSlide + 1} / {activeSlides.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="px-8 py-8 flex-1">
+              <div className="mb-2">
+                {activeSlides[currentSlide].id === 'location' && renderLocationSlide()}
+                {activeSlides[currentSlide].id === 'acquisition' && renderAcquisitionSlide()}
+                {activeSlides[currentSlide].id === 'dimensions' && renderDimensionsSlide()}
+                {activeSlides[currentSlide].id === 'specific' && renderSpecificSlide()}
+                {activeSlides[currentSlide].id === 'financial' && renderFinancialSlide()}
+                {activeSlides[currentSlide].id === 'condition' && renderConditionSlide()}
+                {activeSlides[currentSlide].id === 'details' && renderDetailsSlide()}
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-xl mt-6 text-red-700 text-sm flex items-start gap-3">
+                  <span className="text-xl">❌</span>
+                  <div><p className="font-black">Erreur lors de l'évaluation</p><p className="mt-1">{error}</p></div>
+                </div>
+              )}
+
+              {Object.keys(slideErrors).length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl mt-6 text-orange-700 text-sm flex items-start gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <p className="font-black">Champs obligatoires manquants</p>
+                    <ul className="mt-2 space-y-1 font-medium">
+                      {Object.entries(slideErrors).map(([field]) => {
+                        const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', revenuBrutAnnuel: 'Revenus bruts annuels', depensesAnnuelles: 'Dépenses annuelles', etatGeneral: 'État de la bâtisse' };
+                        return <li key={field}>• {labels[field] || field}</li>;
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 px-8 py-5 border-t border-gray-200 flex justify-between gap-4 rounded-b-3xl">
+              {currentSlide > 0 ? (
+                <button type="button" onClick={previousSlide} className="px-6 py-3 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold rounded-xl transition-all shadow-sm" disabled={loading}>
+                  ← Retour
+                </button>
+              ) : <div />}
+              <button type="button" onClick={nextSlide} disabled={loading} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                {loading ? <><span className="animate-spin">⟳</span> Traitement...</> : currentSlide === activeSlides.length - 1 ? <>🚀 Lancer l'Évaluation</> : <>Continuer →</>}
               </button>
             </div>
           </div>
@@ -5658,63 +5664,44 @@ function PropertyValuationTab({
 
       {/* CTA NO FORM */}
       {!showForm && !selectedProperty && !loading && (
-        <div className="text-center">
+        <div className="text-center mt-4">
           <button
             type="button"
             onClick={() => setShowForm(true)}
             disabled={isButtonDisabled}
-            className={`px-16 py-4 font-black text-xl rounded-xl shadow-lg transform hover:-translate-y-1 transition-all w-full max-w-md mx-auto ${
-              isButtonDisabled
-                ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
-                : 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:shadow-indigo-400'
+            className={`px-10 py-5 font-black text-xl rounded-2xl shadow-xl transform hover:-translate-y-1 transition-all w-full max-w-lg mx-auto flex flex-col items-center justify-center gap-2 ${
+              isButtonDisabled ? 'bg-gray-200 text-gray-500 cursor-not-allowed border-2 border-gray-300' : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-indigo-300/50'
             }`}
           >
-            {isButtonDisabled
-              ? '❌ Quota épuisé'
-              : '🚀 Nouvelle évaluation'}
+            {isButtonDisabled ? (
+               <><span>❌ Quota épuisé</span><span className="text-sm font-medium opacity-80">Passez à un forfait supérieur</span></>
+            ) : (
+               <><span>🚀 Nouvelle Évaluation Commerciale</span></>
+            )}
           </button>
         </div>
       )}
 
       {/* RESULTS */}
       {selectedProperty && (
-        <div ref={resultRef} className="space-y-6 md:space-y-8">
+        <div ref={resultRef} className="space-y-8 mt-8 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
           {renderHeroValuation()}
-
-          {evaluationType === 'residential' && (
-            <>
-              {renderResidentialAppreciation()}
-              {renderResidentialQuartierAndComparables()}
-              {renderResidentialFacteursPrix()}
-            </>
-          )}
-
-          {evaluationType === 'commercial' && (
-            <>
-              {renderCommercialMetrics()}
-              {renderCommercialSecteurAndComparables()}
-              {renderCommercialFacteursPrix()}
-            </>
-          )}
-
+          {renderCommercialMetrics()}
+          {renderCommercialSecteurAndComparables()}
+          {renderCommercialFacteursPrix()}
           {renderRecommendations()}
 
-          <div className="text-center py-6">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedProperty(null);
-                setShowForm(false);
-                setCurrentSlide(0);
-              }}
-              className="px-8 py-3 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-lg transition-colors"
-            >
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 py-8 border-t border-gray-200">
+            <button type="button" onClick={handleShare} className="w-full sm:w-auto px-8 py-4 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-black rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
+              <Share2 size={20} /> Partager les résultats
+            </button>
+            <button type="button" onClick={() => { setSelectedProperty(null); setShowForm(false); setCurrentSlide(0); }} className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl transition-colors shadow-sm">
               ← Nouvelle évaluation
             </button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
