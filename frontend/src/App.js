@@ -5789,7 +5789,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       
       rows.forEach((row, index) => {
         if (!row.trim()) return;
-        if (/^\|?[\s\-\:]+\|/.test(row)) {
+        if (/^\|?[\s\-:]+\|/.test(row)) {
           tableHtml += '</thead><tbody class="divide-y divide-gray-100">';
           isHeader = false;
           hasSeenDivider = true;
