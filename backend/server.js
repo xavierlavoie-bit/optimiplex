@@ -677,62 +677,54 @@ Values: loyeroptimal = $/sqft/year, gainmensuel and gainannuel = total dollars.`
 
 // PROMPT SYSTÈME CHATBOT IMMOBILIER QUÉBEC
 function getRealEstateChatSystemPrompt(modelUsed = 'base') {
-  
   // ==========================================
-  // 🌟 PROMPT PRO (Exhaustif, Institutionnel)
+  // 🌟 INSTRUCTIONS COMMUNES (Adaptabilité & Concision)
+  // ==========================================
+  let basePrompt = `
+Tu es **Optimiplex IA**, l'intelligence artificielle d'analyse immobilière au Québec.
+RÈGLE D'OR : Sois HYPER CONCIS, DIRECT et CONVERSATIONNEL. Ta réponse complète doit tenir en moins de 400 mots pour garantir un affichage ultra-rapide. Va droit au but, élimine le bla-bla.
+🚨 RÈGLE DE FIN : Assure-toi de toujours terminer tes phrases et de conclure ta réponse proprement, ne laisse jamais une phrase en suspens.
+
+🎯 ADAPTABILITÉ SELON LE TYPE DE BIEN :
+1. Petit Plex (Duplex, Triplex) : L'acheteur est souvent propriétaire-occupant.
+   - Parle de : Cashflow net après hypothèque, coût d'habitation mensuel, mise de fonds réduite (5-10%), et règles du TAL (reprise de logement). 
+   - Évite : Les termes institutionnels lourds (TGA, MRB, TRI) à moins d'être pertinents.
+2. Multi-logements (5 plex et +) : L'acheteur est un investisseur pur.
+   - Parle de : Valeur économique, TGA (Cap Rate), MRB, Ratio de Couverture de la Dette (RCD/DSCR), financement SCHL (APH Select), optimisation de la valeur.
+
+🌐 ALTERNATIVES DE RECHERCHE (TRÈS IMPORTANT) :
+- Si un site d'annonces (comme Centris) bloque l'accès ou ne donne pas assez d'infos, tu DOIS chercher la même propriété sur d'autres plateformes.
+- Excellentes alternatives au Québec : **Realtor.ca**, **DuProprio**, **Point2Homes**, **Kijiji Immobilier**, ou **Publimaison**.
+- Utilise l'adresse de la propriété ou le numéro MLS/SIA pour trouver ces fiches alternatives.
+
+📝 FORMATAGE (CRITIQUE POUR L'AFFICHAGE) : 
+- Utilise le Markdown de manière aérée avec des sauts de ligne.
+- Mets en **gras** les chiffres et métriques clés.
+- N'utilise **JAMAIS de tableaux Markdown** (pas de format | Colonne | Colonne |). L'interface du chat ne les supporte pas bien.
+- Utilise **UNIQUEMENT des listes à puces** (-) pour présenter les chiffres, les revenus et les dépenses.
+`;
+
+  // ==========================================
+  // 🌟 PROMPT PRO (Expertise Financière)
   // ==========================================
   if (modelUsed === 'pro') {
-    return `
-Tu es **Optimiplex IA Pro**, l'intelligence artificielle d'analyse financière et de stratégie immobilière de calibre institutionnel au Québec.
-Ton rôle est d'agir comme un Directeur des Investissements (CIO) pour des investisseurs sérieux et expérimentés qui paient pour une expertise de très haut niveau.
-
-**TON PROFIL & TON TON :**
-- **Ultra-professionnel, exhaustif, objectif et hautement analytique.** (Aucune introduction robotique du type "Bonjour").
-- **Expertise Financière Avancée :** Tu décortiques avec précision les calculs complexes : MRB, TGA, TRI, Cash-on-Cash (CoC), Ratio de Couverture de la Dette (RCD/DSCR), LTV, et l'évaluation de la valeur économique vs marchande.
-- **Vision Stratégique :** Tu ne te contentes pas de répondre à la question : tu anticipes les prochaines étapes de l'investisseur, tu proposes des scénarios alternatifs et tu identifies les angles morts (risques).
-
-**RÈGLES DE FORMATAGE (STRICTES) :**
-- Utilise TOUJOURS le Markdown avec des titres (## Titre).
-- Sépare tes sections majeures avec un trait horizontal (---).
-- **Utilise systématiquement des tableaux Markdown complets** pour les projections financières, les comparatifs de scénarios ou les estimations de coûts de travaux.
-- Mets en **gras** toutes les métriques et montants clés.
-
-**STRUCTURE DE RÉPONSE EXIGÉE :**
-1. **Synthèse Exécutive :** Un résumé percutant (2-3 phrases) de la viabilité de la situation/du deal.
-2. ---
-3. **Modélisation Financière / Décorticage :** Tableaux détaillés ou puces approfondies avec les vrais chiffres (TGA, MRB, RCD, valeur économique).
-4. ---
-5. **Ingénierie de Financement :** Stratégies avancées (ex: optimisation APH Select, prêteurs alternatifs, seasoning).
-6. ---
-7. **Évaluation des Risques & Mitigations :** Ce qui pourrait mal tourner (TAL, zonage, taux, imprévus) et comment s'en protéger.
-8. ---
-9. **Plan d'Action Stratégique :** Les 2 à 3 prochaines étapes concrètes recommandées.
+    return basePrompt + `
+TON PROFIL PRO : Tu agis comme un Directeur des Investissements (CIO) pour des investisseurs sérieux. 
+- Si l'utilisateur pose une question simple, réponds en 1 ou 2 paragraphes maximum.
+- UNIQUEMENT si l'utilisateur soumet un deal à analyser (avec prix, revenus, etc.), utilise cette structure :
+  1. Verdict Rapide : Ton avis tranché (2 phrases max).
+  2. Modélisation : Les vrais chiffres présentés en **liste à puces** claire (adaptés au type d'immeuble). Ne liste que l'essentiel.
+  3. Risques & Stratégie : Ce qui cloche et les prochaines étapes (très concis).
 `;
   }
 
   // ==========================================
-  // ⚡ PROMPT BASE (Analyse Flash, Rapide)
+  // ⚡ PROMPT BASE (Analyse Flash)
   // ==========================================
-  return `
-Tu es **Optimiplex IA**, l'intelligence artificielle d'analyse immobilière rapide au Québec.
-Ton rôle est d'agir comme un analyste financier pragmatique pour donner l'heure juste rapidement.
-
-**TON PROFIL & TON TON :**
-- **Chirurgical, rapide et direct.** Aucun bla-bla inutile ni introduction.
-- **Expertise :** MRB, TGA, Cashflow, règles du TAL et bases de la SCHL.
-
-**RÈGLES DE FORMATAGE (STRICTES) :**
-- Utilise le Markdown avec des titres (## Titre).
-- Sépare tes sections majeures avec un trait horizontal (---).
-- Utilise des **tableaux Markdown simples** pour présenter les chiffres clés.
-- Mets en **gras** les montants importants.
-
-**STRUCTURE DE RÉPONSE EXIGÉE :**
-1. **L'Analyse Flash :** 2-3 phrases résumant le verdict final.
-2. ---
-3. **Les Chiffres Clés :** Un tableau ou des puces directes avec les données essentielles.
-4. ---
-5. **Le Conseil Optimiplex :** Ta recommandation claire (Go / No-Go / Négocier).
+  return basePrompt + `
+TON PROFIL BASE : Tu agis comme un analyste pragmatique pour donner l'heure juste rapidement.
+- Va droit au but.
+- Si on te donne un deal, fournis un verdict flash (Go/No-go) et 2-3 puces sur les chiffres clés (sans aucun tableau).
 `;
 }
 
@@ -1673,34 +1665,25 @@ app.post('/api/realestate-chat', async (req, res) => {
 
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
-    }
+    if (!userDoc.exists) return res.status(404).json({ error: 'Utilisateur non trouvé' });
 
     const userData = userDoc.data();
     const userPlan = userData?.plan || 'essai';
     const isProPlan = (userPlan === 'pro' || userPlan === 'growth' || userPlan === 'entreprise');
 
-    // 🔥 SÉLECTION DU MODÈLE
     const finalModel = (requestedModel === 'pro' && isProPlan) 
       ? 'claude-sonnet-4-6' 
       : 'claude-haiku-4-5-20251001';
 
     console.log(`\n🚀 CHAT REÇU | User: ${userId.slice(-6)} | Modèle: ${finalModel} | Pro: ${isProPlan}\n`);
 
-    let conversationIdFinal;
+    let conversationIdFinal = conversationId;
     let history = [];
 
     if (conversationId) {
-      const convRef = userRef.collection('chats').doc(conversationId);
-      const convDoc = await convRef.get();
-      if (convDoc.exists) {
-        history = convDoc.data().messages || [];
-        conversationIdFinal = conversationId;
-      }
-    }
-
-    if (!conversationIdFinal) {
+      const convDoc = await userRef.collection('chats').doc(conversationId).get();
+      if (convDoc.exists) history = convDoc.data().messages || [];
+    } else {
       const newConvRef = await userRef.collection('chats').add({
         title: `Chat immobilier - ${message.slice(0, 40)}...`,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1714,60 +1697,65 @@ app.post('/api/realestate-chat', async (req, res) => {
 
     const convRef = userRef.collection('chats').doc(conversationIdFinal);
 
-    // 🔥 CONFIGURATION DES OUTILS - UNIQUEMENT SI PRO
+    // Ajout du deuxième outil pour LIRE les pages web
     const tools = isProPlan ? [
       {
         name: "web_search",
-        description: "RECHERCHE LIVE : Utilise cet outil pour TOUTE question sur les prix actuels, Centris, les taux hypothécaires, ou des événements récents. Tu AS accès à Internet via cet outil.",
+        description: "Recherche sur Google pour trouver des liens, adresses ou extraits.",
         input_schema: {
           type: "object",
-          properties: {
-            query: { type: "string", description: "La requête de recherche (ex: 'prix duplex Plateau Mont-Royal 2025')" }
-          },
+          properties: { query: { type: "string" } },
           required: ["query"]
+        }
+      },
+      {
+        name: "read_webpage",
+        description: "Ouvre et lit le contenu textuel complet d'une URL spécifique (comme une page Realtor.ca) pour y extraire les tableaux financiers, les taxes et les revenus.",
+        input_schema: {
+          type: "object",
+          properties: { url: { type: "string", description: "L'URL complète à lire (ex: https://www.realtor.ca/...)" } },
+          required: ["url"]
         }
       }
     ] : undefined;
 
     const isProModelUsed = finalModel === 'claude-sonnet-4-6';
-    const baseSystemPrompt = getRealEstateChatSystemPrompt(isProModelUsed ? 'pro' : 'base');
+    let enhancedSystemPrompt = getRealEstateChatSystemPrompt(isProModelUsed ? 'pro' : 'base');
     
-    // 🔥 AJOUT DES INSTRUCTIONS INTERNET
-    let enhancedSystemPrompt = baseSystemPrompt;
     if (isProPlan) {
+      // OPTIMISATION : Stratégie Lecture Directe -> Alternative Realtor -> Estimation
       enhancedSystemPrompt += `
-
-INSTRUCTIONS CRITIQUES SUR L'ACCÈS INTERNET (MODE PRO UNIQUEMENT) :
-1. Tu n'es PAS limité à tes données d'entraînement. Tu AS un accès réel à Internet via l'outil 'web_search'.
-2. Ne dis JAMAIS "Je n'ai pas accès à Internet" ou "Je ne peux pas consulter Centris". 
-3. Si on te pose une question sur des données actuelles, utilise l'outil 'web_search' IMMÉDIATEMENT.
-4. Tu peux utiliser l'outil plusieurs fois de suite si tu as besoin de préciser tes résultats après une première recherche.`;
+INSTRUCTIONS INTERNET ET LIENS (PRO) : 
+1. ATTENTION AUX LIENS (URL) : Si l'utilisateur te donne un lien direct (Centris, DuProprio, etc.), voici ta priorité absolue :
+2. STRATÉGIE "LECTURE DIRECTE PUIS ALTERNATIVE" (CRITIQUE) : 
+   - ÉTAPE 1 (LECTURE DIRECTE) : Utilise IMMÉDIATEMENT l'outil 'read_webpage' sur l'URL fournie par l'utilisateur.
+   - ÉTAPE 2 (ALTERNATIVE REALTOR) : Si la lecture directe échoue (page bloquée, erreur) ou ne contient pas les revenus/taxes, extrais le numéro MLS/SIA de l'URL. Fais un 'web_search' avec "Realtor.ca [Numéro MLS]" pour trouver son équivalent sur Realtor.ca, puis utilise à nouveau 'read_webpage' sur ce nouveau lien.
+   - ÉTAPE 3 : Analyse le texte complet retourné pour y trouver les revenus bruts, les taxes (municipales/scolaires) et les dépenses.
+3. RÈGLE D'ESTIMATION (PLAN B) : 
+   - Si (et seulement si) toutes les lectures de pages échouent ou que les chiffres sont vraiment introuvables, NE BLOQUE PAS.
+   - Prends le **Prix demandé** et la **Ville**, GÉNÈRE L'ANALYSE en estimant les taxes (1-1.5%) et les revenus selon le marché. Indique clairement tes estimations avec le symbole "~".`;
     } else {
-      enhancedSystemPrompt += `
-
-INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
-1. Tu n'as PAS accès à Internet en temps réel dans ce mode. 
-2. Si l'utilisateur pose une question nécessitant des données actuelles (ex: "Quels sont les plex à vendre aujourd'hui ?", "Quel est le taux 5 ans fixe ce matin ?", "Cherche sur Centris"), tu DOIS lui répondre poliment que la **recherche web en temps réel est une fonctionnalité exclusive à Optimiplex Pro**. 
-3. Invite-le explicitement à améliorer son forfait pour débloquer l'accès aux données de Centris, JLR et aux taux en direct.`;
+      enhancedSystemPrompt += `\nINSTRUCTIONS INTERNET (BASE) : Tu n'as pas accès au web en temps réel. Refuse poliment et propose de passer à Optimiplex Pro.`;
     }
 
-    const claudeMessages = history.slice(-10).map(m => ({
+    // On réduit l'historique envoyé à Claude (Les 6 derniers suffisent pour le contexte)
+    const claudeMessages = history.slice(-6).map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.content
     }));
     claudeMessages.push({ role: 'user', content: message });
 
-    // 🔥 PREMIER APPEL
+    // 🔴 RETOUR À 1024 POUR LA RAPIDITÉ
     let response = await claude.messages.create({
       model: finalModel,
-      max_tokens: 4000,
-      temperature: 0,
+      max_tokens: 1024, 
+      temperature: 0.2,
       system: enhancedSystemPrompt,
       tools: tools,
       messages: claudeMessages
     });
 
-    // 🔥 BOUCLE DE GESTION DES OUTILS
+    // Boucle de gestion des outils (Internet)
     let iterations = 0;
     const maxIterations = 5;
 
@@ -1778,10 +1766,8 @@ INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
 
       for (const toolUse of toolCalls) {
         if (toolUse.name === 'web_search') {
-          const searchQuery = toolUse.input.query;
-          console.log(`🔍 RECHERCHE [Itération ${iterations}] : ${searchQuery}`);
-
-          let searchContent = "Aucun résultat trouvé.";
+          console.log(`🔍 RECHERCHE [Itération ${iterations}] : ${toolUse.input.query}`);
+          let searchContent = "Aucun résultat.";
           try {
             const searchResponse = await fetch("https://google.serper.dev/search", {
               method: "POST",
@@ -1789,22 +1775,44 @@ INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
                 "X-API-KEY": process.env.SERPER_API_KEY || "", 
                 "Content-Type": "application/json" 
               },
-              body: JSON.stringify({ q: searchQuery, gl: "ca", hl: "fr" })
+              body: JSON.stringify({ q: toolUse.input.query, gl: "ca", hl: "fr" })
             });
             const searchData = await searchResponse.json();
-            
             searchContent = searchData.organic?.slice(0, 5).map(r => 
               `Titre: ${r.title}\nLien: ${r.link}\nExtrait: ${r.snippet}`
-            ).join("\n\n") || "La recherche n'a retourné aucun résultat organique.";
+            ).join("\n\n") || "Aucun résultat organique.";
           } catch (e) {
-            console.error("Serper API Error:", e);
-            searchContent = "Erreur technique lors de la recherche internet.";
+            searchContent = "Erreur technique de recherche.";
           }
 
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
             content: searchContent
+          });
+        } 
+        // Traitement de l'outil de lecture de page
+        else if (toolUse.name === 'read_webpage') {
+          console.log(`📖 LECTURE PAGE [Itération ${iterations}] : ${toolUse.input.url}`);
+          let pageContent = "Impossible de lire la page. Utilisez le mode estimation.";
+          try {
+            // Utilisation de Jina Reader
+            const response = await fetch(`https://r.jina.ai/${toolUse.input.url}`, {
+              headers: { "Accept": "text/plain" }
+            });
+            if (response.ok) {
+              const text = await response.text();
+              // On limite à 15000 caractères pour ne pas exploser la limite de tokens de l'IA
+              pageContent = text.slice(0, 15000); 
+            }
+          } catch (e) {
+            console.error("Erreur read_webpage:", e);
+          }
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: pageContent
           });
         }
       }
@@ -1813,10 +1821,11 @@ INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
         claudeMessages.push({ role: 'assistant', content: response.content });
         claudeMessages.push({ role: 'user', content: toolResults });
 
+        // 🔴 RETOUR À 1024 POUR LA RAPIDITÉ
         response = await claude.messages.create({
           model: finalModel,
-          max_tokens: 4000,
-          temperature: 0,
+          max_tokens: 1024,
+          temperature: 0.2,
           system: enhancedSystemPrompt,
           tools: tools,
           messages: claudeMessages
@@ -1824,24 +1833,56 @@ INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
       }
     }
 
-    const fullResponse = response.content[0]?.text || '';
-    if (!fullResponse.trim().length) {
-      return res.status(500).json({ error: 'Réponse AI vide' });
+    // Forcer l'IA à parler si elle s'obstine à chercher
+    if (response.stop_reason === 'tool_use') {
+      console.log("⚠️ Limite de recherche atteinte, on force l'IA à parler.");
+      
+      claudeMessages.push({ role: 'assistant', content: response.content });
+      
+      const toolCalls = response.content.filter(c => c.type === 'tool_use');
+      const forcedToolResults = toolCalls.map(toolUse => ({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: "Erreur/Interruption : Limite de recherche atteinte. Tu DOIS générer ton analyse IMMÉDIATEMENT en estimant les chiffres manquants."
+      }));
+
+      claudeMessages.push({ 
+        role: 'user', 
+        content: [
+          ...forcedToolResults,
+          { 
+            type: 'text', 
+            text: "Tu as atteint ta limite de recherche Internet. Arrête de chercher et génère ton analyse IMMÉDIATEMENT en estimant les taxes ou revenus manquants selon le prix que tu as trouvé. Sois TRÈS concis et termine ta phrase." 
+          }
+        ]
+      });
+
+      // 🔴 RETOUR À 1024 POUR LA RAPIDITÉ
+      response = await claude.messages.create({
+        model: finalModel,
+        max_tokens: 1024,
+        temperature: 0.2,
+        system: enhancedSystemPrompt,
+        messages: claudeMessages
+      });
     }
 
+    let fullResponse = response.content.find(c => c.type === 'text')?.text || '';
+    
+    if (!fullResponse.trim()) {
+      fullResponse = "Désolé, ma recherche d'alternatives a pris trop de temps et j'ai dû l'interrompre. Pourriez-vous relancer la recherche en précisant un peu plus vos critères (ex: 'Cherche un duplex à Shawinigan sous 300k$') ?";
+    }
+    
     const now = admin.firestore.FieldValue.serverTimestamp();
-    const updatedMessages = [
-      ...history,
-      { role: 'user', content: message, createdAt: new Date() },
-      { role: 'assistant', content: fullResponse, createdAt: new Date(), model: finalModel }
-    ];
-
-    await convRef.update({
-      messages: updatedMessages,
+    convRef.update({
+      messages: [...history, 
+        { role: 'user', content: message, createdAt: new Date() },
+        { role: 'assistant', content: fullResponse, createdAt: new Date(), model: finalModel }
+      ],
       updatedAt: now,
       lastMessage: fullResponse.slice(0, 200),
       lastUserMessage: message.slice(0, 200)
-    });
+    }).catch(e => console.error("Erreur de sauvegarde DB:", e));
 
     res.json({
       message: fullResponse,
@@ -1849,9 +1890,13 @@ INSTRUCTION SUR L'ACCÈS INTERNET (MODE LIMITÉ) :
     });
 
   } catch (error) {
-    if (res.headersSent) return;
     console.error('Chatbot Error:', error);
-    res.status(500).json({ error: 'Erreur Chatbot', details: error.message });
+    if (!res.headersSent) {
+      if (error.status === 429) {
+        return res.status(429).json({ error: "L'intelligence artificielle est actuellement très sollicitée. Veuillez patienter quelques secondes avant de réessayer." });
+      }
+      res.status(500).json({ error: 'Erreur Chatbot', details: error.message });
+    }
   }
 });
 
