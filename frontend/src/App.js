@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
   Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2
   } from 'lucide-react';
 import { 
@@ -152,7 +152,7 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
         <div className="flex items-center gap-3">
           {/* ✅ Affichage crédits mobile */}
           <div className="flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-full text-xs font-bold text-indigo-700 border border-indigo-100">
-            <Coins size={14} />
+            💎
             <span>{credits || 0}</span>
           </div>
 
@@ -239,9 +239,9 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
         {sidebarOpen && (
           <div className="px-6 py-4">
             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-3 border border-indigo-100">
-              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Crédits dispo</p>
+              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Crédits disponible</p>
               <div className="flex items-center gap-2">
-                <Coins size={20} className="text-indigo-600" />
+                💎
                 <span className="text-2xl font-black text-indigo-900">{credits || 0}</span>
               </div>
             </div>
@@ -282,7 +282,7 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
             </div>
             {/* ✅ Crédits Mobile Sidebar */}
             <div className="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
-              <Coins size={14} /> {credits || 0}
+              💎 {credits || 0}
             </div>
           </div>
         </div>
@@ -461,7 +461,7 @@ function DashboardLayout() {
               
               {/* ✅ Affichage Crédits Header Desktop */}
               <div className="flex items-center justify-end gap-2 text-indigo-600 text-sm font-bold mt-0.5">
-                <Coins size={14} />
+                💎
                 <span>{userProfile?.creditsBalance || 0} crédits</span>
               </div>
             </div>
@@ -489,7 +489,7 @@ function DashboardLayout() {
                   {/* ✅ Badge Crédits Banner */}
                   {(userProfile?.creditsBalance || 0) > 0 && (
                     <span className="bg-white/20 backdrop-blur px-3 py-1 rounded-full text-white text-sm font-bold flex items-center gap-1 border border-white/30">
-                      <Coins size={14} /> {userProfile.creditsBalance} Crédits
+                      💎 {userProfile.creditsBalance} Crédits
                     </span>
                   )}
                 </div>
@@ -569,7 +569,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       name: 'Pro', 
       price: '29$',
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
-      analyses: '20 analyses / mois',
+      analyses: '30 analyses / mois',
       internet: 'Chatbot avec RECHERCHE WEB LIVE 🌐',
       features: [
         'Volume pour investisseur actif',
@@ -2438,7 +2438,7 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
     credits: 0 
   });
 
-  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
 
   // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
@@ -2693,7 +2693,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
 
   const [formData, setFormData] = useState({
     titre: '', ville: '', quartier: '', typeappart: '312', etat: 'renove', loyeractuel: 1400,
@@ -3271,7 +3271,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
 
   const [formData, setFormData] = useState({
     titre: '',
@@ -3860,7 +3860,7 @@ function PropertyValuationTab({
     credits: 0 
   });
 
-  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
 
   // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
@@ -6117,7 +6117,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     const tableRegex = /(?:^\|.*\|\n?)+/gm;
     html = html.replace(tableRegex, (match) => {
       const rows = match.trim().split('\n');
-      let tableHtml = '<div class="overflow-x-auto my-3 -mx-4 sm:mx-0 px-4 sm:px-0"><table class="w-full text-left text-[14px] border-collapse rounded-lg overflow-hidden ring-1 ring-gray-200 shadow-sm">';
+      let tableHtml = '<div class="overflow-x-auto my-3 -mx-4 sm:mx-0 px-4 sm:px-0"><table class="w-full text-left text-[15px] border-collapse rounded-lg overflow-hidden ring-1 ring-gray-200 shadow-sm">';
       let isHeader = true;
       let hasSeenDivider = false;
       
@@ -6151,12 +6151,12 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
     });
 
     // 2. Séparateur horizontal
-    html = html.replace(/^---$/gm, '<hr class="my-5 border-t border-gray-200" />');
+    html = html.replace(/^---$/gm, '<hr class="my-3 border-t border-gray-200" />');
 
-    // 3. Titres
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-[16px] font-bold text-gray-800 mt-4 mb-1">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-[18px] font-bold text-gray-900 mt-5 mb-2 border-b pb-1 border-gray-100">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-[20px] font-black text-gray-900 mt-5 mb-3">$1</h1>'); 
+    // 3. Titres (Agrandis pour correspondre au style Gemini, espacement réduit)
+    html = html.replace(/^### (.*$)/gim, '<h3 class="text-[18px] font-bold text-gray-800 mt-2 mb-1">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 class="text-[20px] font-bold text-gray-900 mt-3 mb-1 border-b pb-1 border-gray-100">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 class="text-[24px] font-black text-gray-900 mt-3 mb-2">$1</h1>'); 
 
     // 4. Gras
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900">$1</strong>');
@@ -6217,7 +6217,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       modal.id = 'delete-confirm-modal';
       modal.innerHTML = `
         <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
-          <div style="background: white; padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); width: 100%; max-width: 340px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif; animation: popIn 0.2s ease-out;">
+          <div style="background: white; padding: 1.5rem; border-radius: 1.25rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); width: 100%; max-width: 340px; text-align: center; font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif; animation: popIn 0.2s ease-out;">
             <style>@keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }</style>
             <div style="font-size: 1.15rem; font-weight: 600; color: #1f2937; margin-bottom: 0.5rem;">Supprimer la discussion ?</div>
             <div style="color: #6b7280; margin-bottom: 1.5rem; font-size: 0.9rem;">Cette action est irréversible.</div>
@@ -6427,7 +6427,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   if (authLoading) {
     return (
-      <div className="h-[100dvh] flex items-center justify-center bg-white">
+      <div className="h-[100dvh] flex items-center justify-center bg-white" style={{ fontFamily: "'Google Sans', 'SF Pro Text', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -6435,11 +6435,11 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
 
   if (!userId) {
     return (
-      <div className="h-[100dvh] flex items-center justify-center bg-white px-6">
+      <div className="h-[100dvh] flex items-center justify-center bg-white px-6" style={{ fontFamily: "'Google Sans', 'SF Pro Text', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
         <div className="text-center max-w-md w-full">
           <Sparkles className="w-14 h-14 text-blue-500 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-gray-900 mb-3">Bienvenue sur Optimiplex</h2>
-          <p className="text-gray-500 mb-8 text-[15px]">Connectez-vous pour commencer à discuter avec votre assistant.</p>
+          <p className="text-gray-500 mb-8 text-[16px]">Connectez-vous pour commencer à discuter avec votre assistant.</p>
           <button
             onClick={() => window.location.href = '/login'}
             className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-colors shadow-sm active:scale-[0.98]"
@@ -6452,8 +6452,11 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
   }
 
   return (
-    // Utilisation de 100dvh (Dynamic Viewport Height) essentiel pour les navigateurs mobiles
-    <div className="flex h-[100dvh] w-full bg-white text-[#1f1f1f] font-sans overflow-hidden">
+    // Ajout d'une balise style pour forcer la police Gemini (Google Sans / SF Pro) sur l'ensemble du chat
+    <div 
+      className="flex h-[100dvh] w-full bg-white text-[#1f1f1f] overflow-hidden" 
+      style={{ fontFamily: "'Google Sans', 'SF Pro Text', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif" }}
+    >
       
       {/* --- OVERLAY MOBILE POUR LA SIDEBAR --- */}
       {isSidebarOpen && (
@@ -6524,18 +6527,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
           </div>
 
           <div className="mt-auto pt-4 flex flex-col gap-1.5 border-t border-gray-200/50">
-            {!isPro && (
-               <button 
-                 onClick={() => {
-                   setShowUpgradeModal?.(true);
-                   if (window.innerWidth < 768) setIsSidebarOpen(false);
-                 }}
-                 className="flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl hover:bg-amber-50/50 text-amber-700 transition-colors text-[14px] font-medium"
-               >
-                 <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                 Passer à Optimiplex Pro
-               </button>
-            )}
             <button className="flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl hover:bg-gray-200/60 transition-colors text-[14px] text-[#444746] font-medium">
               <Settings className="w-4 h-4 text-gray-500" />
               Paramètres
@@ -6548,64 +6539,18 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
       {/* Utilisation de flex-col strié pour garder l'input en bas de façon fluide, sans absolute */}
       <div className="flex-1 flex flex-col min-w-0 h-full bg-white relative">
         
-        {/* HEADER */}
+        {/* HEADER SIMPLIFIÉ */}
         <header className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 w-full bg-white z-10 border-b border-gray-100 shrink-0 safe-area-t">
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             {!isSidebarOpen && (
               <button 
                 onClick={() => setIsSidebarOpen(true)} 
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0 active:scale-95"
+                className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors shrink-0 active:scale-95 md:hidden"
               >
                 <Menu className="w-6 h-6 text-gray-700" />
               </button>
             )}
-            
-            <div className="relative">
-              <button 
-                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 hover:bg-gray-50 rounded-xl transition-all active:scale-[0.98]"
-              >
-                <h1 className="text-[18px] sm:text-[19px] text-[#1f1f1f] font-semibold tracking-tight">Optimiplex</h1>
-                <span className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm transition-colors ${
-                  selectedModel === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {selectedModel === 'pro' ? 'Pro' : 'Base'}
-                </span>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isModelDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)}></div>
-                  <div className="absolute top-full left-0 mt-2 w-[260px] sm:w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                    <div className="p-2 flex flex-col gap-1">
-                      <button 
-                        onClick={() => handleModelChange('base')} 
-                        className={`w-full text-left px-3 py-3 rounded-xl hover:bg-gray-50 transition-colors flex flex-col gap-1 ${selectedModel === 'base' ? 'bg-gray-50 ring-1 ring-gray-200' : ''}`}
-                      >
-                        <span className="font-semibold text-[14px] text-[#1f1f1f]">Optimiplex Base</span>
-                        <span className="text-[12px] text-gray-500 leading-snug">Modèle rapide, idéal pour les questions simples.</span>
-                      </button>
-                      
-                      <button 
-                        onClick={() => handleModelChange('pro')} 
-                        className={`w-full text-left px-3 py-3 rounded-xl transition-colors flex items-start justify-between gap-3 ${
-                          selectedModel === 'pro' ? 'bg-blue-50/50 ring-1 ring-blue-100 hover:bg-blue-50' : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex flex-col gap-1">
-                          <span className="font-semibold text-[14px] text-blue-700 flex items-center gap-1.5">
-                            Optimiplex Pro <Sparkles className="w-3 h-3" />
-                          </span>
-                          <span className="text-[12px] text-gray-500 leading-snug">Analyse profonde et calculs complexes.</span>
-                        </div>
-                        {!isPro && <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            <h1 className="text-[18px] sm:text-[19px] text-[#1f1f1f] font-semibold tracking-tight">Optimiplex</h1>
           </div>
           
           <div className="flex items-center shrink-0">
@@ -6621,36 +6566,36 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
           onScroll={handleContainerScroll}
           className="flex-1 overflow-y-auto px-4 sm:px-8 bg-white"
         >
-          <div className="max-w-3xl mx-auto w-full flex flex-col gap-5 pt-6 pb-6">
+          <div className="max-w-3xl mx-auto w-full flex flex-col gap-3 pt-4 pb-4">
             
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center mt-12 sm:mt-20">
+              <div className="flex flex-col items-center justify-center text-center mt-8 sm:mt-12">
                 <div className="mb-6 p-4 bg-gradient-to-tr from-blue-50 to-indigo-50 rounded-3xl shadow-sm border border-blue-100/50">
                   <Sparkles className="w-10 h-10 text-blue-600" />
                 </div>
                 <h2 className="text-[1.8rem] sm:text-[2.2rem] tracking-tight leading-tight font-bold text-[#1f1f1f] mb-3">
                   Optimiplex <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Intelligence</span>
                 </h2>
-                <p className="text-[15px] sm:text-[16px] text-[#444746] max-w-lg mx-auto leading-relaxed px-4">
+                <p className="text-[16px] sm:text-[17px] text-[#444746] max-w-lg mx-auto leading-relaxed px-4">
                   Votre expert immobilier personnel. Analysez vos rentabilités ou demandez une stratégie d'optimisation.
                 </p>
                 
-                <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl text-left px-2">
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl text-left px-2">
                   <button 
                     onClick={() => setInput("Fais l'analyse d'un 6-plex à 750 000$ générant 55 000$ de revenus bruts.")} 
                     className="p-4 sm:p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-sm group active:scale-[0.98]"
                   >
                     <TrendingUp className="w-6 h-6 text-blue-500 mb-3 group-hover:scale-110 transition-transform" />
-                    <strong className="block text-[15px] text-[#1f1f1f] font-semibold mb-1">Calcul de rentabilité</strong>
-                    <span className="text-[13px] text-[#444746] leading-snug block">Analyse de MRB, TGA et flux de trésorerie...</span>
+                    <strong className="block text-[16px] text-[#1f1f1f] font-semibold mb-1">Calcul de rentabilité</strong>
+                    <span className="text-[14px] text-[#444746] leading-snug block">Analyse de MRB, TGA et flux de trésorerie...</span>
                   </button>
                   <button 
                     onClick={() => setInput("Explique-moi les règles de base du programme APH Select pour le refinancement.")} 
                     className="p-4 sm:p-5 rounded-2xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/30 transition-all shadow-sm group active:scale-[0.98]"
                   >
                     <Building className="w-6 h-6 text-purple-500 mb-3 group-hover:scale-110 transition-transform" />
-                    <strong className="block text-[15px] text-[#1f1f1f] font-semibold mb-1">Stratégie de financement</strong>
-                    <span className="text-[13px] text-[#444746] leading-snug block">Programmes SCHL, conventions et leviers...</span>
+                    <strong className="block text-[16px] text-[#1f1f1f] font-semibold mb-1">Stratégie de financement</strong>
+                    <span className="text-[14px] text-[#444746] leading-snug block">Programmes SCHL, conventions et leviers...</span>
                   </button>
                 </div>
               </div>
@@ -6664,7 +6609,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                     </div>
                   )}
 
-                  <div className={`px-4 sm:px-5 py-3 text-[15px] sm:text-[15.5px] leading-relaxed ${
+                  <div className={`px-4 sm:px-5 py-3 text-[16px] leading-relaxed ${
                     m.role === 'user' 
                       ? 'bg-[#f0f4f9] text-[#1f1f1f] rounded-[24px] rounded-tr-[4px] max-w-[85%] sm:max-w-[75%]' 
                       : 'bg-transparent text-[#1f1f1f] max-w-[95%] sm:max-w-[85%]'
@@ -6694,10 +6639,9 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
           </div>
         </main>
 
-        {/* BOTTOM INPUT AREA - Fixé dans le flex-col (pas d'absolute pour éviter les bugs clavier mobile) */}
+        {/* BOTTOM INPUT AREA */}
         <div 
           className="shrink-0 bg-white border-t border-transparent"
-          // Utilisation du safe-area pour les iPhones avec la barre horizontale en bas
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           <div className="max-w-3xl mx-auto relative px-3 sm:px-8 pt-2 pb-4 sm:pb-6">
@@ -6710,6 +6654,60 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
               </div>
             )}
 
+            {/* SÉLECTEUR DE MODÈLE (Proche du chat) */}
+            <div className="relative mb-2 flex justify-start pl-2">
+              <button
+                type="button"
+                onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 rounded-full text-[13px] font-medium text-gray-700 transition-colors shadow-sm active:scale-95"
+              >
+                {selectedModel === 'pro' ? (
+                  <span className="flex items-center gap-1.5 text-blue-700">
+                    <Sparkles className="w-3.5 h-3.5" /> Pro
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    Rapide
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isModelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)}></div>
+                  <div className="absolute bottom-full left-2 mb-2 w-[260px] sm:w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                    <div className="p-2 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleModelChange('base')}
+                        className={`w-full text-left px-3 py-3 rounded-xl hover:bg-gray-50 transition-colors flex flex-col gap-1 ${selectedModel === 'base' ? 'bg-gray-50 ring-1 ring-gray-200' : ''}`}
+                      >
+                        <span className="font-semibold text-[14px] text-[#1f1f1f]">Rapide</span>
+                        <span className="text-[12px] text-gray-500 leading-snug">Modèle rapide, idéal pour les questions simples.</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleModelChange('pro')}
+                        className={`w-full text-left px-3 py-3 rounded-xl transition-colors flex items-start justify-between gap-3 ${
+                          selectedModel === 'pro' ? 'bg-blue-50/50 ring-1 ring-blue-100 hover:bg-blue-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-[14px] text-blue-700 flex items-center gap-1.5">
+                            Pro <Sparkles className="w-3 h-3" />
+                          </span>
+                          <span className="text-[12px] text-gray-500 leading-snug">Recherche Web, analyse profonde et calculs complexes.</span>
+                        </div>
+                        {!isPro && <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <form 
               onSubmit={handleSend}
               className="relative bg-[#f0f4f9] rounded-[28px] flex items-end gap-2 p-1.5 sm:p-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 focus-within:shadow-md transition-all border border-gray-200/60 focus-within:border-blue-200"
@@ -6721,7 +6719,6 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 onInput={handleInputInput}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
-                    // Empêcher l'envoi sur mobile si le clavier propose l'autocomplétion
                     if(window.innerWidth > 768) {
                        e.preventDefault();
                        handleSend(e);
@@ -6730,8 +6727,7 @@ function ChatTab({ user: propUser, userPlan: propPlan, setShowUpgradeModal }) {
                 }}
                 disabled={loading || authLoading}
                 placeholder="Message à Optimiplex..."
-                // CRITIQUE : text-[16px] sur mobile pour empêcher iOS Safari de zoomer
-                className="w-full bg-transparent border-none focus:outline-none resize-none max-h-32 py-3 px-3 sm:px-4 text-[16px] sm:text-[15px] text-[#1f1f1f] placeholder-gray-500 leading-normal min-h-[48px] disabled:opacity-50 scrollbar-thin scrollbar-thumb-gray-300"
+                className="w-full bg-transparent border-none focus:outline-none resize-none max-h-32 py-3 px-3 sm:px-4 text-[16px] text-[#1f1f1f] placeholder-gray-500 leading-normal min-h-[48px] disabled:opacity-50 scrollbar-thin scrollbar-thumb-gray-300"
                 rows="1"
               />
 
@@ -7307,7 +7303,7 @@ function HomePage() {
                 period: '/ mois',
                 description: 'Le cerveau de votre parc',
                 features: [
-                  '20 analyses / mois',
+                  '30 analyses / mois',
                   'Scan du Web en direct',
                   'Transactions récentes',
                   'Recommandations IA',
