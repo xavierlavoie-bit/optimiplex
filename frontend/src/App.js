@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import { Eye, Coins, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
-  Settings, ChevronDown, Star, Shield, CheckCircle2, Share2
+  Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -193,7 +193,7 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
   const navItems = [
     { id: 'overview', label: '📈 Vue d\'ensemble' },
     { id: 'valuation', label: '📊 Évaluation' },
-    { id: 'chat', label: '💬 Optimiplex IA' },
+    { id: 'chat', label: '💬 OptimiChat' },
     { id: 'optimization', label: '⚡ Optimiseur' },
     { id: 'profile', label: '👤 Mon Profil' },
   ];
@@ -540,6 +540,7 @@ function DashboardLayout() {
 // ============================================
 // ⬆️ MODAL UPGRADE avec STRIPE
 // ============================================
+
 function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
   const [activeTab, setActiveTab] = useState('plans'); 
   const [subLoading, setSubLoading] = useState(null);
@@ -552,59 +553,65 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     { 
       key: 'essai', 
       name: 'Essai', 
-      price: 'Gratuit', 
+      price: '0$', 
+      analyses: '1 seule / mois',
+      internet: 'Analyses avec données WEB 🌐',
       features: [
-        '1 analyse / mois',
-        'Optimisation loyer (Recherche Web incluse 🌐)',
-        'Évaluation de valeur (Recherche Web incluse 🔍)',
-        'Chatbot IA (Sans accès Internet)'
+        'Évaluation avec comparables LIVE',
+        'Optimisation loyer (Temps réel)',
+        'Chatbot IA Standard (Sans Web)'
       ],
-      icon: <Zap className="text-blue-500" size={32} />,
-      color: 'blue'
+      icon: <span className="text-3xl md:text-4xl">⚡</span>,
+      color: 'gray'
     },
     { 
       key: 'pro', 
       name: 'Pro', 
-      price: '$29/mois',
+      price: '29$',
       priceId: process.env.REACT_APP_STRIPE_PRO_PRICE_ID, 
+      analyses: '20 analyses / mois',
+      internet: 'Chatbot avec RECHERCHE WEB LIVE 🌐',
       features: [
-        '20 analyses / mois',
-        'Recherche en temps réel 🚀',
-        'Chatbot avec RECHERCHE INTERNET 🌐',
-        'Analyses financières Pro (TGA, MRB)',
-        'Support email prioritaire'
+        'Volume pour investisseur actif',
+        'Analyses 7+ logements incluses',
+        'Chatbot IA connecté au Web Live',
+        'Support prioritaire'
       ],
-      icon: <Star className="text-purple-500" size={32} />,
-      color: 'purple'
+      icon: <span className="text-3xl md:text-4xl">⭐</span>,
+      color: 'indigo',
+      badge: '🔥 Populaire'
     },
     { 
       key: 'growth', 
       name: 'Growth', 
-      price: '$69/mois',
+      price: '69$',
       priceId: process.env.REACT_APP_STRIPE_GROWTH_PRICE_ID,
+      analyses: 'Analyses ILLIMITÉES ♾️',
+      internet: 'Chatbot Pro avec RECHERCHE WEB LIVE 🌐',
       features: [
-        'Analyses ILLIMITÉES',
-        'Recherche Centris Commercial & Résidentiel',
-        'Chatbot Pro avec Recherche Internet 🌐',
-        'Données de marché avancées',
-        'Support VIP'
+        'Zéro limite de volume',
+        'Accès complet Centris Pro',
+        'Analyses financières avancées',
+        'Support VIP dédié'
       ],
-      icon: <Search className="text-indigo-500" size={32} />,
-      color: 'indigo',
-      recommended: true
+      icon: <span className="text-3xl md:text-4xl">🚀</span>,
+      color: 'purple',
+      recommended: true,
+      badge: '👑 Puissance Totale'
     },
     { 
       key: 'entreprise', 
       name: 'Entreprise', 
-      price: 'Sur mesure', 
+      price: 'Contact', 
+      analyses: 'Volume Adapté',
+      internet: 'Chatbot Multi-Agents 🌐',
       features: [
-        'Solution 100% adaptée',
-        'API + White label',
+        'Solution sur mesure',
+        'Accès API + Marque blanche',
         'Formation équipe incluse',
-        'Chatbot personnalisé',
-        'Volume illimité'
+        'Analyse de portefeuille'
       ],
-      icon: <Shield className="text-amber-500" size={32} />,
+      icon: <span className="text-3xl md:text-4xl">🏢</span>,
       color: 'amber'
     }
   ];
@@ -613,44 +620,46 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     {
       name: 'decouverte',
       displayName: 'Découverte',
+      description: 'Idéal pour tester un deal spécifique.',
       credits: 5,
       priceId: process.env.REACT_APP_STRIPE_DECOUVERTE_PRICE_ID,
       price: '4.99',
-      color: 'from-blue-100 to-blue-200',
-      borderColor: 'border-blue-400',
-      badge: '💎 Budget',
+      color: 'from-blue-500 to-cyan-400',
+      textColor: 'text-blue-600',
+      badge: '🧊 Pack 5',
       buttonColor: 'bg-blue-600 hover:bg-blue-700'
     },
     {
       name: 'chasseur',
       displayName: 'Chasseur',
+      description: 'Pour votre prochaine acquisition.',
       credits: 25,
       priceId: process.env.REACT_APP_STRIPE_CHASSEUR_PRICE_ID,
       price: '19.99',
-      color: 'from-indigo-100 to-indigo-200',
-      borderColor: 'border-indigo-400',
-      badge: '⭐ Populaire',
+      color: 'from-indigo-600 to-blue-500',
+      textColor: 'text-indigo-600',
+      badge: '🎯 Pack 25',
       buttonColor: 'bg-indigo-600 hover:bg-indigo-700',
       popular: true
     },
     {
       name: 'investisseur',
       displayName: 'Investisseur',
+      description: 'Dominez le marché local.',
       credits: 150,
       priceId: process.env.REACT_APP_STRIPE_INVESTISSEUR_PRICE_ID,
       price: '79.99',
-      color: 'from-purple-100 to-purple-200',
-      borderColor: 'border-purple-400',
-      badge: '👑 Illimité',
+      color: 'from-purple-600 to-indigo-600',
+      textColor: 'text-purple-600',
+      badge: '👑 Pack 150',
       buttonColor: 'bg-purple-600 hover:bg-purple-700'
     }
   ];
 
-  const isDowngrade = (key) => {
-    if (key === 'essai' && userPlan !== 'essai') return true;
-    if (key === 'pro' && (userPlan === 'growth' || userPlan === 'entreprise')) return true;
-    if (key === 'growth' && userPlan === 'entreprise') return true;
-    return false;
+  // ✅ LOGIQUE DE VÉRIFICATION DES DOWNGRADES
+  const isDowngrade = (planKey) => {
+    const weights = { 'essai': 0, 'pro': 1, 'growth': 2, 'entreprise': 3 };
+    return weights[planKey] < weights[userPlan];
   };
 
   const handleSubscribe = async (planKey) => {
@@ -659,19 +668,18 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       const selectedPlan = plans.find(p => p.key === planKey);
       if (!selectedPlan?.priceId) return;
 
-      const response = await axios.post(`${API_BASE_URL}/api/stripe/create-checkout-session`, {
+      const response = await axios.post(`${window.API_BASE_URL || ''}/api/stripe/create-checkout-session`, {
         userId: user?.uid,
         userEmail: user?.email,
         plan: planKey, 
         priceId: selectedPlan.priceId
       });
 
-      if (response.data.sessionUrl || response.data.url) {
-        window.location.href = response.data.sessionUrl || response.data.url;
+      if (response.data.sessionUrl) {
+        window.location.href = response.data.sessionUrl;
       }
     } catch (err) {
       console.error('Erreur:', err);
-      alert("Une erreur est survenue lors de la redirection.");
     } finally {
       setSubLoading(null);
     }
@@ -680,7 +688,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
   const handleBuyCredits = async (plan) => {
     try {
       setCreditsLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/api/stripe/create-checkout-session-credits`, {
+      const response = await axios.post(`${window.API_BASE_URL || ''}/api/stripe/create-checkout-session-credits`, {
         userId: user?.uid,
         userEmail: user?.email,
         creditsPlan: plan.name,
@@ -688,7 +696,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       });
       if (response.data.sessionUrl) window.location.href = response.data.sessionUrl;
     } catch (err) {
-      setCreditsError('Erreur lors de la création de la session');
+      setCreditsError('Erreur Stripe');
     } finally {
       setCreditsLoading(false);
     }
@@ -696,90 +704,110 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4 md:p-8"
+      className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-[9999] p-2 md:p-8"
       onClick={(e) => e.target === e.currentTarget && setShowUpgradeModal(false)}
     >
-      <div className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-[32px] md:rounded-[48px] shadow-2xl max-w-6xl w-full max-h-[95vh] md:max-h-[90vh] overflow-y-auto border border-white/20 animate-in fade-in zoom-in duration-300">
         
         {/* HEADER */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 md:px-10 py-6 flex items-center justify-between z-20">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Optimisez vos investissements</h2>
-            <p className="text-gray-500 mt-1 flex items-center gap-2 font-medium">
-              Plan actuel : <span className="bg-indigo-100 text-indigo-700 px-3 py-0.5 rounded-full text-xs uppercase font-bold">{userPlan}</span>
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 md:px-12 py-5 md:py-8 flex items-center justify-between z-20">
+          <div className="max-w-[80%] md:max-w-none">
+            <h2 className="text-xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight">Accélérez vos investissements 🚀</h2>
+            <p className="text-gray-500 mt-1 flex items-center gap-2 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+              Statut actuel : <span className="bg-indigo-50 text-indigo-700 px-2 md:px-3 py-0.5 rounded-full border border-indigo-100">{userPlan}</span>
             </p>
           </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
-            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all text-2xl"
+            className="w-10 h-10 md:w-14 md:h-14 flex items-center justify-center rounded-2xl md:rounded-3xl bg-gray-50 text-gray-900 hover:bg-red-50 hover:text-red-500 transition-all font-black text-lg md:text-xl shrink-0"
           >
             ✕
           </button>
         </div>
 
-        <div className="px-6 md:px-10 py-8">
+        <div className="px-5 md:px-12 py-6 md:py-10">
           
-          {/* TABS */}
-          <div className="flex p-1.5 bg-gray-100 rounded-2xl w-fit mb-10 mx-auto">
+          {/* TABS SELECTOR */}
+          <div className="flex p-1.5 bg-slate-100 rounded-2xl md:rounded-[32px] w-full md:w-fit mb-8 md:mb-12 mx-auto border border-slate-200 overflow-hidden">
             <button
               onClick={() => setActiveTab('plans')}
-              className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${activeTab === 'plans' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'plans' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              <Zap size={18} /> Plans mensuels
+              <span>⚡</span> Abonnements
             </button>
             <button
               onClick={() => setActiveTab('credits')}
-              className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${activeTab === 'credits' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'credits' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              <Coins size={18} /> Crédits à la carte
+              <span>💎</span> Crédits Flex
             </button>
           </div>
 
           {/* PLANS TAB */}
           {activeTab === 'plans' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {plans.map((p) => {
                 const isCurrent = userPlan === p.key;
-                const isDown = isDowngrade(p.key);
                 const isLoading = subLoading === p.key;
+                const isDown = isDowngrade(p.key);
 
                 return (
                   <div 
                     key={p.key} 
-                    className={`relative p-8 rounded-3xl border-2 transition-all flex flex-col h-full ${isCurrent ? 'border-indigo-500 bg-indigo-50/50 ring-4 ring-indigo-500/10' : 'border-gray-100 hover:border-indigo-200 bg-white'}`}
+                    className={`relative p-6 md:p-8 rounded-[32px] md:rounded-[40px] border-2 transition-all flex flex-col h-full ${
+                      isCurrent 
+                        ? 'border-indigo-500 bg-indigo-50/20 ring-4 ring-indigo-500/5' 
+                        : isDown 
+                          ? 'border-gray-100 opacity-80 bg-gray-50/30' 
+                          : 'border-gray-50 bg-white hover:border-indigo-100 shadow-sm'
+                    }`}
                   >
-                    {p.recommended && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest">
-                        Recommandé
+                    {p.badge && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[8px] md:text-[9px] px-3 md:px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest whitespace-nowrap z-10">
+                        {p.badge}
                       </div>
                     )}
                     
-                    <div className="mb-6">{p.icon}</div>
-                    <h4 className="text-2xl font-black text-gray-900 mb-1">{p.name}</h4>
-                    <p className="text-3xl font-black text-indigo-600 mb-6">{p.price}</p>
+                    <div className="mb-4 md:mb-6 filter drop-shadow-md">{p.icon}</div>
+                    <h4 className="text-xl md:text-2xl font-black text-gray-900 mb-1">{p.name}</h4>
+                    <div className="flex items-baseline gap-1 mb-4 md:mb-6">
+                       <span className="text-2xl md:text-3xl font-black text-indigo-600">{p.price}</span>
+                       {p.price.includes('$') && <span className="text-gray-400 font-bold text-[10px] md:text-xs">/mois</span>}
+                    </div>
+
+                    {/* VALEUR AJOUTÉE - HIGHLIGHTS */}
+                    <div className="mb-6 p-4 bg-gray-50/80 rounded-2xl border border-gray-100 shadow-inner">
+                       <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">Statut IA</p>
+                       <p className="text-[11px] font-black text-gray-900 leading-tight mb-2.5">📊 {p.analyses}</p>
+                       <p className={`text-[11px] font-black leading-tight text-emerald-600`}>
+                          🌐 Données Web Incluses
+                       </p>
+                    </div>
                     
-                    <ul className="space-y-4 text-sm text-gray-600 mb-8 flex-grow">
+                    <ul className="space-y-3 md:space-y-4 text-[11px] md:text-xs font-bold text-gray-500 mb-8 flex-grow">
                       {p.features.map((f, i) => (
-                        <li key={i} className="flex items-start gap-3 leading-tight">
-                          <div className="mt-0.5 bg-emerald-100 rounded-full p-0.5">
-                            <Zap size={12} className="text-emerald-600 fill-emerald-600" />
-                          </div>
-                          <span className={f.includes('RECHERCHE INTERNET') || f.includes('temps réel') ? 'font-bold text-gray-900' : ''}>{f}</span>
+                        <li key={i} className="flex items-start gap-2.5 leading-tight">
+                          <span className={isCurrent ? 'text-indigo-500' : 'text-emerald-500'}>•</span>
+                          <span className={f.includes('WEB') || f.includes('ILLIMITÉES') ? 'text-gray-900' : ''}>{f}</span>
                         </li>
                       ))}
                     </ul>
 
                     {isCurrent ? (
-                      <div className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold text-center border border-gray-200">
-                        Votre forfait actuel
+                      <div className="w-full py-4 md:py-5 bg-gray-100 text-gray-400 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-gray-200">
+                        Plan Actuel
+                      </div>
+                    ) : isDown ? (
+                      <div className="w-full py-4 md:py-5 bg-gray-50 text-gray-300 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-dashed border-gray-200">
+                        Forfait Inférieur
                       </div>
                     ) : (
                       <button
                         onClick={() => p.key === 'entreprise' ? window.location.href='mailto:info@optimiplex.com' : handleSubscribe(p.key)}
-                        disabled={subLoading !== null || isDown}
-                        className={`w-full py-4 rounded-2xl font-black transition-all shadow-lg ${isDown ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200 active:scale-95'}`}
+                        disabled={subLoading !== null}
+                        className={`w-full py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${p.key === 'essai' ? 'bg-gray-100 text-gray-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                       >
-                        {isLoading ? 'Redirection...' : isDown ? '🔒' : 'Choisir ce plan'}
+                        {isLoading ? '...' : p.key === 'entreprise' ? 'Contacter' : 'Choisir'}
                       </button>
                     )}
                   </div>
@@ -790,60 +818,72 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
           {/* CREDITS TAB */}
           {activeTab === 'credits' && (
-            <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-6 md:space-y-8 animate-in slide-in-from-bottom-6 duration-700">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
                 {creditPlans.map((cp) => (
-                  <div key={cp.name} className={`p-8 rounded-3xl border-2 transition-all hover:shadow-2xl bg-white border-gray-100 relative group`}>
-                    {cp.popular && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest">Le plus prisé</div>}
-                    <div className={`rounded-2xl p-8 mb-6 text-center bg-gradient-to-br ${cp.color} transform group-hover:scale-105 transition-transform`}>
-                      <p className="text-5xl font-black text-gray-900">{cp.credits}</p>
-                      <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mt-1">Analyses live</p>
+                  <div key={cp.name} className={`relative p-1 rounded-[32px] md:rounded-[48px] bg-white transition-all duration-500 hover:shadow-2xl flex flex-col group ${cp.popular ? 'ring-2 ring-indigo-500 shadow-xl' : 'border border-gray-100 shadow-sm'}`}>
+                    
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-white shadow-md border border-gray-50 flex items-center gap-2">
+                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-900 whitespace-nowrap">{cp.badge}</span>
                     </div>
-                    <p className="text-4xl font-black text-center mb-8 text-gray-900">${cp.price}</p>
-                    <button 
-                      onClick={() => handleBuyCredits(cp)} 
-                      disabled={creditsLoading}
-                      className={`w-full py-4 rounded-2xl text-white font-black transition-all shadow-xl ${cp.buttonColor} active:scale-95`}
-                    >
-                      {creditsLoading ? 'Traitement...' : 'Acheter maintenant'}
-                    </button>
+
+                    <div className="p-6 md:p-10 flex-grow flex flex-col items-center">
+                      <div className={`w-full rounded-[24px] md:rounded-[40px] p-8 md:p-12 mb-6 md:mb-8 text-center bg-gradient-to-br ${cp.color} shadow-lg relative overflow-hidden group-hover:scale-[1.03] transition-transform duration-500`}>
+                        <div className="absolute top-0 right-0 w-32 md:w-40 h-32 md:h-40 bg-white/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+                        <p className="text-6xl md:text-8xl font-black text-white drop-shadow-xl">{cp.credits}</p>
+                        <p className="text-[8px] md:text-[10px] font-black text-white/90 uppercase tracking-[0.4em] mt-2 md:mt-3">Crédits Analyses</p>
+                      </div>
+
+                      <h4 className={`text-xl md:text-2xl font-black mb-1 md:mb-2 ${cp.textColor}`}>{cp.displayName}</h4>
+                      <p className="text-gray-400 text-[10px] md:text-[11px] font-bold text-center mb-6 md:mb-8 px-2 leading-relaxed">{cp.description}</p>
+                      
+                      <div className="flex items-baseline gap-1 mb-8 md:mb-10">
+                        <span className="text-4xl md:text-5xl font-black text-gray-900">${cp.price}</span>
+                        <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest">/ achat</span>
+                      </div>
+
+                      <button 
+                        onClick={() => handleBuyCredits(cp)} 
+                        disabled={creditsLoading}
+                        className={`w-full py-5 md:py-6 rounded-[24px] md:rounded-[32px] text-white font-black text-[10px] md:text-xs uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${cp.buttonColor} hover:shadow-indigo-300`}
+                      >
+                        {creditsLoading ? '...' : 'Débloquer'}
+                      </button>
+
+                      {cp.credits > 5 && (
+                        <p className="mt-4 md:mt-6 text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 animate-pulse text-center">
+                           ✨ ÉCONOMIE MASSIVE INCLUSE
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* MARKET FOOTER */}
-          <div className="mt-16 p-8 bg-gray-50 rounded-3xl border border-gray-100">
-            <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-              <Search size={24} className="text-indigo-600" /> Données en temps réel
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="flex gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
-                  <Zap size={20} className="text-indigo-600" />
-                </div>
+          {/* FOOTER VALUES */}
+          <div className="mt-12 md:mt-20 p-6 md:p-12 bg-slate-50/80 backdrop-blur rounded-[32px] md:rounded-[48px] border border-slate-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+              <div className="flex flex-col items-center text-center gap-3">
+                <span className="text-3xl md:text-4xl">🚀</span>
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">Analyses de Loyer</p>
-                  <p className="text-xs text-gray-500 mt-1">Optimisation basée sur les listings actifs de Centris (Tous plans).</p>
+                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Vitesse IA</p>
+                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Analyses complètes en moins de 30 secondes.</p>
                 </div>
               </div>
-              <div className="flex gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
-                  <Search size={20} className="text-indigo-600" />
-                </div>
+              <div className="flex flex-col items-center text-center gap-3 md:border-x md:border-slate-200 md:px-8">
+                <span className="text-3xl md:text-4xl">🌐</span>
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">Évaluations de Valeur</p>
-                  <p className="text-xs text-gray-500 mt-1">Estimations utilisant les comparables vendus réels (Tous plans).</p>
+                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Données Réelles</p>
+                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Scan de Centris et JLR en temps réel.</p>
                 </div>
               </div>
-              <div className="flex gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
-                  <MessageSquare size={20} className="text-indigo-600" />
-                </div>
+              <div className="flex flex-col items-center text-center gap-3">
+                <span className="text-3xl md:text-4xl">💎</span>
                 <div>
-                  <p className="font-bold text-gray-900 text-sm">Chatbot Intelligent</p>
-                  <p className="text-xs text-gray-500 mt-1">Recherche Internet libre limitée aux forfaits **Pro et Growth**.</p>
+                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Flexibilité</p>
+                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Vos crédits n'expirent jamais.</p>
                 </div>
               </div>
             </div>
@@ -853,6 +893,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     </div>
   );
 }
+
 
 
 
@@ -2386,45 +2427,240 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setShowUpgradeModal }) {
   const [propertyType, setPropertyType] = useState('residential');
 
-  return (
-    <div className="max-w-6xl mx-auto">
-      <h2 className="text-3xl font-black text-gray-900 mb-8">🎯 Optimiseur de Loyer</h2>
+  // État quota avec crédits
+  const [quotaInfo, setQuotaInfo] = useState({
+    remaining: 0,
+    limit: 1,
+    current: 0,
+    plan: 'essai',
+    resetDate: new Date(),
+    isUnlimited: false,
+    credits: 0 
+  });
 
-      {/* Sélecteur Résidentiel/Commercial */}
-      <div className="mb-8">
-        <div className="flex gap-4 p-4 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-xl border border-indigo-300">
-          {['residential', 'commercial'].map(type => (
-            <button
-              key={type}
-              onClick={() => setPropertyType(type)}
-              className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
-                propertyType === type
-                  ? 'bg-white text-gray-900 shadow-lg border-2 border-indigo-500'
-                  : 'bg-transparent text-gray-700 hover:text-gray-900'
-              }`}
-            >
-              {type === 'residential' ? '🏠 Résidentiel' : '🏢 Commercial'}
-            </button>
-          ))}
+  const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
+
+  // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
+  useEffect(() => {
+    const loadQuota = async () => {
+      try {
+        if (!user?.uid) return;
+        const db = getFirestore();
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) return;
+
+        const userData = userDoc.data();
+        const userPlanNow = userData.plan || 'essai';
+        const planLimit = PLAN_LIMITS[userPlanNow] || 1;
+        
+        // Récupération des crédits
+        const creditsBalance = userData.creditsBalance || 0;
+
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        let quotaCount = 0;
+        let resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+        if (userData.quotaTracking) {
+          const trackingMonth = userData.quotaTracking.month || '';
+          if (trackingMonth === currentMonth) {
+            quotaCount = userData.quotaTracking.count || 0;
+            if (userData.quotaTracking.resetAt?.toDate) {
+              resetDate = userData.quotaTracking.resetAt.toDate();
+            } else if (userData.nextResetDate) {
+              resetDate = new Date(userData.nextResetDate);
+            }
+          } else {
+            // Nouveau mois, reset compteur pour affichage local
+            quotaCount = 0;
+          }
+        }
+
+        const remaining = Math.max(0, planLimit - quotaCount);
+
+        setQuotaInfo({
+          remaining: remaining,
+          limit: planLimit,
+          current: quotaCount,
+          plan: userPlanNow,
+          resetDate: resetDate,
+          isUnlimited: planLimit >= 999,
+          credits: creditsBalance 
+        });
+
+      } catch (error) {
+        console.error('❌ Erreur chargement quota:', error);
+      }
+    };
+
+    if (user?.uid) loadQuota();
+  }, [user?.uid]);
+
+  const isButtonDisabled = (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+  const percentUsed = quotaInfo.limit > 0 ? (quotaInfo.current / quotaInfo.limit) * 100 : 0;
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
+      
+      {/* HEADER SECTION */}
+      <div className="mb-2">
+        <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+          <span className="text-3xl filter drop-shadow-sm">🎯</span>
+          Optimiseur de Loyer IA
+        </h2>
+        <p className="text-gray-500 font-medium mt-1 ml-11">
+          Maximisez vos revenus locatifs grâce aux recommandations basées sur les données du marché.
+        </p>
+      </div>
+
+      {/* WIDGET QUOTA & CRÉDITS (STYLE DASHBOARD) */}
+      {quotaInfo && (
+        <div className={`relative overflow-hidden rounded-3xl p-6 md:p-8 border-2 transition-all duration-300 shadow-sm ${
+          !isButtonDisabled 
+            ? 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md' 
+            : 'bg-red-50/50 border-red-200'
+        }`}>
+          
+          {/* Background décoratif */}
+          <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none -translate-y-1/2 translate-x-1/3 ${
+            !isButtonDisabled ? 'bg-indigo-400' : 'bg-red-400'
+          }`} />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            
+            {/* Partie Info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="font-black text-xl text-gray-900">
+                  {!isButtonDisabled ? 'Capacité d\'optimisation' : 'Quota épuisé'}
+                </h3>
+                <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-black rounded-full border ${
+                  quotaInfo.plan === 'essai' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                }`}>
+                  Plan {quotaInfo.plan}
+                </span>
+              </div>
+              
+              {!quotaInfo.isUnlimited && (
+                <div className="mt-4 max-w-md">
+                  <div className="flex justify-between text-sm font-bold mb-2">
+                    <span className="text-gray-500">Analyses utilisées</span>
+                    <span className={quotaInfo.remaining > 0 ? 'text-indigo-600' : 'text-red-600'}>
+                      {quotaInfo.current} / {quotaInfo.limit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-700 ease-out ${
+                        isButtonDisabled ? 'bg-red-500' : percentUsed > 80 ? 'bg-amber-400' : 'bg-indigo-500'
+                      }`}
+                      style={{ width: `${Math.min(percentUsed, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Partie Chiffres & Bouton */}
+            <div className="flex flex-col items-start md:items-end gap-3 min-w-[200px]">
+              <div className="flex items-center gap-4 bg-gray-50/80 backdrop-blur px-5 py-3 rounded-2xl border border-gray-100 w-full md:w-auto">
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Abonnement</p>
+                  <p className="text-2xl font-black text-gray-900 leading-none">
+                    {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}
+                  </p>
+                </div>
+                <div className="w-px h-8 bg-gray-200 mx-2"></div>
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-0.5 flex items-center justify-center gap-1">
+                    💎 Crédits
+                  </p>
+                  <p className="text-2xl font-black text-indigo-600 leading-none">
+                    {quotaInfo.credits}
+                  </p>
+                </div>
+              </div>
+
+              {isButtonDisabled && (
+                <button 
+                  onClick={() => setShowUpgradeModal(true)} 
+                  className="w-full py-3 px-6 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group"
+                >
+                  <span className="text-lg group-hover:scale-110 transition-transform">💎</span>
+                  Obtenir des crédits
+                  <span className="opacity-50 group-hover:translate-x-1 transition-transform">→</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE D'ALERTE SI BLOQUÉ */}
+      {isButtonDisabled && (
+        <div className="flex items-start gap-3 p-4 bg-red-50 text-red-800 rounded-2xl border border-red-200 text-sm font-medium">
+          <span className="text-xl shrink-0 mt-0.5">🚨</span>
+          <p>Votre quota d'optimisation est épuisé. Pour continuer à analyser vos loyers, veuillez upgrader votre plan ou acheter des crédits additionnels.</p>
+        </div>
+      )}
+
+      {/* SÉLECTEUR DE TYPE (SEGMENTED CONTROL MODERNE) */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <label className="block text-sm font-black text-gray-900 mb-4 uppercase tracking-widest">
+          Type de propriété à optimiser
+        </label>
+        
+        <div className="flex p-1.5 bg-slate-100/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 relative">
+          {['residential', 'commercial'].map((type) => {
+            const isActive = propertyType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setPropertyType(type)}
+                disabled={isButtonDisabled}
+                className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 py-4 md:py-3 px-6 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${
+                  isActive
+                    ? 'text-indigo-700 shadow-[0_2px_10px_rgba(0,0,0,0.06)] bg-white border border-gray-100/50'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                } ${isButtonDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`text-xl transition-all ${isActive ? 'grayscale-0 scale-110' : 'grayscale opacity-60'}`}>
+                  {type === 'residential' ? '🏠' : '🏢'}
+                </span>
+                <span>{type === 'residential' ? 'Immobilier Résidentiel' : 'Immobilier Commercial'}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {propertyType === 'residential' ? (
-        <ResidentialOptimizer
-          userPlan={userPlan}
-          user={user}
-          setShowUpgradeModal={setShowUpgradeModal}
-        />
-      ) : (
-        <CommercialOptimizer
-          userPlan={userPlan}
-          user={user}
-          setShowUpgradeModal={setShowUpgradeModal}
-        />
-      )}
+      {/* RENDER ACTIVE OPTIMIZER COMPONENT */}
+      <div className="transition-all duration-500">
+        {propertyType === 'residential' ? (
+          <ResidentialOptimizer
+            userPlan={userPlan}
+            user={user}
+            quotaInfo={quotaInfo}
+            setQuotaInfo={setQuotaInfo}
+            isButtonDisabled={isButtonDisabled}
+            setShowUpgradeModal={setShowUpgradeModal}
+          />
+        ) : (
+          <CommercialOptimizer
+            userPlan={userPlan}
+            user={user}
+            quotaInfo={quotaInfo}
+            setQuotaInfo={setQuotaInfo}
+            isButtonDisabled={isButtonDisabled}
+            setShowUpgradeModal={setShowUpgradeModal}
+          />
+        )}
+      </div>
     </div>
   );
 }
+
 
 // ============================================
 // 🏠 RESIDENTIAL OPTIMIZER (Code existant inchangé)
@@ -2650,73 +2886,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     <div className="space-y-8">
       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={25} />
 
-      {/* ✅ CARTE INFO QUOTA AVEC CRÉDITS */}
-      {quotaInfo && (
-        <div className={`p-6 rounded-xl border-2 ${
-          quotaInfo.remaining > 0 || quotaInfo.credits > 0 || quotaInfo.isUnlimited
-            ? 'bg-emerald-50 border-emerald-300'
-            : 'bg-red-50 border-red-300'
-        }`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0 || quotaInfo.isUnlimited 
-                  ? '📊 Analyses mensuelles restantes' 
-                  : quotaInfo.credits > 0 
-                    ? '💎 Utilisation de crédits' 
-                    : '❌ Quota épuisé'}
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
-            </div>
-            <div className="text-right">
-               <span className="text-3xl font-black">
-                {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}
-              </span>
-            </div>
-          </div>
-
-          <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
-            <div
-              className={`h-3 rounded-full transition-all ${quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
-            />
-          </div>
-
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-              {quotaInfo.remaining > 0
-                ? `${quotaInfo.remaining} incluse(s) dans l'abonnement`
-                : `Quota mensuel atteint. Reset: ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
-              }
-            </p>
-            
-            {/* ✅ Badge Crédits Disponibles */}
-            {quotaInfo.credits > 0 && (
-              <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm border border-indigo-200 shadow-sm">
-                <Coins size={16} />
-                <span>{quotaInfo.credits} Crédits Extra</span>
-              </div>
-            )}
-          </div>
-
-          {/* Bouton d'achat si bloqué */}
-          {isButtonDisabled && (
-            <button
-              onClick={() => setShowUpgradeModal(true)}
-              className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-            >
-              ⬆️ Acheter des crédits ou Upgrader
-            </button>
-          )}
-        </div>
-      )}
-
-      {quotaError && (
-        <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold">
-          {quotaError}
-        </div>
-      )}
-
+     
       {/* FORMULAIRE PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-8 bg-gray-100 rounded-xl border border-gray-300">
         <div className="lg:col-span-2">
@@ -3292,74 +3462,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
         messages={loadingMessages}
         estimatedTime={25}
       />
-
-      {/* ✅ QUOTA INFO CARD AVEC CRÉDITS */}
-      {quotaInfo && (
-        <div className={`p-6 rounded-xl border-2 ${
-          quotaInfo.remaining > 0 || quotaInfo.credits > 0 || quotaInfo.isUnlimited
-            ? 'bg-emerald-50 border-emerald-300'
-            : 'bg-red-50 border-red-300'
-        }`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-bold text-lg">
-                {quotaInfo.remaining > 0 || quotaInfo.isUnlimited 
-                  ? '📊 Analyses commerciales restantes'
-                  : quotaInfo.credits > 0 
-                    ? '💎 Utilisation de crédits' 
-                    : '❌ Quota épuisé'}
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">Plan: <span className="font-bold uppercase">{quotaInfo.plan}</span></p>
-            </div>
-            <div className="text-right">
-               <span className="text-3xl font-black">
-                {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}
-              </span>
-            </div>
-          </div>
-
-          {/* Barre de progression */}
-          <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
-            <div
-              className={`h-3 rounded-full transition-all ${quotaInfo.remaining > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
-              style={{ width: `${quotaInfo.limit > 0 ? ((quotaInfo.limit - quotaInfo.current) / quotaInfo.limit) * 100 : 100}%` }}
-            />
-          </div>
-
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <p className={`text-sm ${quotaInfo.remaining > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-              {quotaInfo.remaining > 0
-                ? `${quotaInfo.remaining} incluse(s) dans l'abonnement`
-                : `Quota mensuel atteint. Reset: ${quotaInfo.resetDate.toLocaleDateString('fr-CA')}`
-              }
-            </p>
-            
-            {/* ✅ Badge Crédits Disponibles */}
-            {quotaInfo.credits > 0 && (
-              <div className="flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm border border-indigo-200 shadow-sm">
-                <Coins size={16} />
-                <span>{quotaInfo.credits} Crédits Extra</span>
-              </div>
-            )}
-          </div>
-
-          {/* Bouton d'achat si bloqué */}
-          {isButtonDisabled && (
-            <button
-              onClick={() => setShowUpgradeModal(true)}
-              className="mt-4 w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-            >
-              ⬆️ Acheter des crédits ou Upgrader
-            </button>
-          )}
-        </div>
-      )}
-
-      {quotaError && (
-        <div className="p-4 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold">
-          {quotaError}
-        </div>
-      )}
+ 
 
       {/* FORMULAIRE PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-8 bg-gray-100 rounded-xl border border-gray-300">
@@ -3754,7 +3857,7 @@ function PropertyValuationTab({
     plan: 'essai',
     resetDate: new Date(),
     isUnlimited: false,
-    credits: 0 // Nouveau champ
+    credits: 0 
   });
 
   const PLAN_LIMITS = { essai: 1, pro: 5, growth: 999, entreprise: 999 };
@@ -3816,80 +3919,166 @@ function PropertyValuationTab({
   }, [user?.uid]);
 
   const isButtonDisabled = (!quotaInfo.isUnlimited && quotaInfo.remaining <= 0 && quotaInfo.credits <= 0);
+  const percentUsed = quotaInfo.limit > 0 ? (quotaInfo.current / quotaInfo.limit) * 100 : 0;
 
   return (
-    <div className="space-y-6">
-      {/* QUOTA CARD AVEC CRÉDITS */}
-      {quotaInfo && (
-        <div className={`p-6 rounded-xl border-2 ${
-          !isButtonDisabled ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'
-        }`}>
-          <div className="flex justify-between items-center mb-2">
-             <h3 className="font-bold text-lg">
-               {!isButtonDisabled ? '📊 Évaluations disponibles' : '❌ Quota atteint'}
-             </h3>
-             <span className="text-2xl font-black">{quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}/{quotaInfo.limit}</span>
-          </div>
-          
-          <div className="flex justify-between items-center">
-             <span className="text-sm">{quotaInfo.remaining} dans le plan</span>
-             {quotaInfo.credits > 0 && (
-               <span className="flex items-center gap-1 font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full">
-                 <Coins size={14} /> {quotaInfo.credits} Crédits
-               </span>
-             )}
-          </div>
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
+      
+      {/* HEADER SECTION */}
+      <div className="mb-2">
+        <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+          <span className="text-3xl filter drop-shadow-sm">⚡</span>
+          Générateur d'Évaluation IA
+        </h2>
+        <p className="text-gray-500 font-medium mt-1 ml-11">
+          Obtenez une valeur marchande précise basée sur les données réelles du marché.
+        </p>
+      </div>
 
-          {isButtonDisabled && (
-             <button onClick={() => setShowUpgradeModal(true)} className="mt-4 w-full py-2 bg-indigo-600 text-white rounded font-bold">
-               Acheter des crédits
-             </button>
-          )}
+      {/* WIDGET QUOTA & CRÉDITS (STYLE DASHBOARD) */}
+      {quotaInfo && (
+        <div className={`relative overflow-hidden rounded-3xl p-6 md:p-8 border-2 transition-all duration-300 shadow-sm ${
+          !isButtonDisabled 
+            ? 'bg-white border-gray-100 hover:border-indigo-100 hover:shadow-md' 
+            : 'bg-red-50/50 border-red-200'
+        }`}>
+          
+          {/* Background décoratif */}
+          <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl opacity-20 pointer-events-none -translate-y-1/2 translate-x-1/3 ${
+            !isButtonDisabled ? 'bg-indigo-400' : 'bg-red-400'
+          }`} />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            
+            {/* Partie Info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="font-black text-xl text-gray-900">
+                  {!isButtonDisabled ? 'Capacité d\'analyse' : 'Quota épuisé'}
+                </h3>
+                <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-black rounded-full border ${
+                  quotaInfo.plan === 'essai' ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                }`}>
+                  Plan {quotaInfo.plan}
+                </span>
+              </div>
+              
+              {!quotaInfo.isUnlimited && (
+                <div className="mt-4 max-w-md">
+                  <div className="flex justify-between text-sm font-bold mb-2">
+                    <span className="text-gray-500">Analyses utilisées</span>
+                    <span className={quotaInfo.remaining > 0 ? 'text-indigo-600' : 'text-red-600'}>
+                      {quotaInfo.current} / {quotaInfo.limit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-700 ease-out ${
+                        isButtonDisabled ? 'bg-red-500' : percentUsed > 80 ? 'bg-amber-400' : 'bg-indigo-500'
+                      }`}
+                      style={{ width: `${Math.min(percentUsed, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Partie Chiffres & Bouton */}
+            <div className="flex flex-col items-start md:items-end gap-3 min-w-[200px]">
+              <div className="flex items-center gap-4 bg-gray-50/80 backdrop-blur px-5 py-3 rounded-2xl border border-gray-100 w-full md:w-auto">
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Abonnement</p>
+                  <p className="text-2xl font-black text-gray-900 leading-none">
+                    {quotaInfo.isUnlimited ? '∞' : quotaInfo.remaining}
+                  </p>
+                </div>
+                <div className="w-px h-8 bg-gray-200 mx-2"></div>
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-0.5 flex items-center justify-center gap-1">
+                    💎 Crédits
+                  </p>
+                  <p className="text-2xl font-black text-indigo-600 leading-none">
+                    {quotaInfo.credits}
+                  </p>
+                </div>
+              </div>
+
+              {isButtonDisabled && (
+                <button 
+                  onClick={() => setShowUpgradeModal(true)} 
+                  className="w-full py-3 px-6 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group"
+                >
+                  <span className="text-lg group-hover:scale-110 transition-transform">💎</span>
+                  Obtenir des crédits
+                  <span className="opacity-50 group-hover:translate-x-1 transition-transform">→</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* TOGGLE TYPE */}
-      <div className="flex gap-4 p-4 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-xl border border-indigo-300">
-        {['residential', 'commercial'].map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setEvaluationType(type)}
-            disabled={isButtonDisabled}
-            className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
-              evaluationType === type
-                ? 'bg-white text-gray-900 shadow-lg border-2 border-indigo-500'
-                : 'bg-transparent text-gray-700 hover:text-gray-900'
-            } ${
-              isButtonDisabled
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {type === 'residential' ? '🏠 Résidentiel' : '🏪 Commercial'}
-          </button>
-        ))}
+      {/* MESSAGE D'ALERTE SI BLOQUÉ */}
+      {isButtonDisabled && (
+        <div className="flex items-start gap-3 p-4 bg-red-50 text-red-800 rounded-2xl border border-red-200 text-sm font-medium">
+          <span className="text-xl shrink-0 mt-0.5">🚨</span>
+          <p>Vous avez atteint la limite de votre plan mensuel et vous ne possédez aucun crédit additionnel. Veuillez recharger votre compte pour lancer une nouvelle évaluation.</p>
+        </div>
+      )}
+
+      {/* SÉLECTEUR DE TYPE (SEGMENTED CONTROL MODERNE) */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <label className="block text-sm font-black text-gray-900 mb-4 uppercase tracking-widest">
+          Type de propriété à évaluer
+        </label>
+        
+        <div className="flex p-1.5 bg-slate-100/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 relative">
+          {['residential', 'commercial'].map((type) => {
+            const isActive = evaluationType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setEvaluationType(type)}
+                disabled={isButtonDisabled}
+                className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3 py-4 md:py-3 px-6 rounded-xl text-sm font-black transition-all duration-300 relative z-10 ${
+                  isActive
+                    ? 'text-indigo-700 shadow-[0_2px_10px_rgba(0,0,0,0.06)] bg-white border border-gray-100/50'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                } ${isButtonDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`text-xl transition-all ${isActive ? 'grayscale-0 scale-110' : 'grayscale opacity-60'}`}>
+                  {type === 'residential' ? '🏠' : '🏢'}
+                </span>
+                <span>{type === 'residential' ? 'Immobilier Résidentiel' : 'Immobilier Commercial'}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* RENDER ACTIVE VALUATION COMPONENT */}
-      {evaluationType === 'residential' ? (
-        <ResidentialValuation 
-          user={user} 
-          quotaInfo={quotaInfo} 
-          setQuotaInfo={setQuotaInfo} 
-          isButtonDisabled={isButtonDisabled}
-        />
-      ) : (
-        <CommercialValuation 
-          user={user} 
-          quotaInfo={quotaInfo} 
-          setQuotaInfo={setQuotaInfo} 
-          isButtonDisabled={isButtonDisabled}
-        />
-      )}
+      <div className="transition-all duration-500">
+        {evaluationType === 'residential' ? (
+          <ResidentialValuation 
+            user={user} 
+            quotaInfo={quotaInfo} 
+            setQuotaInfo={setQuotaInfo} 
+            isButtonDisabled={isButtonDisabled}
+          />
+        ) : (
+          <CommercialValuation 
+            user={user} 
+            quotaInfo={quotaInfo} 
+            setQuotaInfo={setQuotaInfo} 
+            isButtonDisabled={isButtonDisabled}
+          />
+        )}
+      </div>
     </div>
   );
 }
+
 
 function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
   const [loading, setLoading] = useState(false);
@@ -4733,8 +4922,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     quartier: '',
     codePostal: '',
     addresseComplete: '',
-    prixAchat: '', // Rendu optionnel
-    anneeAchat: '', // Rendu optionnel
+    prixAchat: '', 
+    anneeAchat: '', 
     anneeConstruction: 1990,
     surfaceTotale: '',
     surfaceLocable: '',
@@ -4753,6 +4942,16 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     tauxOccupationHotel: 70,
     tariffMoyenParNuit: 150,
     clienteleActive: 'stable',
+    
+    // NOUVEAUX CHAMPS D'OPTIMISATION (VALUE-ADD) POUR PLEX
+    chauffage_proprio: false,
+    electricite_proprio: false,
+    unites_non_renovees: false,
+    sous_sol_inexploite: false,
+    stationnement_gratuit: false,
+
+    // ✅ NOUVEAU : DÉTAIL DES LOGEMENTS
+    logementsDetail: [{ type: '4 1/2', quantite: 1 }]
   });
 
   const loadingMessages = [
@@ -4813,21 +5012,22 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       title: 'Historique (Optionnel)',
       description: "Pour calculer la plus-value et le ROI",
       icon: '💰',
-      required: isTerrain ? [] : ['anneeConstruction'], // Construction requise sauf pour terrain
+      required: isTerrain ? [] : ['anneeConstruction'], 
     });
 
+    // ✅ CHANGEMENT DU TITRE DE LA SLIDE 3 SI C'EST UN PLEX
     dynamicSlides.push({
       id: 'dimensions',
-      title: isTerrain ? 'Détails du terrain' : 'Infrastructure',
-      description: 'Superficie et accessibilité',
-      icon: '📏',
+      title: isImmeuble ? 'Configuration' : (isTerrain ? 'Détails du terrain' : 'Infrastructure'),
+      description: isImmeuble ? 'Types de logements et stationnements' : 'Superficie et accessibilité',
+      icon: isImmeuble ? '🚪' : '📏',
       required: [],
     });
 
     if (isImmeuble || isHotel) {
       dynamicSlides.push({
         id: 'specific',
-        title: 'Exploitation',
+        title: 'Exploitation & Potentiel',
         description: 'Détails spécifiques à l\'activité',
         icon: '💹',
         required: [],
@@ -4970,13 +5170,19 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           nombreUnites: Number(formData.nombreUnites) || 0,
           tauxOccupation: Number(formData.tauxOccupation) || 0,
           loyerMoyenParUnite: Number(formData.loyerMoyenParUnite) || 0,
+          chauffage_proprio: formData.chauffage_proprio,
+          electricite_proprio: formData.electricite_proprio,
+          unites_non_renovees: formData.unites_non_renovees,
+          sous_sol_inexploite: formData.sous_sol_inexploite,
+          stationnement_gratuit: formData.stationnement_gratuit,
+          // ✅ ENVOI DES TYPES DE LOGEMENTS
+          logementsDetail: formData.logementsDetail
         }),
         ...(formData.proprietyType === 'hotel' && {
           nombreChambres: Number(formData.nombreChambres) || 0,
           tauxOccupationHotel: Number(formData.tauxOccupationHotel) || 0,
           tariffMoyenParNuit: Number(formData.tariffMoyenParNuit) || 0,
         }),
-        // Si terrain, revenus/dépenses peuvent être 0
         revenus_bruts_annuels: formData.proprietyType !== 'terrain_commercial' ? (Number(formData.revenuBrutAnnuel) || 0) : 0,
         depenses_annuelles: formData.proprietyType !== 'terrain_commercial' ? (Number(formData.depensesAnnuelles) || 0) : 0,
       };
@@ -5022,6 +5228,19 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   const renderLocationSlide = () => (
     <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Adresse complète (Optionnelle)
+        </label>
+        <input 
+          type="text" 
+          placeholder="Ex: 1234 Boul. Charest, local 100..." 
+          value={formData.addresseComplete} 
+          onChange={(e) => handleChange('addresseComplete', e.target.value)} 
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-sm" 
+        />
+      </div>
+
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">Nom du dossier (optionnel)</label>
         <input type="text" placeholder="Ex: 6-plex Sainte-Foy" value={formData.titre} onChange={(e) => handleChange('titre', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
@@ -5092,25 +5311,109 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   const renderDimensionsSlide = () => {
     const isTerrain = formData.proprietyType === 'terrain_commercial';
+    const isImmeuble = formData.proprietyType === 'immeuble_revenus';
+
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Superficie totale (pi²)</label>
-            <input type="number" value={formData.surfaceTotale} onChange={(e) => handleChange('surfaceTotale', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+        
+        {/* ✅ NOUVELLE SECTION DYNAMIQUE POUR LES PLEX */}
+        {isImmeuble ? (
+          <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-4">
+            <p className="font-black text-indigo-900 mb-4 flex items-center gap-2">🚪 Configuration des logements</p>
+            
+            {formData.logementsDetail.map((logement, index) => (
+              <div key={index} className="flex items-center gap-3 mb-3 animate-in fade-in duration-200">
+                <div className="w-1/3">
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Quantité</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={logement.quantite} 
+                    onChange={(e) => {
+                      const newLogements = [...formData.logementsDetail];
+                      newLogements[index].quantite = parseInt(e.target.value, 10) || 1;
+                      handleChange('logementsDetail', newLogements);
+                      
+                      // Met à jour automatiquement le nombre d'unités total
+                      const totalUnites = newLogements.reduce((sum, log) => sum + Number(log.quantite), 0);
+                      handleChange('nombreUnites', totalUnites);
+                    }} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" 
+                  />
+                </div>
+                <div className="w-2/3">
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Type de logement</label>
+                  <div className="flex gap-2">
+                    <select 
+                      value={logement.type} 
+                      onChange={(e) => {
+                        const newLogements = [...formData.logementsDetail];
+                        newLogements[index].type = e.target.value;
+                        handleChange('logementsDetail', newLogements);
+                      }} 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="Chambre">Chambre</option>
+                      <option value="1 1/2 (Studio)">1 1/2 (Studio)</option>
+                      <option value="2 1/2">2 1/2</option>
+                      <option value="3 1/2">3 1/2</option>
+                      <option value="4 1/2">4 1/2</option>
+                      <option value="5 1/2">5 1/2</option>
+                      <option value="6 1/2 et +">6 1/2 et +</option>
+                      <option value="Local Commercial">Local Commercial</option>
+                    </select>
+                    
+                    {formData.logementsDetail.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const newLogements = formData.logementsDetail.filter((_, i) => i !== index);
+                          handleChange('logementsDetail', newLogements);
+                          const totalUnites = newLogements.reduce((sum, log) => sum + Number(log.quantite), 0);
+                          handleChange('nombreUnites', totalUnites);
+                        }} 
+                        className="p-2 text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 rounded-lg transition font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            <button 
+              type="button" 
+              onClick={() => {
+                const newLogements = [...formData.logementsDetail, { type: '3 1/2', quantite: 1 }];
+                handleChange('logementsDetail', newLogements);
+                const totalUnites = newLogements.reduce((sum, log) => sum + Number(log.quantite), 0);
+                handleChange('nombreUnites', totalUnites);
+              }} 
+              className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mt-4 px-3 py-2 bg-indigo-100 hover:bg-indigo-200 rounded-lg transition-colors w-full justify-center"
+            >
+              + Ajouter un autre type
+            </button>
           </div>
-          {!isTerrain && (
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Superficie locable (pi²)</label>
-              <input type="number" value={formData.surfaceLocable} onChange={(e) => handleChange('surfaceLocable', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-bold text-gray-700 mb-2">Superficie totale (pi²)</label>
+              <input type="number" value={formData.surfaceTotale} onChange={(e) => handleChange('surfaceTotale', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
             </div>
-          )}
-        </div>
+            {!isTerrain && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Superficie locable (pi²)</label>
+                <input type="number" value={formData.surfaceLocable} onChange={(e) => handleChange('surfaceLocable', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {!isTerrain && (
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Stationnements</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Stationnements inclus</label>
               <input type="number" value={formData.parking} onChange={(e) => handleChange('parking', parseInt(e.target.value, 10) || 0)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
             </div>
           )}
@@ -5131,23 +5434,49 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     return (
       <div className="space-y-4">
         {isImmeuble && (
-          <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
-            <p className="font-black text-indigo-900 mb-4 flex items-center gap-2"> 🏢Opérations Locatives</p>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Unités</label>
-                <input type="number" value={formData.nombreUnites} onChange={(e) => handleChange('nombreUnites', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+          <>
+            <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
+              <p className="font-black text-indigo-900 mb-4 flex items-center gap-2"> 🏢Opérations Locatives</p>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Unités (Total)</label>
+                  <input type="number" value={formData.nombreUnites} readOnly className="w-full px-3 py-2 border border-indigo-200 bg-indigo-50 rounded-lg text-indigo-900 font-bold focus:outline-none" />
+                  <p className="text-[10px] text-gray-500 mt-1">Calculé auto.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Occupation (%)</label>
+                  <input type="number" min="0" max="100" value={formData.tauxOccupation} onChange={(e) => handleChange('tauxOccupation', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Occupation (%)</label>
-                <input type="number" min="0" max="100" value={formData.tauxOccupation} onChange={(e) => handleChange('tauxOccupation', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Loyer moyen/unité/mois ($)</label>
+                <input type="number" value={formData.loyerMoyenParUnite} onChange={(e) => handleChange('loyerMoyenParUnite', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Loyer moyen/unité/mois ($)</label>
-              <input type="number" value={formData.loyerMoyenParUnite} onChange={(e) => handleChange('loyerMoyenParUnite', parseInt(e.target.value, 10) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+
+            <div className="bg-emerald-50/50 border border-emerald-100 p-5 rounded-2xl mt-4">
+              <p className="font-black text-emerald-900 mb-4 flex items-center gap-2"> ✨ Potentiel d'Optimisation (Value-Add)</p>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { key: 'chauffage_proprio', label: '🔥 Chauffage payé par le proprio' },
+                  { key: 'electricite_proprio', label: '🔌 Électricité payée par le proprio' },
+                  { key: 'unites_non_renovees', label: '🛠️ Logements d\'origine (à rénover)' },
+                  { key: 'sous_sol_inexploite', label: '📦 Sous-sol inexploité (Potentiel logement)' },
+                  { key: 'stationnement_gratuit', label: '🚗 Stationnements inclus gratuitement' }
+                ].map(item => (
+                  <label key={item.key} className="flex items-center p-3 bg-white rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors border border-emerald-200 shadow-sm">
+                    <input 
+                      type="checkbox" 
+                      checked={formData[item.key] || false} 
+                      onChange={(e) => handleChange(item.key, e.target.checked)} 
+                      className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-gray-300" 
+                    />
+                    <span className="ml-3 text-sm font-bold text-emerald-800">{item.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {isHotel && (
@@ -5204,35 +5533,43 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     </div>
   );
 
-  const renderConditionSlide = () => (
-    <div className="space-y-6">
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">État général de la bâtisse *</label>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {etatsGeneraux.map((etat) => (
-            <button key={etat.value} type="button" onClick={() => handleChange('etatGeneral', etat.value)} className={`p-3 rounded-xl transition border-2 text-sm font-bold flex items-center justify-center gap-2 ${formData.etatGeneral === etat.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}>
-              {etat.icon} {etat.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  const renderConditionSlide = () => {
+    const isImmeuble = formData.proprietyType === 'immeuble_revenus';
+    
+    const renoOptions = isImmeuble 
+      ? ['toiture', 'fenetres', 'electricite', 'plomberie', 'balcons', 'maconnerie']
+      : ['toiture', 'systeme_hvac', 'electricite', 'plomberie', 'facade', 'stationnement'];
 
-      <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm">
-        <label className="block text-sm font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">Investissements / Rénovations effectuées</label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {['toiture', 'systeme_hvac', 'electricite', 'plomberie', 'facade', 'stationnement'].map((reno) => (
-            <label key={reno} className="flex items-center cursor-pointer text-sm font-medium text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 hover:border-indigo-200 transition-colors">
-              <input type="checkbox" checked={formData.renovations?.includes(reno)} onChange={(e) => {
-                  if (e.target.checked) handleChange('renovations', [...(formData.renovations || []), reno]);
-                  else handleChange('renovations', (formData.renovations || []).filter((r) => r !== reno));
-                }} className="mr-3 w-5 h-5 cursor-pointer accent-indigo-600 rounded border-gray-300" />
-              <span className="capitalize">{reno.replace('_', ' ')}</span>
-            </label>
-          ))}
+    return (
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-2">État général de la bâtisse *</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {etatsGeneraux.map((etat) => (
+              <button key={etat.value} type="button" onClick={() => handleChange('etatGeneral', etat.value)} className={`p-3 rounded-xl transition border-2 text-sm font-bold flex items-center justify-center gap-2 ${formData.etatGeneral === etat.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}>
+                {etat.icon} {etat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm">
+          <label className="block text-sm font-bold text-gray-900 mb-3 border-b border-gray-100 pb-2">Investissements / Rénovations effectuées</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {renoOptions.map((reno) => (
+              <label key={reno} className="flex items-center cursor-pointer text-sm font-medium text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 hover:border-indigo-200 transition-colors">
+                <input type="checkbox" checked={formData.renovations?.includes(reno)} onChange={(e) => {
+                    if (e.target.checked) handleChange('renovations', [...(formData.renovations || []), reno]);
+                    else handleChange('renovations', (formData.renovations || []).filter((r) => r !== reno));
+                  }} className="mr-3 w-5 h-5 cursor-pointer accent-indigo-600 rounded border-gray-300" />
+                <span className="capitalize">{reno.replace('_', ' ').replace('fenetres', 'fenêtres')}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDetailsSlide = () => (
     <div className="space-y-4">
@@ -5310,7 +5647,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     const m = selectedProperty.metriquesCommerciales || {};
     const analyseData = selectedProperty.analyse || {};
     
-    // N'afficher que s'il y a des métriques pertinentes
     if (!m.capRate && !m.noiAnnuel) return null;
     
     return (
@@ -5345,7 +5681,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           )}
         </div>
 
-        {/* Section Appréciation (Si historique fourni) */}
         {typeof analyseData.appreciationTotale === 'number' && (
           <div className="mt-6 pt-6 border-t border-gray-100 flex items-center justify-between bg-emerald-50/50 p-5 rounded-2xl">
              <div>
@@ -5369,7 +5704,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
     return (
       <div className="space-y-6">
-        {/* Analyse du secteur */}
         {(analyse.secteurAnalysis || analyse.analyseSecteur) && (
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 md:p-8 shadow-sm">
             <h3 className="text-xl md:text-2xl font-black text-amber-900 mb-4 flex items-center gap-3">
@@ -5381,7 +5715,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           </div>
         )}
 
-        {/* Liste des comparables (Format cartes avec URL) */}
         {comparables.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
              <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
@@ -5560,7 +5893,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           <div className="bg-white rounded-2xl p-6 md:p-8 border border-indigo-100 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
             <p className="font-black text-indigo-900 mb-4 text-sm uppercase tracking-widest">
-               📋 Stratégie de Marché Conseillée
+                📋 Stratégie de Marché Conseillée
             </p>
             <p className="text-sm md:text-base text-gray-700 leading-loose whitespace-pre-line text-justify font-medium">{strategy}</p>
           </div>
@@ -5581,7 +5914,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={60} />
+      {/* 🟢 Tu peux remettre ton LoadingSpinner ici si tu l'utilises */}
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={120} />
 
       {/* FORM MODAL */}
       {showForm && (

@@ -43,7 +43,7 @@ function LoadingSpinner({ isLoading, messages = [], estimatedTime = 30 }) {
   };
 
   // Déterminer si c'est une analyse commerciale longue
-  const isLongAnalysis = estimatedTime > 40;
+  const isLongAnalysis = estimatedTime > 100;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
