@@ -1438,21 +1438,24 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     if (!analyse) return;
     
     const isValuation = getAnalysisType(analyse) === 'valuation';
+    const isAcheteur = analyse.userType === 'acheteur';
     const city = analyse.ville || 'ma propriété';
     let shareText = '';
     
-    // Remplacer ce lien par le vrai lien de ton application
     const APP_LINK = "https://optimiplex.com"; 
     
     if (isValuation) {
-      const val = formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne);
-      shareText = `📊 J'ai évalué ma propriété à ${city} à ${val}$ avec l'IA !\n\nDécouvrez la valeur réelle de votre bien et analysez le marché en quelques secondes. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+      if (isAcheteur) {
+         shareText = `🕵️‍♂️ Je viens d'analyser un deal commercial à ${city} avec l'IA !\n\nDécouvrez si l'annonce que vous regardez est une bonne affaire et calculez son potentiel d'optimisation (Value-Add). 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+      } else {
+         const val = formatCurrency(analyse.result?.estimationActuelle?.valeurMoyenne);
+         shareText = `📊 J'ai évalué ma propriété à ${city} à ${val}$ avec l'IA !\n\nDécouvrez la valeur réelle de votre bien et analysez le marché en quelques secondes. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
+      }
     } else {
       const gain = formatCurrency(analyse.result?.recommandation?.gainannuel || analyse.result?.recommendations?.gainannuel);
       shareText = `💰 J'ai trouvé comment générer +${gain}$/an avec mon immeuble à ${city} grâce à l'IA !\n\nCalculez le potentiel d'optimisation de vos revenus locatifs. 🚀\n\n👉 Faites le test ici : ${APP_LINK}`;
     }
 
-    // API de partage native (Mobile, Safari, etc.)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -1465,7 +1468,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       }
     } 
     
-    // Fallback: Copie dans le presse-papier pour ordinateur
     const textArea = document.createElement("textarea");
     textArea.value = shareText;
     textArea.style.top = "0";
@@ -1502,7 +1504,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     let tax = 0;
     const p = Number(price);
 
-    // Tranches Québec Standards (approximatives 2024)
     if (p > 500000) {
       tax += (p - 500000) * 0.02;
       tax += (500000 - 294600) * 0.015;
@@ -1584,6 +1585,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const type = getAnalysisType(selectedAnalysis);
     const isValuation = type === 'valuation';
     const isCom = isCommercial(selectedAnalysis);
+    
+    // Nouveaux profils
+    const isAcheteur = selectedAnalysis.userType === 'acheteur' || !!result.potentielOptimisation;
+    const isVendeur = selectedAnalysis.userType === 'vendeur';
+    const opti = result.potentielOptimisation;
 
     const analyseData = result.analyse || {};
     const metrics = result.metriquesCommerciales || {};
@@ -1622,6 +1628,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         
         {/* EN-TÊTE PROPRIÉTÉ - STYLE VIBRANT */}
         <div className={`rounded-2xl p-6 shadow-md border-2 ${
+          isAcheteur ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200' :
+          isVendeur ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200' :
           isCom ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' :
           isValuation ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200' : 
           'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
@@ -1646,15 +1654,45 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </div>
               </div>
             </div>
-            <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide self-start shadow-sm border ${
-              isCom ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-              isValuation ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-              'bg-emerald-100 text-emerald-700 border-emerald-200'
-            }`}>
-              {isCom ? '🏢 Commercial' : isValuation ? '🏠 Résidentiel' : '💰 Optimisation'}
+            
+            <div className="flex flex-col gap-2">
+              <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide self-start md:self-end shadow-sm border ${
+                isAcheteur ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                isVendeur ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                isCom ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                isValuation ? 'bg-blue-100 text-blue-700 border-blue-200' : 
+                'bg-emerald-100 text-emerald-700 border-emerald-200'
+              }`}>
+                {isAcheteur ? '🕵️‍♂️ Prospection / Deal' : 
+                 isVendeur ? '🏷️ Évaluation Vendeur' :
+                 isCom ? '🏢 Commercial' : 
+                 isValuation ? '🏠 Résidentiel' : '💰 Optimisation'}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* --- SECTION PROSPECTION (LE DEAL) --- */}
+        {isAcheteur && opti && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-indigo-200 rounded-3xl p-6 md:p-8 shadow-md">
+            <h4 className="font-black text-indigo-900 mb-6 flex items-center gap-3 text-2xl">
+              <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">🕵️‍♂️</span> Verdict Prospection (Le Deal)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white/80 p-5 rounded-2xl border border-white shadow-sm">
+                <p className="text-indigo-600 text-xs uppercase tracking-wide font-bold mb-2">Avis de l'IA</p>
+                <p className="text-lg font-bold text-gray-900 leading-snug">{opti.avisProspection}</p>
+              </div>
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-sm flex flex-col justify-center">
+                <p className="text-emerald-700 text-xs uppercase tracking-wide font-bold mb-1">Valeur estimée après optimisation (Value-Add)</p>
+                <p className="text-3xl font-black text-emerald-600">
+                  {opti.valeurApresTravaux ? `$${formatCurrency(opti.valeurApresTravaux)}` : 'N/A'}
+                </p>
+                <p className="text-sm text-emerald-700 mt-2 font-medium">Marge de sécurité / ROI visé : <span className="font-bold">{opti.margeSecurite}</span></p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* --- SECTION ÉVALUATION --- */}
         {isValuation && (
@@ -1666,7 +1704,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 
                 <div className="flex justify-between items-center mb-6 relative">
                   <h4 className="font-black text-gray-900 flex items-center gap-2 text-lg">
-                    <span className="text-2xl">💎</span> Estimation de Valeur
+                    <span className="text-2xl">💎</span> Estimation de Valeur Actuelle
                   </h4>
                   {result.estimationActuelle?.confiance && (
                     <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${
@@ -1789,13 +1827,23 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   </div>
                 )}
                 
-                {/* Historique Achat si fourni */}
-                {selectedAnalysis.prixAchat && selectedAnalysis.anneeAchat && (
-                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-2">Historique d'achat</p>
+                {/* Historique Achat (Seulement pour vendeur) */}
+                {isVendeur && selectedAnalysis.prixAchat && selectedAnalysis.anneeAchat && (
+                  <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-sm">
+                    <p className="text-xs font-bold text-amber-600 uppercase mb-2">Historique d'achat</p>
                     <div className="flex justify-between items-center">
                        <span className="font-bold text-gray-700">Acheté en {selectedAnalysis.anneeAchat}</span>
                        <span className="font-black text-gray-900">${formatCurrency(selectedAnalysis.prixAchat)}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Prix demandé si acheteur */}
+                {isAcheteur && selectedAnalysis.prixAffichage && (
+                  <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-sm">
+                    <p className="text-xs font-bold text-purple-600 uppercase mb-2">Prix Affiché (Annonce)</p>
+                    <div className="flex justify-between items-center">
+                       <span className="font-black text-gray-900 text-2xl">${formatCurrency(selectedAnalysis.prixAffichage)}</span>
                     </div>
                   </div>
                 )}
@@ -1816,7 +1864,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </div>
             </div>
 
-            {/* --- NOUVEAU FORMAT : TABLEAU DES COMPARABLES --- */}
+            {/* --- TABLEAU DES COMPARABLES --- */}
             {comparablesArray.length > 0 && (
                 <div className="space-y-4 mt-8">
                   <h4 className="font-black text-gray-900 text-xl flex items-center gap-2">
@@ -1861,7 +1909,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </div>
             )}
 
-            {/* Ancien format (si encore présent pour d'anciennes analyses) */}
+            {/* Ancien format (si encore présent) */}
             {comparablesArray.length === 0 && (qualiteAnalysis || soldReference) && (
               <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
                 <h5 className="font-black text-purple-900 mb-3 flex items-center gap-2 text-lg">
@@ -1873,7 +1921,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </div>
             )}
 
-            {/* --- FACTEURS D'INFLUENCE (Emojis & Couleurs) --- */}
+            {/* --- FACTEURS D'INFLUENCE --- */}
             {(positifs.length > 0 || negatifs.length > 0 || incertitudes.length > 0) && (
               <div className="space-y-4 pt-4">
                 <h4 className="font-black text-gray-900 text-xl">🎯 Facteurs d'Influence</h4>
@@ -1931,7 +1979,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
           </>
         )}
 
-        {/* --- SECTION OPTIMISATION --- */}
+        {/* --- SECTION OPTIMISATION (Reste inchangé) --- */}
         {!isValuation && (
           <div className="space-y-6">
             
@@ -2256,13 +2304,24 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             ) : filteredAnalyses.map((analyse) => {
               const analysisType = getAnalysisType(analyse);
               const isValuation = analysisType === 'valuation';
+              
+              // Détermination du profil
+              const isAcheteur = analyse.userType === 'acheteur' || !!analyse.result?.potentielOptimisation;
+              const isVendeur = analyse.userType === 'vendeur';
+              const opti = analyse.result?.potentielOptimisation;
+              
               const isEditing = editingId === analyse.id;
               
               const residentialGain = getResidentialPercentage(analyse);
               
               // Styles dynamiques basés sur le type
-              const cardBg = isValuation ? 'bg-gradient-to-r from-white to-blue-50/30' : 'bg-gradient-to-r from-white to-emerald-50/30';
-              const borderClass = isValuation ? 'border-l-blue-500' : 'border-l-emerald-500';
+              const cardBg = isAcheteur ? 'bg-gradient-to-r from-white to-purple-50/30' : 
+                             isVendeur ? 'bg-gradient-to-r from-white to-amber-50/30' :
+                             isValuation ? 'bg-gradient-to-r from-white to-blue-50/30' : 
+                             'bg-gradient-to-r from-white to-emerald-50/30';
+              const borderClass = isAcheteur ? 'border-l-purple-500' : 
+                                  isVendeur ? 'border-l-amber-500' : 
+                                  isValuation ? 'border-l-blue-500' : 'border-l-emerald-500';
 
               return (
                 <div
@@ -2293,24 +2352,57 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                             <button onClick={(e) => { e.stopPropagation(); setEditingId(null); }} className="p-1 text-red-600 hover:bg-red-50 rounded"><X size={16} /></button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-black text-gray-900 text-lg truncate group-hover:text-indigo-600 transition-colors">
                               {getPropertyLabel(analyse)}
                             </h3>
+                            
+                            {/* BADGES ACHETEUR / VENDEUR SUR LA LISTE */}
+                            {isAcheteur && (
+                              <span className="bg-purple-100 text-purple-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
+                                🕵️‍♂️ Deal
+                              </span>
+                            )}
+                            {isVendeur && (
+                              <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
+                                🏷️ Vente
+                              </span>
+                            )}
+
                             <button onClick={(e) => { e.stopPropagation(); setEditingId(analyse.id); setEditingTitle(analyse.titre || analyse.addresseComplete || ''); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-500 transition-all"><Edit2 size={14} /></button>
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 font-medium">
+                      <div className="flex items-center gap-3 text-xs text-gray-500 font-medium mt-1">
                          <span className="flex items-center gap-1"><MapPin size={12}/> {analyse.ville}</span>
                          <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
                          <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp || Date.now()).toLocaleDateString('fr-CA')}</span>
                       </div>
+                      
+                      {/* VERDICT RAPIDE POUR ACHETEUR */}
+                      {isAcheteur && opti && (
+                        <div className="mt-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100/50 inline-block max-w-full">
+                           <p className="text-xs font-medium text-indigo-900 line-clamp-1">
+                             <span className="font-bold mr-1">Avis IA:</span> {opti.avisProspection}
+                           </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* KPIs RAPIDES */}
                     <div className="hidden sm:flex items-center gap-8 mr-4">
-                       {isValuation ? (
+                       {isAcheteur && opti ? (
+                         <>
+                           <div className="text-right">
+                             <p className="text-[10px] text-gray-400 font-bold uppercase">Affiché</p>
+                             <p className="font-black text-gray-900 text-lg">${formatCurrency(analyse.prixAffichage)}</p>
+                           </div>
+                           <div className="text-right w-24">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Post-Opti</p>
+                              <p className="font-black text-emerald-600 text-lg">${formatCurrency(opti.valeurApresTravaux)}</p>
+                           </div>
+                         </>
+                       ) : isValuation ? (
                          <>
                            <div className="text-right">
                              <p className="text-[10px] text-gray-400 font-bold uppercase">Valeur</p>
@@ -4093,14 +4185,17 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const resultRef = useRef(null);
 
   const [formData, setFormData] = useState({
+    userType: 'acheteur', // 'acheteur' ou 'vendeur'
     titre: '',
     proprietyType: 'unifamilial',
     ville: '',
     quartier: '',
     codePostal: '',
     addresseComplete: '',
-    prixAchat: '',
-    anneeAchat: '',
+    prixAffichage: '', // Pour acheteur
+    urlAnnonce: '', // Pour acheteur
+    prixAchat: '', // Pour vendeur
+    anneeAchat: '', // Pour vendeur
     anneeConstruction: 1990,
     surfaceHabitee: '',
     surfaceLot: '',
@@ -4119,30 +4214,38 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   });
 
   const loadingMessages = [
-    '🔍 Analyse de la propriété résidentielle...',
+    '🔍 Analyse du profil et de la propriété...',
     '📊 Récupération des comparables du secteur sur le Web...',
     '🤖 Évaluation des composantes (Toiture, Électricité, etc.)...',
     '📈 Calcul de la valeur marchande actuelle...',
-    '🔗 Extraction des liens Centris et DuProprio...',
-    '✅ Finalisation du rapport...',
+    '🔗 Extraction des données (Centris, DuProprio)...',
+    formData.userType === 'acheteur' 
+        ? '🎯 Analyse du deal et du potentiel de flip...' 
+        : '📝 Préparation de la stratégie de vente...',
+    '✅ Finalisation du rapport expert...',
   ];
 
   const slides = [
     {
+      id: 'profil',
+      title: 'Votre Profil',
+      description: 'Êtes-vous en mode prospection ou évaluation ?',
+      icon: '👤',
+      required: ['userType'],
+    },
+    {
       id: 'location',
       title: 'Localisation',
-      description: 'Où se situe votre propriété?',
+      description: 'Où se situe la propriété ?',
       icon: '📍',
       required: ['ville', 'proprietyType'],
-      fields: ['titre', 'proprietyType', 'ville', 'quartier', 'codePostal', 'addresseComplete'],
     },
     {
       id: 'dimensions',
       title: 'Dimensions',
-      description: 'Taille et superficie',
+      description: 'Taille et configuration',
       icon: '📏',
       required: ['anneeConstruction'],
-      fields: ['anneeConstruction', 'surfaceHabitee', 'surfaceLot', 'nombreChambres', 'nombreSallesBain', 'garage'],
     },
     {
       id: 'components',
@@ -4150,7 +4253,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       description: 'État des systèmes majeurs',
       icon: '🔧',
       required: [],
-      fields: ['toitureAnnee', 'fenetresAnnee', 'plomberieEtat', 'electriciteEtat'],
     },
     {
       id: 'condition',
@@ -4158,15 +4260,13 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       description: 'Finition et sous-sol',
       icon: '🏗️',
       required: ['etatGeneral'],
-      fields: ['sous_sol', 'etatGeneral'],
     },
     {
-      id: 'acquisition',
-      title: 'Historique (Optionnel)',
-      description: "Pour calculer votre plus-value",
+      id: 'finances',
+      title: formData.userType === 'acheteur' ? "Données de l'annonce" : 'Historique (Optionnel)',
+      description: formData.userType === 'acheteur' ? "Pour analyser le deal" : "Pour calculer votre plus-value",
       icon: '💰',
       required: [],
-      fields: ['prixAchat', 'anneeAchat'],
     },
     {
       id: 'amenities',
@@ -4174,7 +4274,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       description: 'Équipements et notes',
       icon: '✨',
       required: [],
-      fields: ['piscine', 'terrain_detail', 'notes_additionnelles'],
     },
   ];
 
@@ -4196,9 +4295,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   ];
 
   const typesUnderground = [
-    { value: 'none', label: 'Aucun / Vide Sanitaire', icon: '❌' },
-    { value: 'partial', label: 'Partiellement fini', icon: '🔨' },
-    { value: 'full', label: 'Entièrement fini', icon: '✅' },
+    { value: 'none', label: 'Aucun / Vide Sanit.', icon: '❌' },
+    { value: 'partial', label: 'Partiel', icon: '🔨' },
+    { value: 'full', label: 'Fini', icon: '✅' },
   ];
 
   const etatSystemes = [
@@ -4248,8 +4347,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   };
 
   const submitEvaluation = async () => {
-    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
-    if (!hasAccess) {
+    const hasAccess = quotaInfo?.isUnlimited || quotaInfo?.remaining > 0 || quotaInfo?.credits > 0;
+    if (!hasAccess && setQuotaInfo) {
       setError("Quota épuisé et pas de crédits disponibles.");
       return;
     }
@@ -4261,7 +4360,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       setLoading(true);
       setError('');
 
-      // C'EST ICI LE VRAI APPEL !
+      // Restauration de l'appel exact vers TON backend
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`;
       const payload = { userId: user?.uid, ...formData };
 
@@ -4278,8 +4377,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
       const result = await resp.json();
 
-      // MISE À JOUR DU QUOTA
-      if (!quotaInfo.isUnlimited) {
+      // Mise à jour du quota (si applicable)
+      if (setQuotaInfo && quotaInfo && !quotaInfo.isUnlimited) {
         if (quotaInfo.remaining > 0) {
            setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
         } else {
@@ -4287,7 +4386,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         }
       }
 
-      // ON UTILISE LE VRAI RÉSULTAT DU BACKEND
       setSelectedProperty(result);
       setShowForm(false);
       setCurrentSlide(0);
@@ -4305,7 +4403,33 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     }
   };
 
-  // --- RENDERERS DE SLIDES (FORMULAIRE) ---
+  // --- RENDERERS DE SLIDES ---
+
+  const renderProfilSlide = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => handleChange('userType', 'acheteur')}
+          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'acheteur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+        >
+          <div className="text-3xl">🕵️‍♂️</div>
+          <h3 className={`text-lg font-black ${formData.userType === 'acheteur' ? 'text-indigo-900' : 'text-gray-800'}`}>Acheteur / Prospection</h3>
+          <p className="text-sm text-gray-500">J'ai vu une annonce, je veux savoir si c'est un bon prix et évaluer le deal (Flip, optimisation).</p>
+        </button>
+        
+        <button
+          type="button"
+          onClick={() => handleChange('userType', 'vendeur')}
+          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'vendeur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+        >
+          <div className="text-3xl">🏷️</div>
+          <h3 className={`text-lg font-black ${formData.userType === 'vendeur' ? 'text-indigo-900' : 'text-gray-800'}`}>Vendeur / Propriétaire</h3>
+          <p className="text-sm text-gray-500">Je suis propriétaire, je veux estimer la valeur de ma maison pour la vendre ou refinancer.</p>
+        </button>
+      </div>
+    </div>
+  );
 
   const renderLocationSlide = () => (
     <div className="space-y-4">
@@ -4347,7 +4471,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Adresse</label>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Adresse complète</label>
         <input type="text" placeholder="Ex: 123 rue Exemple" value={formData.addresseComplete} onChange={(e) => handleChange('addresseComplete', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       </div>
     </div>
@@ -4450,20 +4574,37 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     </div>
   );
 
-  const renderAcquisitionSlide = () => (
+  const renderFinancesSlide = () => (
     <div className="space-y-4">
-      <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 mb-4 text-sm text-emerald-800 rounded-r">
-        Ces informations sont <strong>100% optionnelles</strong>. Remplissez-les uniquement si vous souhaitez que l'IA calcule votre plus-value potentielle.
-      </div>
-      
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Prix d'achat ($)</label>
-        <input type="number" placeholder="Ex: 350000" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">Année d'achat</label>
-        <input type="number" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
+      {formData.userType === 'acheteur' ? (
+        <>
+          <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-4 text-sm text-indigo-800 rounded-r">
+            Entrez les informations de l'annonce pour que l'IA détecte si c'est une bonne affaire (Deal/Flip).
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Prix affiché / demandé ($)</label>
+            <input type="number" placeholder="Ex: 350000" value={formData.prixAffichage} onChange={(e) => handleChange('prixAffichage', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Lien web de l'annonce (Optionnel)</label>
+            <input type="text" placeholder="https://..." value={formData.urlAnnonce} onChange={(e) => handleChange('urlAnnonce', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 mb-4 text-sm text-emerald-800 rounded-r">
+            Ces informations sont <strong>100% optionnelles</strong>. Remplissez-les pour calculer votre plus-value.
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Prix d'achat ($)</label>
+            <input type="number" placeholder="Ex: 350000" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Année d'achat</label>
+            <input type="number" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -4548,10 +4689,34 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
+  const renderProspectionAvis = () => {
+    const opti = selectedProperty.potentielOptimisation;
+    if (!opti) return null;
+
+    return (
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-indigo-200 rounded-2xl p-6 md:p-8 shadow-md text-gray-800 transform hover:scale-[1.01] transition-transform">
+        <h3 className="text-xl md:text-2xl font-black mb-6 text-indigo-900 flex items-center gap-3">
+          🕵️‍♂️ Verdict Prospection (Le Deal)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white/80 p-5 rounded-xl border border-white shadow-sm">
+            <p className="text-indigo-600 text-sm uppercase tracking-wide font-bold mb-1">Avis de l'IA</p>
+            <p className="text-xl font-bold text-gray-900">{opti.avisProspection}</p>
+          </div>
+          <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 shadow-sm">
+            <p className="text-emerald-700 text-sm uppercase tracking-wide font-bold mb-1">Valeur potentielle (Après rénos)</p>
+            <p className="text-2xl font-black text-emerald-600">
+              {opti.valeurApresTravaux ? `${opti.valeurApresTravaux.toLocaleString('fr-CA')} $` : 'N/A'}
+            </p>
+            <p className="text-xs text-emerald-600 mt-1 font-medium">Marge de sécurité suggérée: {opti.margeSecurite}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderResidentialAppreciation = () => {
     const analyse = selectedProperty.analyse || {};
-    
-    // N'affiche le bloc que s'il y a des données pertinentes à montrer
     const showFinancials = analyse.appreciationTotale || analyse.pourcentageGainTotal;
     const showMarket = analyse.marketTrend;
 
@@ -4564,7 +4729,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         </h3>
         
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Bloc Financier (Optionnel) */}
           {showFinancials && (
              <div className="flex-1 grid grid-cols-2 gap-4">
                 {typeof analyse.appreciationTotale === 'number' && (
@@ -4586,7 +4750,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
              </div>
           )}
 
-          {/* Bloc Tendance Marché */}
           {showMarket && (
              <div className="flex-1 bg-blue-50 p-5 rounded-xl border border-blue-100 flex flex-col justify-center">
                 <p className="text-sm font-bold text-blue-900 mb-2 uppercase tracking-wide">Dynamique actuelle</p>
@@ -4596,7 +4759,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                   </span>
                   <div>
                     <p className="text-lg font-black text-blue-800 capitalize">Marché {analyse.marketTrend}</p>
-                    <p className="text-xs text-blue-600 mt-1">Selon l'inventaire actuel et les taux</p>
+                    <p className="text-xs text-blue-600 mt-1">Selon l'inventaire et les taux</p>
                   </div>
                 </div>
              </div>
@@ -4624,7 +4787,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           </div>
         )}
 
-        {/* Liste des comparables (Grosse amélioration ici) */}
+        {/* Liste des comparables */}
         {comparables.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
              <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
@@ -4633,10 +4796,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {comparables.map((comp, idx) => (
                    <div key={idx} className="border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                      
-                      {/* Liseret de couleur selon le statut */}
                       <div className={`absolute left-0 top-0 bottom-0 w-1 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-400' : 'bg-green-400'}`}></div>
-                      
                       <div className="flex justify-between items-start mb-3 pl-2">
                          <div>
                             <p className="font-bold text-gray-900 text-lg">{comp.adresse}</p>
@@ -4646,24 +4806,15 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                            {comp.statut}
                          </span>
                       </div>
-                      
                       <p className="text-2xl font-black text-indigo-900 mb-3 pl-2">
                          {typeof comp.prix === 'number' ? `${comp.prix.toLocaleString('fr-CA')} $` : comp.prix}
                       </p>
-                      
                       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100">
                          {comp.caracteristiques}
                       </div>
-
-                      {/* Bouton pour ouvrir l'URL si elle existe */}
                       {comp.url && comp.url !== "null" && comp.url !== "" && (
                          <div className="pl-2">
-                           <a 
-                             href={comp.url} 
-                             target="_blank" 
-                             rel="noopener noreferrer"
-                             className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg"
-                           >
+                           <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg">
                              Voir l'annonce
                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                            </a>
@@ -4745,7 +4896,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
         {strategy && (
           <div>
-            <p className="font-bold text-indigo-800 mb-3 text-sm uppercase tracking-wide">📋 Stratégie de mise en marché</p>
+            <p className="font-bold text-indigo-800 mb-3 text-sm uppercase tracking-wide">📋 Stratégie d'action</p>
             <p className="text-sm md:text-base text-gray-800 leading-relaxed bg-white/60 p-4 rounded-xl border border-indigo-100/50">
                 {strategy}
             </p>
@@ -4772,13 +4923,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                   </h2>
                   <p className="text-indigo-100 text-sm md:text-base">{slides[currentSlide].description}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setCurrentSlide(0); setSlideErrors({}); }}
-                  className="text-white hover:bg-white/20 p-2 rounded-lg transition"
-                >
-                  ✕
-                </button>
+                <button type="button" onClick={() => { setShowForm(false); setCurrentSlide(0); setSlideErrors({}); }} className="text-white hover:bg-white/20 p-2 rounded-lg transition">✕</button>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-indigo-900/40 rounded-full h-2 overflow-hidden">
@@ -4793,11 +4938,12 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
             {/* Body Modal */}
             <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-slate-50">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                {slides[currentSlide].id === 'profil' && renderProfilSlide()}
                 {slides[currentSlide].id === 'location' && renderLocationSlide()}
                 {slides[currentSlide].id === 'dimensions' && renderDimensionsSlide()}
                 {slides[currentSlide].id === 'components' && renderComponentsSlide()}
                 {slides[currentSlide].id === 'condition' && renderConditionSlide()}
-                {slides[currentSlide].id === 'acquisition' && renderAcquisitionSlide()}
+                {slides[currentSlide].id === 'finances' && renderFinancesSlide()}
                 {slides[currentSlide].id === 'amenities' && renderAmenitiesSlide()}
               </div>
 
@@ -4818,7 +4964,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                      <p className="font-bold">Champs obligatoires manquants</p>
                      <ul className="mt-1 space-y-1">
                        {Object.entries(slideErrors).map(([field]) => {
-                         const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', etatGeneral: 'État général' };
+                         const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', etatGeneral: 'État général', userType: 'Votre Profil' };
                          return <li key={field}>• {labels[field] || field}</li>;
                        })}
                      </ul>
@@ -4830,29 +4976,19 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
             {/* Footer Modal */}
             <div className="bg-white px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
               {currentSlide > 0 && (
-                <button
-                  type="button"
-                  onClick={previousSlide}
-                  className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition"
-                  disabled={loading}
-                >
+                <button type="button" onClick={previousSlide} className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition" disabled={loading}>
                   ← Retour
                 </button>
               )}
-              <button
-                type="button"
-                onClick={nextSlide}
-                disabled={loading}
-                className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? 'Traitement...' : currentSlide === slides.length - 1 ? '✅ Générer l\'évaluation' : 'Suivant →'}
+              <button type="button" onClick={nextSlide} disabled={loading} className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? 'Traitement...' : currentSlide === slides.length - 1 ? '✅ Lancer l\'analyse IA' : 'Suivant →'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* BOUTON D'APPEL À L'ACTION (Si aucun formulaire ouvert et aucun résultat) */}
+      {/* BOUTON D'APPEL À L'ACTION */}
       {!showForm && !selectedProperty && !loading && (
         <div className="flex justify-center my-12">
           <button
@@ -4868,7 +5004,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
             {isButtonDisabled ? '❌ Quota épuisé' : (
                 <>
                   <span className="text-2xl">🚀</span>
-                  Lancer une Évaluation Résidentielle
+                  Lancer une Analyse Immobilière
                 </>
             )}
           </button>
@@ -4879,6 +5015,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       {selectedProperty && (
         <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
           {renderHeroValuation()}
+          {/* Nouveau bloc pour l'acheteur ! */}
+          {selectedProperty.potentielOptimisation && renderProspectionAvis()}
+          
           {renderResidentialAppreciation()}
           {renderComparablesAndSecteur()}
           {renderFacteursPrix()}
@@ -4894,7 +5033,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
               }}
               className="px-8 py-3 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-bold rounded-xl transition-all hover:bg-gray-50 flex items-center gap-2 shadow-sm"
             >
-              ← Recommencer une évaluation
+              ← Recommencer une analyse
             </button>
           </div>
         </div>
@@ -4916,14 +5055,17 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   const resultRef = useRef(null);
 
   const [formData, setFormData] = useState({
+    userType: 'acheteur', // 'acheteur' ou 'vendeur'
     titre: '',
     proprietyType: 'immeuble_revenus',
     ville: '',
     quartier: '',
     codePostal: '',
     addresseComplete: '',
-    prixAchat: '', 
-    anneeAchat: '', 
+    prixAffichage: '', // Pour acheteur
+    urlAnnonce: '', // Pour acheteur
+    prixAchat: '', // Pour vendeur
+    anneeAchat: '', // Pour vendeur
     anneeConstruction: 1990,
     surfaceTotale: '',
     surfaceLocable: '',
@@ -4950,7 +5092,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     sous_sol_inexploite: false,
     stationnement_gratuit: false,
 
-    // ✅ NOUVEAU : DÉTAIL DES LOGEMENTS
+    // DÉTAIL DES LOGEMENTS
     logementsDetail: [{ type: '4 1/2', quantite: 1 }]
   });
 
@@ -4959,7 +5101,9 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     '📊 Structuration des données financières...',
     '🌐 Recherche de comparables sur Centris/LoopNet...',
     '💹 Calcul du Cap Rate et du RNE...',
-    '🤖 Évaluation du positionnement de marché...',
+    formData.userType === 'acheteur' 
+        ? '🎯 Évaluation du deal et du potentiel de Value-Add...' 
+        : '📝 Préparation de la stratégie de mise en marché...',
     '💰 Génération du rapport de rentabilité...',
   ];
 
@@ -4999,6 +5143,13 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
     const dynamicSlides = [
       {
+        id: 'profil',
+        title: 'Votre Profil',
+        description: 'Êtes-vous en mode prospection ou évaluation ?',
+        icon: '👤',
+        required: ['userType'],
+      },
+      {
         id: 'location',
         title: 'Localisation',
         description: 'Où se situe l\'actif commercial?',
@@ -5009,13 +5160,12 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
     dynamicSlides.push({
       id: 'acquisition',
-      title: 'Historique (Optionnel)',
-      description: "Pour calculer la plus-value et le ROI",
+      title: formData.userType === 'acheteur' ? "Données de l'annonce" : 'Historique (Optionnel)',
+      description: formData.userType === 'acheteur' ? "Pour analyser le deal" : "Pour calculer la plus-value et le ROI",
       icon: '💰',
       required: isTerrain ? [] : ['anneeConstruction'], 
     });
 
-    // ✅ CHANGEMENT DU TITRE DE LA SLIDE 3 SI C'EST UN PLEX
     dynamicSlides.push({
       id: 'dimensions',
       title: isImmeuble ? 'Configuration' : (isTerrain ? 'Détails du terrain' : 'Infrastructure'),
@@ -5144,8 +5294,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   };
 
   const submitEvaluation = async () => {
-    const hasAccess = quotaInfo.isUnlimited || quotaInfo.remaining > 0 || quotaInfo.credits > 0;
-    if (!hasAccess) {
+    const hasAccess = quotaInfo?.isUnlimited || quotaInfo?.remaining > 0 || quotaInfo?.credits > 0;
+    if (!hasAccess && setQuotaInfo) {
       setError("Quota épuisé et pas de crédits disponibles.");
       return;
     }
@@ -5175,7 +5325,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           unites_non_renovees: formData.unites_non_renovees,
           sous_sol_inexploite: formData.sous_sol_inexploite,
           stationnement_gratuit: formData.stationnement_gratuit,
-          // ✅ ENVOI DES TYPES DE LOGEMENTS
           logementsDetail: formData.logementsDetail
         }),
         ...(formData.proprietyType === 'hotel' && {
@@ -5200,7 +5349,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
       const result = await resp.json();
 
-      if (!quotaInfo.isUnlimited) {
+      if (setQuotaInfo && quotaInfo && !quotaInfo.isUnlimited) {
         if (quotaInfo.remaining > 0) {
            setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
         } else {
@@ -5225,6 +5374,32 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   };
 
   // --- RENDERERS DE SLIDES ---
+
+  const renderProfilSlide = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => handleChange('userType', 'acheteur')}
+          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'acheteur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+        >
+          <div className="text-3xl">🕵️‍♂️</div>
+          <h3 className={`text-lg font-black ${formData.userType === 'acheteur' ? 'text-indigo-900' : 'text-gray-800'}`}>Acheteur / Prospection</h3>
+          <p className="text-sm text-gray-500">J'ai vu une annonce, je veux savoir si c'est un bon prix, analyser le Cap Rate et évaluer le potentiel d'optimisation (Value-Add).</p>
+        </button>
+        
+        <button
+          type="button"
+          onClick={() => handleChange('userType', 'vendeur')}
+          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'vendeur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+        >
+          <div className="text-3xl">🏷️</div>
+          <h3 className={`text-lg font-black ${formData.userType === 'vendeur' ? 'text-indigo-900' : 'text-gray-800'}`}>Vendeur / Propriétaire</h3>
+          <p className="text-sm text-gray-500">Je possède l'actif, je veux estimer sa valeur économique pour le vendre, le refinancer ou mesurer ma plus-value.</p>
+        </button>
+      </div>
+    </div>
+  );
 
   const renderLocationSlide = () => (
     <div className="space-y-4">
@@ -5282,20 +5457,39 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     const isTerrain = formData.proprietyType === 'terrain_commercial';
     return (
       <div className="space-y-4">
-        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-4 rounded-r-xl text-sm text-emerald-800 font-medium">
-          Les données d'achat sont <strong>optionnelles</strong>. Remplissez-les uniquement pour calculer le rendement sur investissement (ROI).
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Prix d'achat ($)</label>
-            <input type="number" placeholder="Optionnel" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Année d'achat</label>
-            <input type="number" placeholder="Optionnel" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-          </div>
-        </div>
+        {formData.userType === 'acheteur' ? (
+          <>
+            <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-4 rounded-r-xl text-sm text-indigo-800 font-medium">
+              Entrez les informations de l'annonce pour que l'IA détecte si c'est une bonne affaire (Évaluation de la rentabilité demandée).
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Prix affiché / demandé ($)</label>
+                <input type="number" placeholder="Ex: 1200000" value={formData.prixAffichage} onChange={(e) => handleChange('prixAffichage', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Lien web (Optionnel)</label>
+                <input type="text" placeholder="https://..." value={formData.urlAnnonce} onChange={(e) => handleChange('urlAnnonce', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-4 rounded-r-xl text-sm text-emerald-800 font-medium">
+              Les données d'achat sont <strong>optionnelles</strong>. Remplissez-les uniquement pour calculer le rendement sur investissement (ROI) historique.
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Prix d'achat ($)</label>
+                <input type="number" placeholder="Optionnel" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Année d'achat</label>
+                <input type="number" placeholder="Optionnel" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
+          </>
+        )}
 
         {!isTerrain && (
           <div className="pt-4 border-t border-gray-100 mt-4">
@@ -5316,7 +5510,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     return (
       <div className="space-y-4">
         
-        {/* ✅ NOUVELLE SECTION DYNAMIQUE POUR LES PLEX */}
+        {/* SECTION DYNAMIQUE POUR LES PLEX */}
         {isImmeuble ? (
           <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-4">
             <p className="font-black text-indigo-900 mb-4 flex items-center gap-2">🚪 Configuration des logements</p>
@@ -5619,7 +5813,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                     </div>
                  )}
                  <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl transition-all font-bold text-sm">
-                    <Share2 size={16} /> Partager
+                    <span role="img" aria-label="share">🔗</span> Partager
                  </button>
              </div>
           </div>
@@ -5637,6 +5831,32 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
               <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1">Valeur haute (📈)</p>
               <p className="text-2xl font-black">{est.valeurHaute ? `$${est.valeurHaute.toLocaleString('fr-CA')}` : 'N/A'}</p>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderProspectionAvis = () => {
+    const opti = selectedProperty.potentielOptimisation;
+    if (!opti) return null;
+
+    return (
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-indigo-200 rounded-3xl p-6 md:p-8 shadow-md text-gray-800 transform hover:scale-[1.01] transition-transform">
+        <h3 className="text-xl md:text-2xl font-black mb-6 text-indigo-900 flex items-center gap-3">
+          <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">🕵️‍♂️</span> Verdict Prospection (Le Deal)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white/80 p-5 rounded-2xl border border-white shadow-sm">
+            <p className="text-indigo-600 text-sm uppercase tracking-wide font-bold mb-1">Avis de l'IA</p>
+            <p className="text-xl font-bold text-gray-900">{opti.avisProspection}</p>
+          </div>
+          <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-sm">
+            <p className="text-emerald-700 text-sm uppercase tracking-wide font-bold mb-1">Valeur potentielle (Après opti.)</p>
+            <p className="text-2xl font-black text-emerald-600">
+              {opti.valeurApresTravaux ? `$${opti.valeurApresTravaux.toLocaleString('fr-CA')}` : 'N/A'}
+            </p>
+            <p className="text-xs text-emerald-600 mt-1 font-medium">Marge de sécurité / ROI visé: {opti.margeSecurite}</p>
           </div>
         </div>
       </div>
@@ -5914,7 +6134,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-      {/* 🟢 Tu peux remettre ton LoadingSpinner ici si tu l'utilises */}
       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={120} />
 
       {/* FORM MODAL */}
@@ -5950,6 +6169,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
             <div className="px-8 py-8 flex-1">
               <div className="mb-2">
+                {activeSlides[currentSlide].id === 'profil' && renderProfilSlide()}
                 {activeSlides[currentSlide].id === 'location' && renderLocationSlide()}
                 {activeSlides[currentSlide].id === 'acquisition' && renderAcquisitionSlide()}
                 {activeSlides[currentSlide].id === 'dimensions' && renderDimensionsSlide()}
@@ -5973,7 +6193,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                     <p className="font-black">Champs obligatoires manquants</p>
                     <ul className="mt-2 space-y-1 font-medium">
                       {Object.entries(slideErrors).map(([field]) => {
-                        const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', revenuBrutAnnuel: 'Revenus bruts annuels', depensesAnnuelles: 'Dépenses annuelles', etatGeneral: 'État de la bâtisse' };
+                        const labels = { ville: 'Ville', proprietyType: 'Type de propriété', anneeConstruction: 'Année de construction', revenuBrutAnnuel: 'Revenus bruts annuels', depensesAnnuelles: 'Dépenses annuelles', etatGeneral: 'État de la bâtisse', userType: 'Votre profil' };
                         return <li key={field}>• {labels[field] || field}</li>;
                       })}
                     </ul>
@@ -6020,6 +6240,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       {selectedProperty && (
         <div ref={resultRef} className="space-y-8 mt-8 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
           {renderHeroValuation()}
+          {selectedProperty.potentielOptimisation && renderProspectionAvis()}
           {renderCommercialMetrics()}
           {renderCommercialSecteurAndComparables()}
           {renderCommercialFacteursPrix()}
@@ -6027,7 +6248,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 py-8 border-t border-gray-200">
             <button type="button" onClick={handleShare} className="w-full sm:w-auto px-8 py-4 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-black rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
-              <Share2 size={20} /> Partager les résultats
+              <span role="img" aria-label="share">🔗</span> Partager les résultats
             </button>
             <button type="button" onClick={() => { setSelectedProperty(null); setShowForm(false); setCurrentSlide(0); }} className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl transition-colors shadow-sm">
               ← Nouvelle évaluation
