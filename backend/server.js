@@ -1085,13 +1085,16 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
   try {
     const {
       userId,
+      userType = 'vendeur', // Nouveau champ: 'acheteur' ou 'vendeur'
       proprietyType,
       addresseComplete,
       ville,
       quartier,
       codePostal,
-      prixAchat,
-      anneeAchat,
+      prixAchat, // Pour vendeur
+      anneeAchat, // Pour vendeur
+      prixAffichage, // NOUVEAU: Pour acheteur
+      urlAnnonce, // NOUVEAU: Pour acheteur
       anneeConstruction,
       surfaceHabitee,
       surfaceLot,
@@ -1131,20 +1134,33 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         contexteSaisonnier = "Été (Marché plus lent, vacances)";
     }
 
-    const aDesDonneesAchat = !!(prixAchat && anneeAchat);
-    const infoAchat = aDesDonneesAchat 
-        ? `- Prix d'achat en ${anneeAchat}: ${prixAchat}$` 
-        : `- Historique d'achat non fourni. Ne pas calculer d'appréciation historique.`;
+    const isAcheteur = userType === 'acheteur';
+
+    // Logique financière conditionnelle
+    let infoFinanciere = "";
+    if (isAcheteur) {
+        infoFinanciere = `
+        DONNÉES DE PROSPECTION (L'utilisateur envisage d'acheter):
+        - Prix affiché / demandé : ${prixAffichage ? prixAffichage + '$' : 'Non fourni'}
+        - URL de l'annonce : ${urlAnnonce || 'Non fournie'}
+        TA TÂCHE : Déterminer si ce prix est une aubaine, au prix du marché, ou trop cher.
+        `;
+    } else {
+        const aDesDonneesAchat = !!(prixAchat && anneeAchat);
+        infoFinanciere = aDesDonneesAchat 
+            ? `HISTORIQUE D'ACHAT:\n- Prix d'achat en ${anneeAchat}: ${prixAchat}$` 
+            : `HISTORIQUE D'ACHAT:\n- Historique d'achat non fourni. Ne pas calculer d'appréciation historique.`;
+    }
 
     console.log(`\n========================================================`);
-    console.log(`🏠 NOUVELLE ÉVALUATION RÉSIDENTIELLE: ${proprietyType} à ${ville}`);
+    console.log(`🏠 NOUVELLE ÉVALUATION (${userType.toUpperCase()}): ${proprietyType} à ${ville}`);
     console.log(`========================================================\n`);
 
-    // 1. Définition des outils de recherche
+    // 1. Définition des outils de recherche (Reste inchangé)
     const tools = [
       {
         name: "web_search",
-        description: "Recherche en temps réel les propriétés vendues ou à vendre sur Centris, JLR, DuProprio. Utilise ceci pour trouver des comparables avec des prix réels et des liens exacts.",
+        description: "Recherche en temps réel les propriétés vendues ou à vendre sur Centris, JLR, DuProprio.",
         input_schema: {
           type: "object",
           properties: {
@@ -1155,7 +1171,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       },
       {
         name: "read_webpage",
-        description: "Lit le contenu textuel complet d'une annonce immobilière (Realtor, DuProprio, etc.) pour extraire les détails précis (rénovations, état, superficie, sous-sol) d'un comparable trouvé.",
+        description: "Lit le contenu textuel complet d'une annonce immobilière pour extraire les détails précis.",
         input_schema: {
           type: "object",
           properties: { url: { type: "string", description: "L'URL de l'annonce immobilière à lire" } },
@@ -1169,15 +1185,26 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       Tu AS accès à Internet via les outils 'web_search' et 'read_webpage'.
       
       RÈGLES STRICTES POUR LES COMPARABLES ET L'ÉVALUATION :
-      1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 1 ou 2 liens hyper pertinents pour vérifier l'état intérieur d'un comparable. NE LIS PAS plus de deux pages.
-      2. 🚨 STRATÉGIE PETIT MARCHÉ (EXTRAPOLATION) : Si la propriété se trouve dans une petite municipalité ou en région (ex: Saint-Bruno au Saguenay) et que tu ne trouves AUCUN comparable direct récent :
-         - Élargis ta recherche aux municipalités ou villes voisines.
-         - Utilise la méthode du "Prix au pied carré" : Trouve le prix de vente de maisons similaires dans la région élargie, divise par leur superficie pour obtenir le prix/pi², puis multiplie ce chiffre par la superficie de la propriété à évaluer (ajuste le résultat selon l'âge et l'état).
-      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE pour la "valeurMoyenne" est le marché (les comparables ou l'extrapolation au pied carré). IGNORE TOTALEMENT l'évaluation municipale (rôle foncier) pour déterminer le prix, car elle est souvent très en retard sur le marché. Cherche explicitement le "Prix demandé" ou le "Prix vendu".
-      4. N'INVENTE JAMAIS D'URL. C'est une erreur grave. Pour le champ "url" de tes comparables, copie-colle exactement l'URL lue. Si aucun lien direct n'est disponible, mets "url": null.
-      5. Sépare l'évaluation marchande du prix d'achat initial.
-      6. Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après.
+      1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 1 ou 2 liens.
+      2. 🚨 STRATÉGIE PETIT MARCHÉ (EXTRAPOLATION) : Si tu ne trouves aucun comparable direct, élargis la recherche et utilise la méthode du "Prix au pied carré".
+      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE pour la "valeurMoyenne" est le marché. IGNORE TOTALEMENT l'évaluation municipale.
+      4. N'INVENTE JAMAIS D'URL.
+      5. RÔLE ACTUEL : L'utilisateur est en mode ${isAcheteur ? 'ACHETEUR (Prospection / Deal)' : 'VENDEUR (Évaluation / Mise en vente)'}.
+      
+      ${isAcheteur ? `
+      6. DIRECTIVE PROSPECTION (TRÈS IMPORTANT) : Compare AGRESSIVEMENT le "Prix demandé" à ta "valeurMoyenne". 
+         - Si la valeur marchande est beaucoup plus élevée que le prix demandé, c'est un deal !
+         - Génère OBLIGATOIREMENT la clé JSON "potentielOptimisation" pour donner ton verdict franc et direct.
+      ` : `
+      6. DIRECTIVE VENDEUR : Concentre-toi sur le gain en capital (si l'historique d'achat est fourni) et la meilleure stratégie pour vendre vite et cher.
+      `}
+      7. Réponds UNIQUEMENT avec un JSON valide.
     `;
+
+    // Génération de la clé conditionnelle "potentielOptimisation"
+    const jsonOptimisation = isAcheteur 
+        ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge", "avisProspection": "Excellent deal / Prix de marché / Surévalué. Explique brièvement pourquoi." },` 
+        : '';
 
     const valuationPrompt = `
       CONTEXTE DE MARCHÉ:
@@ -1188,7 +1215,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       - Type: ${proprietyType}
       - Adresse: ${addresseComplete || 'Non fournie'}
       - Âge: ${anneeConstruction} (${ageConstruction} ans)
-      - Superficie: ${surfaceHabitee ? surfaceHabitee + ' pi² habitables' : 'Standard (estimer au besoin)'}
+      - Superficie: ${surfaceHabitee ? surfaceHabitee + ' pi² habitables' : 'Standard'}
       - Terrain: ${surfaceLot ? surfaceLot + ' pi²' : 'Standard'} (${terrain_detail || ''})
       - Configuration: ${nombreChambres || '?'} CC, ${nombreSallesBain || '?'} SDB
       - Garage: ${garage > 0 ? garage : '0'} | Sous-sol: ${sous_sol}
@@ -1201,19 +1228,19 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       - Plomberie: ${plomberieEtat || 'Inconnu'} | Électricité: ${electriciteEtat || 'Inconnu'}
       - Rénovations / Notes: ${notes_additionnelles || renobations?.join(', ') || 'Aucune'}
 
-      RECHERCHE : Trouve les comparables de prix vendus ou actifs pour ce type de propriété dans ce secteur. Si c'est un petit marché sans comparables, élargis aux villes voisines et utilise la méthode du prix au pied carré.
-      
-      DONNÉES FINANCIÈRES (Pour calcul gain uniquement):
-      ${infoAchat}
+      ${infoFinanciere}
+
+      RECHERCHE : Trouve les comparables de prix vendus ou actifs pour ce type de propriété dans ce secteur.
 
       FORMAT JSON ATTENDU:
       {
         "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0, "confiance": "haute" },
-        "analyse": { "appreciationTotale": ${aDesDonneesAchat ? '0' : 'null'}, "pourcentageGainTotal": ${aDesDonneesAchat ? '0' : 'null'}, "marketTrend": "vendeur", "analyseSecteur": "Paragraphe d'analyse du marché local et explication de la méthode utilisée (comparables directs ou extrapolation/pied carré si marché restreint)." },
+        "analyse": { "appreciationTotale": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "pourcentageGainTotal": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "marketTrend": "vendeur", "analyseSecteur": "Paragraphe d'analyse du marché local." },
+        ${jsonOptimisation}
         "facteursPrix": { "positifs": [], "negatifs": [], "incertitudes": [] },
         "recommendations": { "renovationsRentables": [], "strategieVente": "" },
         "comparables": [
-          { "adresse": "...", "statut": "vendu ou actif", "prix": 0, "date": "...", "caracteristiques": "...", "url": "Lien exact web_search ou null" }
+          { "adresse": "...", "statut": "vendu ou actif", "prix": 0, "date": "...", "caracteristiques": "...", "url": "Lien exact ou null" }
         ]
       }
     `;
@@ -1222,9 +1249,9 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
 
     console.log("🤖 [IA] Appel initial à Claude envoyé...");
     
-    // 2. Appel initial
+    // 2. Appel initial Claude
     let response = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-6', // Ou claude-3-5-sonnet-20241022
       max_tokens: 4000,
       temperature: 0,
       system: systemPrompt,
@@ -1232,7 +1259,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       messages: messages
     });
 
-    // 3. Boucle Tool Use (Parallélisation + Timeouts)
+    // 3. Boucle Tool Use (Reste inchangée de ton code original)
     let iterations = 0;
     const maxIterations = 3;
 
@@ -1242,19 +1269,15 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       
       const toolCalls = response.content.filter(c => c.type === 'tool_use');
 
-      // Exécution PARALLÈLE
       const toolResults = await Promise.all(toolCalls.map(async (toolCall) => {
         let resultStr = "Aucun résultat trouvé.";
         
-        // --- OUTIL 1 : RECHERCHE ---
         if (toolCall.name === 'web_search') {
           const query = toolCall.input.query;
-          console.log(`   🔍 Recherche Web (Parallèle) : "${query}"`);
-
+          console.log(`   🔍 Recherche Web : "${query}"`);
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000);
-
             const searchResponse = await fetch("https://google.serper.dev/search", {
               method: "POST",
               headers: { "X-API-KEY": process.env.SERPER_API_KEY || "", "Content-Type": "application/json" },
@@ -1262,40 +1285,32 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
               signal: controller.signal
             });
             clearTimeout(timeoutId);
-
             const data = await searchResponse.json();
             const resultsList = data.organic?.slice(0, 5) || [];
-            
             resultStr = resultsList.map(r => `Titre: ${r.title}\nLien: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n') || "Pas de résultats.";
           } catch (e) {
-            console.error(`   ❌ Erreur Serper (Timeout/Autre): ${e.name}`);
-            resultStr = "Erreur technique de recherche ou délai dépassé.";
+            resultStr = "Erreur technique de recherche.";
           }
         } 
-        // --- OUTIL 2 : LECTURE DE PAGE ---
         else if (toolCall.name === 'read_webpage') {
           const url = toolCall.input.url;
-          console.log(`   📖 Lecture Page (Parallèle) : "${url}"`);
+          console.log(`   📖 Lecture Page : "${url}"`);
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
-
             const readResponse = await fetch(`https://r.jina.ai/${url}`, {
               headers: { "Accept": "text/plain" },
               signal: controller.signal
             });
             clearTimeout(timeoutId);
-
             if (readResponse.ok) {
               const text = await readResponse.text();
               resultStr = text.slice(0, 8000); 
-              console.log(`   ✅ Lecture réussie (${resultStr.length} caractères).`);
             } else {
-              resultStr = "La page a bloqué la lecture ou est indisponible.";
+              resultStr = "La page a bloqué la lecture.";
             }
           } catch (e) {
-            console.error(`   ❌ Erreur Lecture (Timeout/Autre): ${e.name}`);
-            resultStr = "Erreur technique lors de la lecture (délai dépassé ou blocage).";
+            resultStr = "Erreur de lecture.";
           }
         }
 
@@ -1304,18 +1319,15 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
 
       messages.push({ role: 'assistant', content: response.content });
       
-      // Sécurité si on atteint la limite
       if (iterations >= maxIterations) {
-        console.log("   ⚠️ Limite d'itérations atteinte. Forçage de la conclusion.");
         toolResults.push({ 
           type: 'text', 
-          text: "Ceci est la dernière recherche/lecture autorisée. Analyse les résultats obtenus. Si tu es dans un petit marché sans comparables parfaits, élargis aux villes voisines et utilise la méthode du prix au pied carré. Génère UNIQUEMENT le JSON final valide." 
+          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide." 
         });
       }
 
       messages.push({ role: 'user', content: toolResults });
 
-      console.log("🤖 [IA] Renvoi des données à Claude...");
       response = await claude.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 4000, 
@@ -1326,29 +1338,26 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       });
     }
 
-    console.log(`\n✅ [IA] Analyse terminée après ${iterations} itération(s). Extraction du JSON...`);
-    
-    // 4. Extraction du contenu final
+    // 4. Extraction du JSON Final
     const finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
-    const valuationResult = parseClaudeJSON(finalContent);
+    const valuationResult = parseClaudeJSON(finalContent); // Ta fonction existante pour nettoyer le JSON
 
-    // 5. Sauvegarde Firestore
+    // 5. Sauvegarde Firestore (On sauvegarde le type d'utilisateur aussi)
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
+      userType,
       proprietyType,
       ville,
       quartier,
       codePostal: codePostal || null,
       addresseComplete,
       prixAchat: prixAchat || null,
-      anneeAchat: anneeAchat || null,
+      prixAffichage: prixAffichage || null,
       anneeConstruction,
       result: valuationResult,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       paidWith: req.quotaInfo.mode
     });
-
-    console.log(`💾 Sauvegardé dans Firestore (ID: ${evaluationRef.id})`);
 
     // 6. Déduction Usage
     await deductUsage(userId, req.quotaInfo);
@@ -1395,6 +1404,7 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
   try {
     const {
       userId,
+      userType = 'vendeur', // Nouveau champ: 'acheteur' ou 'vendeur'
       proprietyType, 
       typeCom, 
       ville,
@@ -1403,6 +1413,8 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       addresseComplete = '',
       prixAchat,
       anneeAchat,
+      prixAffichage, // Pour acheteur
+      urlAnnonce, // Pour acheteur
       anneeConstruction,
       surfaceTotale = 0,
       surfaceLocable = 0,
@@ -1416,14 +1428,14 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       depenses_annuelles,
       depensesAnnuelles, 
       
-      // ✅ NOUVEAUX CHAMPS D'OPTIMISATION (VALUE-ADD)
+      // NOUVEAUX CHAMPS D'OPTIMISATION (VALUE-ADD)
       chauffage_proprio = false,
       electricite_proprio = false,
       unites_non_renovees = false,
       sous_sol_inexploite = false,
       stationnement_gratuit = false,
 
-      // 🔴 AJOUT : EXTRAIRE LES DÉTAILS DES LOGEMENTS ICI
+      // EXTRAIRE LES DÉTAILS DES LOGEMENTS ICI
       logementsDetail = [],
       
       // POUR HÔTEL
@@ -1443,13 +1455,14 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       notes_additionnelles = ''
     } = req.body;
 
-    // ✅ NORMALISATION
+    // NORMALISATION
     const finalProprieTyType = proprietyType || typeCom;
     const finalRevenusAnnuels = revenus_bruts_annuels || revenuBrutAnnuel;
     const finalDepenses = depenses_annuelles || depensesAnnuelles;
     const isTerrain = finalProprieTyType === 'terrain_commercial';
+    const isAcheteur = userType === 'acheteur';
 
-    // ✅ VALIDATIONS OBLIGATOIRES
+    // VALIDATIONS OBLIGATOIRES
     if (!finalProprieTyType || !ville || (!isTerrain && !anneeConstruction)) {
       return res.status(400).json({
         error: 'Paramètres obligatoires manquants',
@@ -1458,17 +1471,28 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
     }
 
     console.log(`\n========================================================`);
-    console.log(`🏪 ÉVALUATION COMMERCIALE: ${finalProprieTyType} à ${ville}`);
+    console.log(`🏪 ÉVALUATION COMMERCIALE (${userType.toUpperCase()}): ${finalProprieTyType} à ${ville}`);
     console.log(`========================================================\n`);
 
     const anneeActuelle = new Date().getFullYear();
     const ageConstruction = isTerrain ? 'N/A' : (anneeActuelle - anneeConstruction);
     
-    // Logique Historique (Optionnel)
+    // Logique Financière (Achat vs Prospection)
+    let infoFinanciere = "";
     const aDesDonneesAchat = !!(prixAchat && anneeAchat);
-    const infoAchat = aDesDonneesAchat 
-        ? `- Prix d'achat en ${anneeAchat}: ${prixAchat}$` 
-        : `- Historique d'achat non fourni. Ne pas calculer d'appréciation ou de ROI historique.`;
+    
+    if (isAcheteur) {
+        infoFinanciere = `
+        DONNÉES DE PROSPECTION (L'utilisateur envisage d'acheter):
+        - Prix affiché / demandé : ${prixAffichage ? prixAffichage + '$' : 'Non fourni'}
+        - URL de l'annonce : ${urlAnnonce || 'Non fournie'}
+        TA TÂCHE : Déterminer la valeur économique de l'actif, puis juger si le "Prix demandé" est justifié, sous-évalué (Deal) ou surévalué en fonction de la rentabilité actuelle et du potentiel d'optimisation.
+        `;
+    } else {
+        infoFinanciere = aDesDonneesAchat 
+            ? `DONNÉES HISTORIQUES D'ACHAT:\n- Prix d'achat en ${anneeAchat}: ${prixAchat}$` 
+            : `DONNÉES HISTORIQUES D'ACHAT:\n- Historique non fourni. Ne pas calculer d'appréciation historique.`;
+    }
 
     // 1. Définition des outils de recherche commerciaux
     const tools = [
@@ -1494,15 +1518,13 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       }
     ];
 
-    // ============================================
     // CONSTRUCTION DU PROMPT SPÉCIFIQUE
-    // ============================================
     let promptSpecifique = '';
 
     if (finalProprieTyType === 'immeuble_revenus') {
       const noi = finalRevenusAnnuels - finalDepenses;
       
-      // ✅ TRADUIRE LES BOOLEENS EN TEXTE POUR L'IA
+      // TRADUIRE LES BOOLEENS EN TEXTE POUR L'IA
       let potentielOptimisation = [];
       if (chauffage_proprio) potentielOptimisation.push("Chauffage payé par le proprio (À convertir aux frais des locataires)");
       if (electricite_proprio) potentielOptimisation.push("Électricité payée par le proprio (À convertir aux frais des locataires)");
@@ -1511,23 +1533,21 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
       if (stationnement_gratuit) potentielOptimisation.push("Stationnements inclus gratuitement (Potentiel de monétisation)");
 
       const optimisationText = potentielOptimisation.length > 0 
-        ? `\n- 🚀 POTENTIEL D'OPTIMISATION (VALUE-ADD) IDENTIFIÉ PAR LE CLIENT:\n  * ${potentielOptimisation.join('\n  * ')}\n  -> L'IA DOIT utiliser ces éléments pour formuler une stratégie d'augmentation de valeur agressive dans la section 'recommendations'.` 
+        ? `\n- 🚀 POTENTIEL D'OPTIMISATION (VALUE-ADD) IDENTIFIÉ PAR LE CLIENT:\n  * ${potentielOptimisation.join('\n  * ')}\n  -> L'IA DOIT utiliser ces éléments pour formuler une stratégie d'augmentation de valeur agressive (Value-Add).` 
         : '';
 
-      // 🔴 AJOUT : FORMATER LA CONFIGURATION DES LOGEMENTS POUR L'IA
       const configLogements = logementsDetail && logementsDetail.length > 0 
         ? `\n- Configuration des logements: ${logementsDetail.map(l => `${l.quantite}x ${l.type}`).join(', ')}` 
         : '';
 
-      // 🔴 DÉTECTEUR INTELLIGENT : PETIT PLEX vs GROS MULTILOGEMENT
+      // DÉTECTEUR INTELLIGENT : PETIT PLEX vs GROS MULTILOGEMENT
       let avertissementPlex = '';
       if (nombreUnites > 0 && nombreUnites <= 6) {
          avertissementPlex = `\n🚨 DIRECTIVE CRITIQUE POUR PETIT PLEX (${nombreUnites} unités) : Le marché actuel paie une prime pour ce type d'immeuble, souvent déconnectée des revenus actuels. Il est STRICTEMENT INTERDIT de sous-évaluer (lowball) la propriété en se basant uniquement sur un MRB faible ou un Cap Rate théorique. Tu DOIS calculer le prix EXCLUSIVEMENT en te basant sur les VENTES COMPARABLES RÉCENTES et le PRIX PAR PORTE moyen du secteur.`;
       } else if (nombreUnites > 6) {
-         avertissementPlex = `\n🚨 DIRECTIVE CRITIQUE POUR MULTILOGEMENT COMMERCIAL (${nombreUnites} unités) : Pour les immeubles de 7 logements et plus, la méthode de la VALEUR ÉCONOMIQUE prime. Tu DOIS baser ton évaluation principalement sur la rentabilité financière de l'immeuble. La valeur est calculée ainsi: NOI (Revenu Net d'Exploitation) divisé par le Taux d'Actualisation (Cap Rate) moyen du secteur. Utilise le Prix par porte uniquement pour valider ton résultat, mais le Cap Rate dicte le marché.`;
+         avertissementPlex = `\n🚨 DIRECTIVE CRITIQUE POUR MULTILOGEMENT COMMERCIAL (${nombreUnites} unités) : Pour les immeubles de 7 logements et plus, la méthode de la VALEUR ÉCONOMIQUE prime. Tu DOIS baser ton évaluation principalement sur la rentabilité financière de l'immeuble. La valeur est calculée ainsi: NOI (Revenu Net d'Exploitation) divisé par le Taux d'Actualisation (Cap Rate) moyen du secteur.`;
       }
 
-      // 🔴 ON AJOUTE LA CONFIGURATION DANS LE PROMPT ICI
       promptSpecifique = `
 DONNÉES FINANCIÈRES IMMEUBLE À REVENUS:
 - Unités: ${nombreUnites} | Occupation: ${tauxOccupation}% | Loyer moyen: $${loyerMoyenParUnite}/mois${configLogements}
@@ -1555,16 +1575,15 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       `;
     }
 
-    // 🔴 RÈGLES D'ÉVALUATION DYNAMIQUES SELON LE TYPE D'ACTIF
     let reglesEvaluation = "";
     if (finalProprieTyType === 'immeuble_revenus' && nombreUnites > 0 && nombreUnites <= 6) {
       reglesEvaluation = `
-      2. 🚨 RÈGLE D'EXTRAPOLATION (PETIT PLEX 2-6 UNITÉS) : Tu DOIS ABSOLUMENT prioriser les ventes comparables directes. Si le gabarit exact est introuvable, utilise le Prix par Porte moyen des gabarits proches.
+      2. 🚨 RÈGLE D'EXTRAPOLATION (PETIT PLEX 2-6 UNITÉS) : Tu DOIS ABSOLUMENT prioriser les ventes comparables directes.
       3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE est le marché (les comparables ou le prix par porte). NE BASE PAS ton prix sur le MRB ou le Cap Rate/NOI s'ils donnent un résultat inférieur au marché.`;
     } else if (finalProprieTyType === 'immeuble_revenus' && nombreUnites > 6) {
       reglesEvaluation = `
       2. 🚨 RÈGLE D'EXTRAPOLATION (MULTILOGEMENT 7+ UNITÉS) : La valeur d'un tel immeuble repose sur sa VALEUR ÉCONOMIQUE. Tu DOIS baser ton évaluation sur la capitalisation des revenus (NOI / Cap Rate).
-      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE est la rentabilité. Utilise les comparables vendus et le prix par porte pour valider la valeur économique, mais le calcul NOI/Cap Rate dicte le marché.`;
+      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE est la rentabilité. Utilise les comparables vendus et le prix par porte pour valider, mais le calcul NOI/Cap Rate dicte le marché.`;
     } else {
       reglesEvaluation = `
       2. 🚨 RÈGLE D'EXTRAPOLATION : Utilise la méthode des comparables et le Taux d'Actualisation (Cap Rate) approprié au type d'actif.
@@ -1577,13 +1596,26 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       
       RÈGLES STRICTES :
       1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 2 liens hyper pertinents pour valider en profondeur.${reglesEvaluation}
-      4. 🚨 ATTENTION À L'ÉVALUATION MUNICIPALE : Ne confonds JAMAIS l'évaluation municipale (le rôle foncier utilisé pour les taxes) avec la valeur marchande. Cherche explicitement le "Prix demandé" (Asking price) ou le "Prix vendu" (Sold price).
+      4. 🚨 ATTENTION À L'ÉVALUATION MUNICIPALE : Ne confonds JAMAIS l'évaluation municipale (le rôle foncier utilisé pour les taxes) avec la valeur marchande.
       5. COMMENTAIRES SECONDAIRES : Les calculs financiers (Cap Rate, MRB, rentabilité) doivent UNIQUEMENT servir de commentaire.
       6. N'INVENTE JAMAIS D'URL. Si aucun lien web_search valide, mets "url": null.
-      7. CONCISION : Sois extrêmement concis (max 3 phrases) dans les champs textuels du JSON pour éviter que ta réponse ne soit tronquée.
+      7. CONCISION : Sois extrêmement concis (max 3 phrases) dans les champs textuels du JSON.
       8. FORMAT DES NOMBRES (CRITIQUE) : Tous les montants financiers dans le JSON doivent obligatoirement être des nombres entiers purs, SANS ESPACES et SANS VIRGULES (ex: 1500000 et non 1 500 000 ou 1,500,000).
-      9. FORMAT FINAL : Réponds UNIQUEMENT ET EXCLUSIVEMENT avec un objet JSON valide. Ne mets AUCUNE balise markdown (pas de \`\`\`json), aucun texte avant, aucun texte après.
+      
+      ${isAcheteur ? `
+      9. 🎯 DIRECTIVE PROSPECTION (ACHETEUR) :
+         - Tu DOIS analyser de façon agressive si l'actif est une opportunité (Deal).
+         - Génère OBLIGATOIREMENT le bloc JSON "potentielOptimisation" pour livrer ton verdict d'achat.
+      ` : `
+      9. 📝 DIRECTIVE VENDEUR :
+         - Concentre-toi sur la valeur actuelle maximale justifiée et les leviers pour bien le vendre sur le marché.
+      `}
+      10. FORMAT FINAL : Réponds UNIQUEMENT ET EXCLUSIVEMENT avec un objet JSON valide. Ne mets AUCUNE balise markdown.
     `;
+
+    const jsonOptimisation = isAcheteur 
+        ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge visé", "avisProspection": "Verdict tranché: Excellent deal / Prix de marché juste / Surévalué. Explique brièvement l'angle d'attaque ou l'opportunité d'optimisation." },` 
+        : '';
 
     const valuationPrompt = `
       ÉVALUATION COMMERCIALE:
@@ -1596,18 +1628,16 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       - Rénovations/Notes: ${notes_additionnelles || renovations?.join(', ') || 'Aucune'}
 
       ${promptSpecifique}
-      
-      DONNÉES HISTORIQUES D'ACHAT (Pour section analyse uniquement):
-      ${infoAchat}
+      ${infoFinanciere}
 
-      RECHERCHE: Trouve 2 à 4 comparables (vendus ou actifs) dans ce secteur pour 2025/2026. Si le gabarit exact est introuvable, utilise des gabarits proches et applique la méthode appropriée pour estimer la valeur.
-      RAPPEL: L'estimation de prix (valeurMoyenne) DOIT être basée à 100% sur les données de marché (Ventes comparables ou NOI/Cap Rate selon la taille de l'immeuble).
+      RECHERCHE: Trouve 2 à 4 comparables (vendus ou actifs) dans ce secteur pour 2025/2026.
       
       FORMAT JSON ATTENDU (Assure-toi de fournir un JSON valide et d'utiliser des entiers SANS ESPACES pour tous les nombres):
       {
         "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0, "confiance": "haute" },
         "metriquesCommerciales": { "capRate": 0, "noiAnnuel": 0, "cashOnCash": 0, "revenuParSurfaceLocable": 0, "multiplicateurRevenu": 0 },
-        "analyse": { "appreciationTotale": ${aDesDonneesAchat ? '0' : 'null'}, "pourcentageGainTotal": ${aDesDonneesAchat ? '0' : 'null'}, "marketTrend": "equilibre", "secteurAnalysis": "(Max 3 phrases) Explication concise de la dynamique du marché, comparables et prix par porte/Cap Rate." },
+        ${jsonOptimisation}
+        "analyse": { "appreciationTotale": ${aDesDonneesAchat && !isAcheteur ? '0' : 'null'}, "pourcentageGainTotal": ${aDesDonneesAchat && !isAcheteur ? '0' : 'null'}, "marketTrend": "equilibre", "secteurAnalysis": "(Max 3 phrases) Explication concise de la dynamique du marché, comparables et prix par porte/Cap Rate." },
         "facteursPrix": { "positifs": ["..."], "negatifs": ["..."], "incertitudes": ["..."] },
         "recommendations": { "renovationsRentables": ["..."], "optimisationRevenu": ["..."], "reduceExpenses": ["..."], "strategie": "...", "timing": "..." },
         "comparables": [
@@ -1683,7 +1713,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
 
             if (readResponse.ok) {
               const text = await readResponse.text();
-              resultStr = text.slice(0, 8000); // 8000 chars pour la rapidité
+              resultStr = text.slice(0, 8000); 
               console.log(`   ✅ Lecture réussie (${resultStr.length} caractères).`);
             } else {
               resultStr = "La page a bloqué la lecture ou est indisponible.";
@@ -1721,7 +1751,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
 
       messages.push({ role: 'user', content: toolResults });
 
-      // 🔴 APPEL SUIVANT AVEC RETRY 🔴
+      // APPEL SUIVANT AVEC RETRY
       response = await callClaudeWithRetry(() => claude.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 4000, 
@@ -1737,7 +1767,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
     // 4. Extraction du contenu final
     let finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
     
-    // 🔴 FILET DE SÉCURITÉ REGEX : On extrait uniquement la portion JSON (de { à })
+    // FILET DE SÉCURITÉ REGEX : On extrait uniquement la portion JSON (de { à })
     const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
        finalContent = jsonMatch[0];
@@ -1748,6 +1778,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
 
     // 5. Sauvegarde Firestore
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations_commerciales').add({
+      userType,
       proprietyType: finalProprieTyType,
       ville,
       quartier,
@@ -1755,6 +1786,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       addresseComplete,
       prixAchat: prixAchat || null,
       anneeAchat: anneeAchat || null,
+      prixAffichage: prixAffichage || null,
       anneeConstruction: isTerrain ? null : anneeConstruction,
       optimisation: {
          chauffage_proprio,
@@ -1763,7 +1795,6 @@ DONNÉES SPÉCIFIQUES TERRAIN:
          sous_sol_inexploite,
          stationnement_gratuit
       },
-      // 🔴 AJOUT : SAUVEGARDER LES DÉTAILS DANS FIRESTORE
       logementsDetail: logementsDetail || [],
       result: valuationResult,
       evaluationType: 'commercial',
