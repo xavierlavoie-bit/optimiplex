@@ -1085,7 +1085,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
   try {
     const {
       userId,
-      userType = 'vendeur', // Nouveau champ: 'acheteur' ou 'vendeur'
+      userType = 'vendeur', // 'acheteur' ou 'vendeur'
       proprietyType,
       addresseComplete,
       ville,
@@ -1093,8 +1093,8 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       codePostal,
       prixAchat, // Pour vendeur
       anneeAchat, // Pour vendeur
-      prixAffichage, // NOUVEAU: Pour acheteur
-      urlAnnonce, // NOUVEAU: Pour acheteur
+      prixAffichage, // Pour acheteur
+      urlAnnonce, // Pour acheteur
       anneeConstruction,
       surfaceHabitee,
       surfaceLot,
@@ -1114,7 +1114,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     } = req.body;
 
     if (!proprietyType || !ville || !anneeConstruction) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Paramètres obligatoires manquants',
         required: ['proprietyType', 'ville', 'anneeConstruction']
       });
@@ -1147,8 +1147,8 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         `;
     } else {
         const aDesDonneesAchat = !!(prixAchat && anneeAchat);
-        infoFinanciere = aDesDonneesAchat 
-            ? `HISTORIQUE D'ACHAT:\n- Prix d'achat en ${anneeAchat}: ${prixAchat}$` 
+        infoFinanciere = aDesDonneesAchat
+            ? `HISTORIQUE D'ACHAT:\n- Prix d'achat en ${anneeAchat}: ${prixAchat}$`
             : `HISTORIQUE D'ACHAT:\n- Historique d'achat non fourni. Ne pas calculer d'appréciation historique.`;
     }
 
@@ -1156,7 +1156,6 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     console.log(`🏠 NOUVELLE ÉVALUATION (${userType.toUpperCase()}): ${proprietyType} à ${ville}`);
     console.log(`========================================================\n`);
 
-    // 1. Définition des outils de recherche (Reste inchangé)
     const tools = [
       {
         name: "web_search",
@@ -1181,7 +1180,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     ];
 
     const systemPrompt = `
-      Tu es un expert en évaluation immobilière (A.É.) au Québec, membre de l'OEAQ.
+      Tu es un expert en évaluation immobilière (A.É.) au Québec, membre de l'OEAQ, et un as du marketing immobilier.
       Tu AS accès à Internet via les outils 'web_search' et 'read_webpage'.
       
       RÈGLES STRICTES POUR LES COMPARABLES ET L'ÉVALUATION :
@@ -1192,19 +1191,22 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       5. RÔLE ACTUEL : L'utilisateur est en mode ${isAcheteur ? 'ACHETEUR (Prospection / Deal)' : 'VENDEUR (Évaluation / Mise en vente)'}.
       
       ${isAcheteur ? `
-      6. DIRECTIVE PROSPECTION (TRÈS IMPORTANT) : Compare AGRESSIVEMENT le "Prix demandé" à ta "valeurMoyenne". 
+      6. DIRECTIVE PROSPECTION (TRÈS IMPORTANT) : Compare AGRESSIVEMENT le "Prix demandé" à ta "valeurMoyenne".
          - Si la valeur marchande est beaucoup plus élevée que le prix demandé, c'est un deal !
          - Génère OBLIGATOIREMENT la clé JSON "potentielOptimisation" pour donner ton verdict franc et direct.
       ` : `
-      6. DIRECTIVE VENDEUR : Concentre-toi sur le gain en capital (si l'historique d'achat est fourni) et la meilleure stratégie pour vendre vite et cher.
+      6. DIRECTIVE VENDEUR (TRÈS IMPORTANT) : Concentre-toi sur la meilleure stratégie pour vendre vite et cher.
+         - Génère OBLIGATOIREMENT la clé JSON "marketingKit" contenant une description professionnelle prête à être publiée sur DuProprio/Centris.
+         - Rédige un texte vendeur, détaillé, qui met en valeur les atouts (rénovations, localisation, revenus si applicable).
+         - Utilise ta propre "valeurMoyenne" calculée comme "prixAfficheSuggere".
       `}
       7. Réponds UNIQUEMENT avec un JSON valide.
     `;
 
-    // Génération de la clé conditionnelle "potentielOptimisation"
-    const jsonOptimisation = isAcheteur 
-        ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge", "avisProspection": "Excellent deal / Prix de marché / Surévalué. Explique brièvement pourquoi." },` 
-        : '';
+    // Génération de la clé conditionnelle JSON (Optimisation vs Marketing Kit)
+    const jsonRoleSpecific = isAcheteur
+        ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge", "avisProspection": "Excellent deal / Prix de marché / Surévalué. Explique brièvement pourquoi." },`
+        : `"marketingKit": { "titreAnnonce": "Titre très accrocheur pour l'annonce (ex: Superbe propriété de prestige...)", "prixAfficheSuggere": 0, "descriptionDuProprio": "Texte complet et très vendeur pour une annonce immobilière. Inclus localisation, caractéristiques, rénovations, proximité des services. Format paragraphe bien structuré." },`;
 
     const valuationPrompt = `
       CONTEXTE DE MARCHÉ:
@@ -1236,7 +1238,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       {
         "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0, "confiance": "haute" },
         "analyse": { "appreciationTotale": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "pourcentageGainTotal": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "marketTrend": "vendeur", "analyseSecteur": "Paragraphe d'analyse du marché local." },
-        ${jsonOptimisation}
+        ${jsonRoleSpecific}
         "facteursPrix": { "positifs": [], "negatifs": [], "incertitudes": [] },
         "recommendations": { "renovationsRentables": [], "strategieVente": "" },
         "comparables": [
@@ -1249,7 +1251,6 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
 
     console.log("🤖 [IA] Appel initial à Claude envoyé...");
     
-    // 2. Appel initial Claude
     let response = await claude.messages.create({
       model: 'claude-sonnet-4-6', // Ou claude-3-5-sonnet-20241022
       max_tokens: 4000,
@@ -1259,7 +1260,6 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       messages: messages
     });
 
-    // 3. Boucle Tool Use (Reste inchangée de ton code original)
     let iterations = 0;
     const maxIterations = 3;
 
@@ -1291,7 +1291,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
           } catch (e) {
             resultStr = "Erreur technique de recherche.";
           }
-        } 
+        }
         else if (toolCall.name === 'read_webpage') {
           const url = toolCall.input.url;
           console.log(`   📖 Lecture Page : "${url}"`);
@@ -1305,7 +1305,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
             clearTimeout(timeoutId);
             if (readResponse.ok) {
               const text = await readResponse.text();
-              resultStr = text.slice(0, 8000); 
+              resultStr = text.slice(0, 8000);
             } else {
               resultStr = "La page a bloqué la lecture.";
             }
@@ -1320,9 +1320,9 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       messages.push({ role: 'assistant', content: response.content });
       
       if (iterations >= maxIterations) {
-        toolResults.push({ 
-          type: 'text', 
-          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide." 
+        toolResults.push({
+          type: 'text',
+          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide."
         });
       }
 
@@ -1330,7 +1330,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
 
       response = await claude.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000, 
+        max_tokens: 4000,
         temperature: 0,
         system: systemPrompt,
         tools: iterations < maxIterations ? tools : undefined,
@@ -1338,11 +1338,9 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       });
     }
 
-    // 4. Extraction du JSON Final
     const finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
-    const valuationResult = parseClaudeJSON(finalContent); // Ta fonction existante pour nettoyer le JSON
+    const valuationResult = parseClaudeJSON(finalContent);
 
-    // 5. Sauvegarde Firestore (On sauvegarde le type d'utilisateur aussi)
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
       userType,
       proprietyType,
@@ -1359,7 +1357,6 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       paidWith: req.quotaInfo.mode
     });
 
-    // 6. Déduction Usage
     await deductUsage(userId, req.quotaInfo);
 
     res.json({
