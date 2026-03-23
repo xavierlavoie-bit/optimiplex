@@ -114,7 +114,10 @@ const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 // 1️⃣ HOOK POUR DÉTECTION MOBILE
 // ============================================
 const useWindowSize = () => {
-  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [windowSize, setWindowSize] = useState({ 
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024, 
+    height: typeof window !== 'undefined' ? window.innerHeight : 800 
+  });
   
   useEffect(() => {
     const handleResize = () => {
@@ -122,7 +125,7 @@ const useWindowSize = () => {
     };
     
     window.addEventListener('resize', handleResize);
-    handleResize();
+    handleResize(); // Initialisation au montage
     
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -138,47 +141,46 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
   const isMobile = windowSize.width < 768;
 
   useEffect(() => {
-    if (!isMobile) {
+    // Si on repasse sur Desktop, on s'assure que le Sidebar s'ouvre bien
+    if (!isMobile && !sidebarOpen) {
       setSidebarOpen(true);
     }
-  }, [isMobile, setSidebarOpen]);
+  }, [isMobile]); // Dépendance uniquement sur isMobile pour éviter les boucles
 
   return (
     <>
       {/* Mobile Top Bar - Visible < 768px */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4">
-        <h1 className="text-lg font-black text-gray-900">OptimiPlex</h1>
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4 shadow-sm">
+        <h1 className="text-xl font-black text-gray-900 tracking-tight">OptimiPlex</h1>
         
         <div className="flex items-center gap-3">
           {/* ✅ Affichage crédits mobile */}
-          <div className="flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-full text-xs font-bold text-indigo-700 border border-indigo-100">
-            💎
+          <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full text-sm font-black text-indigo-700 border border-indigo-100 shadow-sm">
+            <span>💎</span>
             <span>{credits || 0}</span>
           </div>
 
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg transition hover:bg-gray-100"
+            className="p-2 rounded-xl transition-colors hover:bg-gray-100 active:bg-gray-200 text-gray-800"
+            aria-label="Menu mobile"
           >
-            {sidebarOpen ? (
-              <X size={24} className="text-gray-900" />
-            ) : (
-              <Menu size={24} className="text-gray-900" />
-            )}
+            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu Overlay - Flou pour la fluidité/beauté */}
       {sidebarOpen && isMobile && (
         <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40 top-16"
+          className="md:hidden fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 transition-opacity duration-300"
+          style={{ top: '4rem' }} // Démarre juste sous le header de 16 (4rem)
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Offset for mobile top bar */}
-      <div className="md:hidden h-16" />
+      {/* Espace vide pour ne pas cacher le contenu sous la Top Bar fixe */}
+      <div className="md:hidden h-16 w-full shrink-0" />
     </>
   );
 }
@@ -200,115 +202,122 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) setSidebarOpen(false); // Ferme automatiquement sur mobile
   };
+
+  // 🛑 Verrouillage du scroll : Très important pour la fluidité mobile !
+  useEffect(() => {
+    if (isMobile && sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isMobile, sidebarOpen]);
 
   return (
     <>
       {/* Desktop Sidebar - Visible >= 768px */}
-      <div className={`hidden md:block fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 z-40`}>
+      <div className={`hidden md:flex flex-col fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 ease-in-out z-40 shadow-sm`}>
         {/* Logo */}
-        <div className="p-6 border-b border-gray-200">
-          <h1 className={`font-black text-gray-900 ${sidebarOpen ? 'text-lg' : 'text-sm text-center'}`}>
+        <div className="p-6 border-b border-gray-100 flex items-center justify-center shrink-0 h-20">
+          <h1 className={`font-black text-gray-900 whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarOpen ? 'text-2xl' : 'text-lg'}`}>
             {sidebarOpen ? 'OptimiPlex' : 'OP'}
           </h1>
         </div>
 
         {/* Navigation */}
-        <nav className="py-4 space-y-2 px-4">
+        <nav className="flex-1 py-6 space-y-2 px-3 overflow-y-auto">
           {navItems.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => handleTabChange(id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+              title={!sidebarOpen ? label : ''}
+              className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
                 activeTab === id
-                  ? 'bg-indigo-100 border border-indigo-300 text-indigo-700'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                  ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-transparent'
               }`}
             >
               {sidebarOpen ? (
-                <span className="font-semibold">{label}</span>
+                <span className="font-bold whitespace-nowrap">{label}</span>
               ) : (
-                <span className="text-center w-full">{label.charAt(0)}</span>
+                <span className="text-center w-full text-xl group-hover:scale-110 transition-transform">{[...label][0]}</span>
               )}
             </button>
           ))}
         </nav>
 
         {/* ✅ Affichage crédits Sidebar Desktop */}
-        {sidebarOpen && (
-          <div className="px-6 py-4">
-            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-3 border border-indigo-100">
-              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Crédits disponible</p>
-              <div className="flex items-center gap-2">
-                💎
-                <span className="text-2xl font-black text-indigo-900">{credits || 0}</span>
-              </div>
+        <div className={`px-4 py-4 shrink-0 transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-4 border border-indigo-100 shadow-inner">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Crédits</p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl drop-shadow-sm">💎</span>
+              <span className="text-3xl font-black text-indigo-900">{credits || 0}</span>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Bottom Actions */}
-        <div className="absolute bottom-6 left-0 right-0 px-4 space-y-3">
+        <div className="p-4 space-y-2 border-t border-gray-100 shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all text-sm"
+            className="w-full flex justify-center items-center p-3 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors text-sm font-bold"
+            title={sidebarOpen ? 'Réduire le menu' : 'Agrandir le menu'}
           >
             {sidebarOpen ? '← Réduire' : '→'}
           </button>
           <button
             onClick={onLogout}
-            className="w-full p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-all text-sm font-semibold"
+            className={`w-full flex justify-center items-center p-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors font-bold text-sm ${!sidebarOpen && 'px-0'}`}
+            title="Déconnexion"
           >
-            {sidebarOpen ? '🚪 Déconnexion' : '✕'}
+            {sidebarOpen ? '🚪 Déconnexion' : '🚪'}
           </button>
         </div>
       </div>
 
-      {/* Mobile Sidebar - Visible < 768px */}
+      {/* Mobile Sidebar (Drawer) - Visible < 768px */}
       <nav
-        className={`md:hidden fixed top-16 left-0 h-screen bg-white w-64 z-40 transform transition-transform duration-300 border-r border-gray-200 ${
+        className={`md:hidden fixed top-16 bottom-0 left-0 bg-white w-64 z-50 transform transition-transform duration-300 ease-in-out border-r border-gray-200 shadow-2xl flex flex-col ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } overflow-y-auto`}
+        }`}
       >
         {/* User Info Mobile */}
-        <div className="p-4 border-b border-gray-200">
-          <p className="text-sm text-gray-600 truncate font-medium">{user?.email}</p>
-          <div className="mt-2 flex items-center justify-between">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-full">
-              <span className="text-xs font-semibold text-blue-700">
-                {planInfo[userPlan]?.name}
+        <div className="p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
+          <p className="text-sm text-gray-600 truncate font-bold">{user?.email || 'Utilisateur'}</p>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 rounded-lg shadow-sm">
+              <span className="text-xs font-black text-blue-800 uppercase tracking-wide">
+                {planInfo?.[userPlan]?.name || 'Plan Free'}
               </span>
-            </div>
-            {/* ✅ Crédits Mobile Sidebar */}
-            <div className="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
-              💎 {credits || 0}
             </div>
           </div>
         </div>
 
         {/* Navigation Items Mobile */}
-        <div className="py-2">
+        <div className="py-4 flex-1 overflow-y-auto px-3 space-y-1">
           {navItems.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => handleTabChange(id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition border-l-4 ${
+              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left rounded-xl transition-all font-bold text-sm ${
                 activeTab === id
-                  ? 'bg-indigo-50 text-indigo-600 border-indigo-600'
-                  : 'text-gray-700 hover:bg-gray-50 border-transparent'
+                  ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
               }`}
             >
-              <span className="font-medium text-sm">{label}</span>
+              {label}
             </button>
           ))}
         </div>
 
         {/* Logout Mobile */}
-        <div className="px-4 py-2 mt-4 border-t border-gray-200 pt-4">
+        <div className="p-4 border-t border-gray-100 bg-white shrink-0">
           <button
             onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium text-sm"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-black text-sm shadow-sm"
           >
             🚪 Déconnexion
           </button>
@@ -1315,6 +1324,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [editingTitle, setEditingTitle] = useState('');
   
   const [listFilter, setListFilter] = useState('all');
+  const [copySuccess, setCopySuccess] = useState(false); // Nouvel état pour la copie du kit marketing
 
   // ============================================
   // CHARGER LES ANALYSES
@@ -1486,6 +1496,22 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     document.body.removeChild(textArea);
   };
 
+  // NOUVELLE FONCTION: Copier le kit marketing
+  const copyToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2500); // Remettre à false après 2.5s
+    } catch (err) {
+      console.error('Erreur lors de la copie', err);
+    }
+    document.body.removeChild(textArea);
+  };
+
   // ============================================
   // UTILITAIRES D'AFFICHAGE
   // ============================================
@@ -1613,7 +1639,10 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const timing = recs.timing || recs.venteMeilleuresChances;
     
     const marketAnalysis = result.marketanalysis || {};
-    const marketingKit = result.marketingkit || {};
+    
+    // Support pour les deux types de kit marketing (Commercial et Résidentiel)
+    const marketingKit = result.marketingKit || result.marketingkit || {};
+    
     const justification = recs.justification || recs.raisonnement || []; 
     const pointsCles = recs.pointscles || [];
     const prochainesEtabpes = recs.prochainesetapes || [];
@@ -1976,6 +2005,42 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 </div>
               </div>
             )}
+
+            {/* --- NOUVEAU BLOC : MARKETING KIT (Vendeur Résidentiel) --- */}
+            {isValuation && marketingKit && marketingKit.descriptionDuProprio && (
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-3xl p-6 md:p-8 shadow-md text-gray-800 mt-8">
+                <h3 className="text-xl md:text-2xl font-black mb-6 text-purple-900 flex items-center gap-3">
+                  📢 Kit Marketing (Prêt à publier)
+                </h3>
+                <div className="bg-white p-6 rounded-2xl border border-purple-100 shadow-sm space-y-5">
+                  <div>
+                    <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Titre suggéré</p>
+                    <p className="text-xl font-bold text-gray-900">{marketingKit.titreAnnonce}</p>
+                  </div>
+                  <div>
+                    <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Prix à afficher suggéré</p>
+                    <p className="text-2xl font-black text-purple-700">
+                      {marketingKit.prixAfficheSuggere ? `$${formatCurrency(marketingKit.prixAfficheSuggere)}` : 'Selon valeur moyenne'}
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <div className="flex justify-between items-end mb-2">
+                       <p className="text-purple-600 text-xs uppercase tracking-wide font-bold">Description générée (DuProprio/Centris)</p>
+                       <button 
+                          onClick={() => copyToClipboard(marketingKit.descriptionDuProprio)}
+                          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                       >
+                          {copySuccess ? '✅ Copiée !' : '📋 Copier le texte'}
+                       </button>
+                    </div>
+                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 whitespace-pre-line text-gray-700 leading-relaxed font-medium">
+                      {marketingKit.descriptionDuProprio}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </>
         )}
 
@@ -2052,7 +2117,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               </div>
             </div>
 
-            {/* 3. Marketing Kit */}
+            {/* 3. Marketing Kit Commercial (Ancien) */}
             {marketingKit.titreannonce && (
               <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-indigo-100 rounded-2xl p-1">
                 <div className="bg-white/80 backdrop-blur-md p-6 rounded-xl">
@@ -4180,6 +4245,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const [slideProgress, setSlideProgress] = useState(0);
   const [error, setError] = useState('');
   const [slideErrors, setSlideErrors] = useState({});
+  const [copySuccess, setCopySuccess] = useState(false); // Nouvel état pour le bouton copier
   
   const isSubmittingRef = useRef(false);
   const resultRef = useRef(null);
@@ -4192,10 +4258,10 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     quartier: '',
     codePostal: '',
     addresseComplete: '',
-    prixAffichage: '', // Pour acheteur
-    urlAnnonce: '', // Pour acheteur
-    prixAchat: '', // Pour vendeur
-    anneeAchat: '', // Pour vendeur
+    prixAffichage: '', 
+    urlAnnonce: '', 
+    prixAchat: '', 
+    anneeAchat: '', 
     anneeConstruction: 1990,
     surfaceHabitee: '',
     surfaceLot: '',
@@ -4219,9 +4285,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     '🤖 Évaluation des composantes (Toiture, Électricité, etc.)...',
     '📈 Calcul de la valeur marchande actuelle...',
     '🔗 Extraction des données (Centris, DuProprio)...',
-    formData.userType === 'acheteur' 
-        ? '🎯 Analyse du deal et du potentiel de flip...' 
-        : '📝 Préparation de la stratégie de vente...',
+    formData.userType === 'acheteur'
+        ? '🎯 Analyse du deal et du potentiel de flip...'
+        : '📝 Préparation du kit marketing et stratégie...',
     '✅ Finalisation du rapport expert...',
   ];
 
@@ -4353,14 +4419,13 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       return;
     }
 
-    if (isSubmittingRef.current) return; 
+    if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
     try {
       setLoading(true);
       setError('');
 
-      // Restauration de l'appel exact vers TON backend
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`;
       const payload = { userId: user?.uid, ...formData };
 
@@ -4377,7 +4442,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
       const result = await resp.json();
 
-      // Mise à jour du quota (si applicable)
       if (setQuotaInfo && quotaInfo && !quotaInfo.isUnlimited) {
         if (quotaInfo.remaining > 0) {
            setQuotaInfo(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1) }));
@@ -4403,6 +4467,22 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     }
   };
 
+  // NOUVELLE FONCTION: Copier le texte
+  const copyToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2500); // Remettre à false après 2.5s
+    } catch (err) {
+      console.error('Erreur lors de la copie', err);
+    }
+    document.body.removeChild(textArea);
+  };
+
   // --- RENDERERS DE SLIDES ---
 
   const renderProfilSlide = () => (
@@ -4425,7 +4505,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         >
           <div className="text-3xl">🏷️</div>
           <h3 className={`text-lg font-black ${formData.userType === 'vendeur' ? 'text-indigo-900' : 'text-gray-800'}`}>Vendeur / Propriétaire</h3>
-          <p className="text-sm text-gray-500">Je suis propriétaire, je veux estimer la valeur de ma maison pour la vendre ou refinancer.</p>
+          <p className="text-sm text-gray-500">Je suis propriétaire, je veux estimer la valeur de ma maison pour la vendre et obtenir mon annonce clé en main.</p>
         </button>
       </div>
     </div>
@@ -4715,6 +4795,46 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
+  // NOUVEAU BLOC : MARKETING KIT POUR LE VENDEUR
+  const renderMarketingKit = () => {
+    const kit = selectedProperty.marketingKit;
+    if (!kit) return null;
+
+    return (
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-6 md:p-8 shadow-md text-gray-800">
+        <h3 className="text-xl md:text-2xl font-black mb-6 text-purple-900 flex items-center gap-3">
+          📢 Kit Marketing (Prêt à publier)
+        </h3>
+        <div className="bg-white p-6 rounded-xl border border-purple-100 shadow-sm space-y-5">
+          <div>
+            <p className="text-purple-600 text-sm uppercase tracking-wide font-bold mb-1">Titre suggéré</p>
+            <p className="text-xl font-bold text-gray-900">{kit.titreAnnonce}</p>
+          </div>
+          <div>
+            <p className="text-purple-600 text-sm uppercase tracking-wide font-bold mb-1">Prix à afficher suggéré</p>
+            <p className="text-2xl font-black text-purple-700">
+              {kit.prixAfficheSuggere ? `${kit.prixAfficheSuggere.toLocaleString('fr-CA')} $` : 'Selon valeur moyenne'}
+            </p>
+          </div>
+          <div className="pt-2">
+            <div className="flex justify-between items-end mb-2">
+               <p className="text-purple-600 text-sm uppercase tracking-wide font-bold">Description générée (DuProprio/Centris)</p>
+               <button 
+                  onClick={() => copyToClipboard(kit.descriptionDuProprio)}
+                  className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+               >
+                  {copySuccess ? '✅ Copiée !' : '📋 Copier le texte'}
+               </button>
+            </div>
+            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 whitespace-pre-line text-gray-700 leading-relaxed font-medium">
+              {kit.descriptionDuProprio}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderResidentialAppreciation = () => {
     const analyse = selectedProperty.analyse || {};
     const showFinancials = analyse.appreciationTotale || analyse.pourcentageGainTotal;
@@ -4775,7 +4895,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
     return (
       <div className="space-y-6">
-        {/* Analyse du secteur */}
         {analyse.analyseSecteur && (
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 shadow-sm">
             <h3 className="text-lg md:text-xl font-black text-amber-900 mb-3 flex items-center gap-2">
@@ -4787,7 +4906,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           </div>
         )}
 
-        {/* Liste des comparables */}
         {comparables.length > 0 && (
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
              <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">
@@ -4815,8 +4933,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                       {comp.url && comp.url !== "null" && comp.url !== "" && (
                          <div className="pl-2">
                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg">
-                             Voir l'annonce
-                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                              Voir l'annonce
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                            </a>
                          </div>
                       )}
@@ -4837,10 +4955,14 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
     if (!positives.length && !negatives.length && !uncertainties.length) return null;
 
+    // Calculer le nombre de colonnes nécessaires selon ce qui existe
+    const colCount = (positives.length > 0 ? 1 : 0) + (negatives.length > 0 ? 1 : 0) + (uncertainties.length > 0 ? 1 : 0);
+    const gridColsClass = colCount === 3 ? 'md:grid-cols-3' : colCount === 2 ? 'md:grid-cols-2' : 'grid-cols-1';
+
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
         <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-6 flex items-center gap-3">⚖️ Facteurs d'Influence</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 ${gridColsClass} gap-4`}>
           {positives.length > 0 && (
             <div className="bg-green-50 p-5 rounded-xl border border-green-100">
               <p className="font-bold text-green-800 mb-3 text-sm uppercase tracking-wide">Points forts (+)</p>
@@ -4860,6 +4982,18 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                 {negatives.map((item, idx) => (
                   <li key={idx} className="flex gap-2 text-sm text-gray-800">
                     <span className="text-red-500 font-bold">✕</span> <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {uncertainties.length > 0 && (
+            <div className="bg-amber-50 p-5 rounded-xl border border-amber-100">
+              <p className="font-bold text-amber-800 mb-3 text-sm uppercase tracking-wide">Incertitudes (?)</p>
+              <ul className="space-y-2">
+                {uncertainties.map((item, idx) => (
+                  <li key={idx} className="flex gap-2 text-sm text-gray-800">
+                    <span className="text-amber-500 font-bold">?</span> <span>{item}</span>
                   </li>
                 ))}
               </ul>
@@ -4908,7 +5042,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
   return (
     <div className="max-w-4xl mx-auto w-full font-sans">
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} />
+      {/* Tu auras besoin de ton propre LoadingSpinner ici */}
+     <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
       
       {/* FORM MODAL */}
       {showForm && (
@@ -5015,12 +5150,17 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       {selectedProperty && (
         <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
           {renderHeroValuation()}
-          {/* Nouveau bloc pour l'acheteur ! */}
+          
+          {/* Bloc pour l'acheteur ! */}
           {selectedProperty.potentielOptimisation && renderProspectionAvis()}
           
           {renderResidentialAppreciation()}
           {renderComparablesAndSecteur()}
           {renderFacteursPrix()}
+          
+          {/* NOUVEAU BLOC POUR LE VENDEUR ! Déplacé ici, juste avant les recommandations finales */}
+          {selectedProperty.marketingKit && renderMarketingKit()}
+
           {renderRecommendations()}
 
           <div className="flex justify-center pt-8 pb-12">
