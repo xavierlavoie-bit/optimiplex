@@ -1324,7 +1324,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [editingTitle, setEditingTitle] = useState('');
   
   const [listFilter, setListFilter] = useState('all');
-  const [copySuccess, setCopySuccess] = useState(false); // Nouvel état pour la copie du kit marketing
+  const [copySuccess, setCopySuccess] = useState(false); 
 
   // ============================================
   // CHARGER LES ANALYSES
@@ -1496,7 +1496,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     document.body.removeChild(textArea);
   };
 
-  // NOUVELLE FONCTION: Copier le kit marketing
   const copyToClipboard = (text) => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -1505,7 +1504,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     try {
       document.execCommand('copy');
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2500); // Remettre à false après 2.5s
+      setTimeout(() => setCopySuccess(false), 2500); 
     } catch (err) {
       console.error('Erreur lors de la copie', err);
     }
@@ -1833,6 +1832,18 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     <p className={`text-xl font-black ${stat.color}`}>{stat.val}</p>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* --- NOUVEAU BLOC : RENTABILITÉ PLEX --- */}
+            {analyseData.analyseRentabilite && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 shadow-sm">
+                 <h4 className="font-black text-indigo-900 mb-3 flex items-center gap-2 text-lg">
+                   💵 Rentabilité (MRB / TGA)
+                 </h4>
+                 <p className="text-sm text-indigo-900 leading-relaxed text-justify whitespace-pre-line">
+                   {analyseData.analyseRentabilite}
+                 </p>
               </div>
             )}
 
@@ -4245,7 +4256,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const [slideProgress, setSlideProgress] = useState(0);
   const [error, setError] = useState('');
   const [slideErrors, setSlideErrors] = useState({});
-  const [copySuccess, setCopySuccess] = useState(false); // Nouvel état pour le bouton copier
+  const [copySuccess, setCopySuccess] = useState(false);
   
   const isSubmittingRef = useRef(false);
   const resultRef = useRef(null);
@@ -4262,6 +4273,10 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     urlAnnonce: '', 
     prixAchat: '', 
     anneeAchat: '', 
+    // NOUVEAUX CHAMPS POUR PLEX
+    revenusAnnuels: '', 
+    depensesAnnuelles: '',
+    // FIN NOUVEAUX CHAMPS
     anneeConstruction: 1990,
     surfaceHabitee: '',
     surfaceLot: '',
@@ -4283,7 +4298,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     '🔍 Analyse du profil et de la propriété...',
     '📊 Récupération des comparables du secteur sur le Web...',
     '🤖 Évaluation des composantes (Toiture, Électricité, etc.)...',
-    '📈 Calcul de la valeur marchande actuelle...',
+    ['duplex', 'triplex', '4plex'].includes(formData.proprietyType) 
+        ? '💵 Calcul de rentabilité (MRB, TGA) pour immeuble à revenus...' 
+        : '📈 Calcul de la valeur marchande actuelle...',
     '🔗 Extraction des données (Centris, DuProprio)...',
     formData.userType === 'acheteur'
         ? '🎯 Analyse du deal et du potentiel de flip...'
@@ -4292,55 +4309,13 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   ];
 
   const slides = [
-    {
-      id: 'profil',
-      title: 'Votre Profil',
-      description: 'Êtes-vous en mode prospection ou évaluation ?',
-      icon: '👤',
-      required: ['userType'],
-    },
-    {
-      id: 'location',
-      title: 'Localisation',
-      description: 'Où se situe la propriété ?',
-      icon: '📍',
-      required: ['ville', 'proprietyType'],
-    },
-    {
-      id: 'dimensions',
-      title: 'Dimensions',
-      description: 'Taille et configuration',
-      icon: '📏',
-      required: ['anneeConstruction'],
-    },
-    {
-      id: 'components',
-      title: 'Composantes',
-      description: 'État des systèmes majeurs',
-      icon: '🔧',
-      required: [],
-    },
-    {
-      id: 'condition',
-      title: 'État et condition',
-      description: 'Finition et sous-sol',
-      icon: '🏗️',
-      required: ['etatGeneral'],
-    },
-    {
-      id: 'finances',
-      title: formData.userType === 'acheteur' ? "Données de l'annonce" : 'Historique (Optionnel)',
-      description: formData.userType === 'acheteur' ? "Pour analyser le deal" : "Pour calculer votre plus-value",
-      icon: '💰',
-      required: [],
-    },
-    {
-      id: 'amenities',
-      title: 'Extras & Détails',
-      description: 'Équipements et notes',
-      icon: '✨',
-      required: [],
-    },
+    { id: 'profil', title: 'Votre Profil', description: 'Êtes-vous en mode prospection ou évaluation ?', icon: '👤', required: ['userType'] },
+    { id: 'location', title: 'Localisation', description: 'Où se situe la propriété ?', icon: '📍', required: ['ville', 'proprietyType'] },
+    { id: 'dimensions', title: 'Dimensions', description: 'Taille et configuration', icon: '📏', required: ['anneeConstruction'] },
+    { id: 'components', title: 'Composantes', description: 'État des systèmes majeurs', icon: '🔧', required: [] },
+    { id: 'condition', title: 'État et condition', description: 'Finition et sous-sol', icon: '🏗️', required: ['etatGeneral'] },
+    { id: 'finances', title: formData.userType === 'acheteur' ? "Données de l'annonce" : 'Données Financières', description: ['duplex', 'triplex', '4plex'].includes(formData.proprietyType) ? "Chiffres et revenus de l'immeuble" : (formData.userType === 'acheteur' ? "Pour analyser le deal" : "Pour calculer votre plus-value"), icon: '💰', required: [] },
+    { id: 'amenities', title: 'Extras & Détails', description: 'Équipements et notes', icon: '✨', required: [] },
   ];
 
   const propertyTypes = [
@@ -4467,7 +4442,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     }
   };
 
-  // NOUVELLE FONCTION: Copier le texte
   const copyToClipboard = (text) => {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -4476,33 +4450,22 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     try {
       document.execCommand('copy');
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2500); // Remettre à false après 2.5s
+      setTimeout(() => setCopySuccess(false), 2500);
     } catch (err) {
       console.error('Erreur lors de la copie', err);
     }
     document.body.removeChild(textArea);
   };
 
-  // --- RENDERERS DE SLIDES ---
-
   const renderProfilSlide = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          type="button"
-          onClick={() => handleChange('userType', 'acheteur')}
-          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'acheteur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
-        >
+        <button type="button" onClick={() => handleChange('userType', 'acheteur')} className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'acheteur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}>
           <div className="text-3xl">🕵️‍♂️</div>
           <h3 className={`text-lg font-black ${formData.userType === 'acheteur' ? 'text-indigo-900' : 'text-gray-800'}`}>Acheteur / Prospection</h3>
           <p className="text-sm text-gray-500">J'ai vu une annonce, je veux savoir si c'est un bon prix et évaluer le deal (Flip, optimisation).</p>
         </button>
-        
-        <button
-          type="button"
-          onClick={() => handleChange('userType', 'vendeur')}
-          className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'vendeur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
-        >
+        <button type="button" onClick={() => handleChange('userType', 'vendeur')} className={`p-6 rounded-2xl text-left transition border-2 flex flex-col gap-2 ${formData.userType === 'vendeur' ? 'bg-indigo-50 border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white border-gray-200 hover:border-indigo-300'}`}>
           <div className="text-3xl">🏷️</div>
           <h3 className={`text-lg font-black ${formData.userType === 'vendeur' ? 'text-indigo-900' : 'text-gray-800'}`}>Vendeur / Propriétaire</h3>
           <p className="text-sm text-gray-500">Je suis propriétaire, je veux estimer la valeur de ma maison pour la vendre et obtenir mon annonce clé en main.</p>
@@ -4654,39 +4617,63 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     </div>
   );
 
-  const renderFinancesSlide = () => (
-    <div className="space-y-4">
-      {formData.userType === 'acheteur' ? (
-        <>
-          <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-4 text-sm text-indigo-800 rounded-r">
-            Entrez les informations de l'annonce pour que l'IA détecte si c'est une bonne affaire (Deal/Flip).
+  const renderFinancesSlide = () => {
+    const isPlex = ['duplex', 'triplex', '4plex'].includes(formData.proprietyType);
+
+    return (
+      <div className="space-y-4">
+        {formData.userType === 'acheteur' ? (
+          <>
+            <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-4 text-sm text-indigo-800 rounded-r">
+              Entrez les informations de l'annonce pour que l'IA détecte si c'est une bonne affaire (Deal/Flip).
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Prix affiché / demandé ($)</label>
+              <input type="number" placeholder="Ex: 350000" value={formData.prixAffichage} onChange={(e) => handleChange('prixAffichage', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Lien web de l'annonce (Optionnel)</label>
+              <input type="text" placeholder="https://..." value={formData.urlAnnonce} onChange={(e) => handleChange('urlAnnonce', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 mb-4 text-sm text-emerald-800 rounded-r">
+              Ces informations sont <strong>100% optionnelles</strong>. Remplissez-les pour calculer votre plus-value.
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Prix d'achat ($)</label>
+              <input type="number" placeholder="Ex: 350000" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Année d'achat</label>
+              <input type="number" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </>
+        )}
+
+        {/* NOUVELLE SECTION CONDITIONNELLE POUR LES PLEX */}
+        {isPlex && (
+          <div className="mt-6 border-t border-gray-200 pt-5">
+            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">🏢 Chiffres de l'immeuble (Optionnel)</h4>
+            <div className="bg-blue-50 border border-blue-100 p-3 mb-4 text-xs md:text-sm text-blue-800 rounded-lg">
+              Ajoutez les revenus pour que l'IA utilise l'approche du revenu (TGA / MRB) pour évaluer cet immeuble.
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Revenus annuels bruts ($)</label>
+                <input type="number" placeholder="Ex: 36000" value={formData.revenusAnnuels} onChange={(e) => handleChange('revenusAnnuels', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Dépenses annuelles ($)</label>
+                <input type="number" placeholder="Taxes, assurances..." value={formData.depensesAnnuelles} onChange={(e) => handleChange('depensesAnnuelles', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Prix affiché / demandé ($)</label>
-            <input type="number" placeholder="Ex: 350000" value={formData.prixAffichage} onChange={(e) => handleChange('prixAffichage', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Lien web de l'annonce (Optionnel)</label>
-            <input type="text" placeholder="https://..." value={formData.urlAnnonce} onChange={(e) => handleChange('urlAnnonce', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 mb-4 text-sm text-emerald-800 rounded-r">
-            Ces informations sont <strong>100% optionnelles</strong>. Remplissez-les pour calculer votre plus-value.
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Prix d'achat ($)</label>
-            <input type="number" placeholder="Ex: 350000" value={formData.prixAchat} onChange={(e) => handleChange('prixAchat', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Année d'achat</label>
-            <input type="number" min="1950" max={new Date().getFullYear()} value={formData.anneeAchat} onChange={(e) => handleChange('anneeAchat', parseInt(e.target.value, 10) || '')} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-        </>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   const renderAmenitiesSlide = () => (
     <div className="space-y-4">
@@ -4713,15 +4700,12 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     </div>
   );
 
-  // --- RENDERERS DE RESULTATS ---
-
   const renderHeroValuation = () => {
     const est = selectedProperty.estimationActuelle || {};
     return (
       <div className="relative overflow-hidden rounded-2xl shadow-xl">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 via-blue-600 to-indigo-900" />
         
-        {/* Cercles de design de fond */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-10 rounded-full blur-2xl"></div>
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 opacity-20 rounded-full blur-2xl"></div>
 
@@ -4795,7 +4779,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
-  // NOUVEAU BLOC : MARKETING KIT POUR LE VENDEUR
   const renderMarketingKit = () => {
     const kit = selectedProperty.marketingKit;
     if (!kit) return null;
@@ -4819,10 +4802,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           <div className="pt-2">
             <div className="flex justify-between items-end mb-2">
                <p className="text-purple-600 text-sm uppercase tracking-wide font-bold">Description générée (DuProprio/Centris)</p>
-               <button 
-                  onClick={() => copyToClipboard(kit.descriptionDuProprio)}
-                  className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-               >
+               <button onClick={() => copyToClipboard(kit.descriptionDuProprio)} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>
                   {copySuccess ? '✅ Copiée !' : '📋 Copier le texte'}
                </button>
             </div>
@@ -4840,7 +4820,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     const showFinancials = analyse.appreciationTotale || analyse.pourcentageGainTotal;
     const showMarket = analyse.marketTrend;
 
-    if (!showFinancials && !showMarket) return null;
+    // NOUVEAU: On vérifie si y'a une analyse de rentabilité
+    if (!showFinancials && !showMarket && !analyse.analyseRentabilite) return null;
 
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm">
@@ -4848,6 +4829,16 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           📈 Analyse Financière & Marché
         </h3>
         
+        {/* NOUVEAU: Encadré pour l'analyse de rentabilité des Plex */}
+        {analyse.analyseRentabilite && (
+          <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-xl p-5">
+            <p className="text-sm font-bold text-indigo-900 uppercase tracking-wide mb-2 flex items-center gap-2">
+               💵 Rentabilité (MRB / TGA)
+            </p>
+            <p className="text-gray-800 text-sm leading-relaxed">{analyse.analyseRentabilite}</p>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row gap-6">
           {showFinancials && (
              <div className="flex-1 grid grid-cols-2 gap-4">
@@ -4955,7 +4946,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
     if (!positives.length && !negatives.length && !uncertainties.length) return null;
 
-    // Calculer le nombre de colonnes nécessaires selon ce qui existe
     const colCount = (positives.length > 0 ? 1 : 0) + (negatives.length > 0 ? 1 : 0) + (uncertainties.length > 0 ? 1 : 0);
     const gridColsClass = colCount === 3 ? 'md:grid-cols-3' : colCount === 2 ? 'md:grid-cols-2' : 'grid-cols-1';
 
@@ -5043,13 +5033,12 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   return (
     <div className="max-w-4xl mx-auto w-full font-sans">
       {/* Tu auras besoin de ton propre LoadingSpinner ici */}
-     <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
       
       {/* FORM MODAL */}
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header Modal */}
             <div className="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-6 border-b border-indigo-700/20 shrink-0">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -5070,7 +5059,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
               </div>
             </div>
 
-            {/* Body Modal */}
             <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-slate-50">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 {slides[currentSlide].id === 'profil' && renderProfilSlide()}
@@ -5108,7 +5096,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
               )}
             </div>
 
-            {/* Footer Modal */}
             <div className="bg-white px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
               {currentSlide > 0 && (
                 <button type="button" onClick={previousSlide} className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition" disabled={loading}>
@@ -5123,7 +5110,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         </div>
       )}
 
-      {/* BOUTON D'APPEL À L'ACTION */}
       {!showForm && !selectedProperty && !loading && (
         <div className="flex justify-center my-12">
           <button
@@ -5146,21 +5132,14 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         </div>
       )}
 
-      {/* RÉSULTATS */}
       {selectedProperty && (
         <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
           {renderHeroValuation()}
-          
-          {/* Bloc pour l'acheteur ! */}
           {selectedProperty.potentielOptimisation && renderProspectionAvis()}
-          
           {renderResidentialAppreciation()}
           {renderComparablesAndSecteur()}
           {renderFacteursPrix()}
-          
-          {/* NOUVEAU BLOC POUR LE VENDEUR ! Déplacé ici, juste avant les recommandations finales */}
           {selectedProperty.marketingKit && renderMarketingKit()}
-
           {renderRecommendations()}
 
           <div className="flex justify-center pt-8 pb-12">
@@ -7430,7 +7409,7 @@ function HomePage() {
             Évaluez. <span className="text-indigo-600">Planifiez.</span> Optimisez.
             <br />
             <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              L'IA experte du marché total
+              L'IA experte du marché Québecois!
             </span>
           </h1>
 
