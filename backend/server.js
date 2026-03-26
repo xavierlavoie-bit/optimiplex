@@ -1085,16 +1085,19 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
   try {
     const {
       userId,
-      userType = 'vendeur', // 'acheteur' ou 'vendeur'
+      userType = 'vendeur',
       proprietyType,
       addresseComplete,
       ville,
       quartier,
       codePostal,
-      prixAchat, // Pour vendeur
-      anneeAchat, // Pour vendeur
-      prixAffichage, // Pour acheteur
-      urlAnnonce, // Pour acheteur
+      prixAchat,
+      anneeAchat,
+      prixAffichage,
+      urlAnnonce,
+      // NOUVEAUX CHAMPS DE REVENUS
+      revenusAnnuels,
+      depensesAnnuelles,
       anneeConstruction,
       surfaceHabitee,
       surfaceLot,
@@ -1135,8 +1138,9 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     }
 
     const isAcheteur = userType === 'acheteur';
+    const isPlex = ['duplex', 'triplex', '4plex'].includes(proprietyType.toLowerCase());
 
-    // Logique financière conditionnelle
+    // Logique financière conditionnelle (Achat/Vente)
     let infoFinanciere = "";
     if (isAcheteur) {
         infoFinanciere = `
@@ -1150,6 +1154,16 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         infoFinanciere = aDesDonneesAchat
             ? `HISTORIQUE D'ACHAT:\n- Prix d'achat en ${anneeAchat}: ${prixAchat}$`
             : `HISTORIQUE D'ACHAT:\n- Historique d'achat non fourni. Ne pas calculer d'appréciation historique.`;
+    }
+
+    // NOUVEAU: Logique de revenus conditionnelle (Pour les PLEX)
+    if (isPlex) {
+        infoFinanciere += `
+        
+        DONNÉES D'OPÉRATION (IMMEUBLE À REVENUS):
+        - Revenus bruts annuels : ${revenusAnnuels ? revenusAnnuels + ' $' : 'Non spécifiés'}
+        - Dépenses annuelles estimées : ${depensesAnnuelles ? depensesAnnuelles + ' $' : 'Non spécifiées'}
+        *DIRECTIVE PLEX : Si les revenus sont fournis, utilise l'approche du revenu (Taux Global d'Actualisation - TGA, ou Multiplicateur de Revenu Brut - MRB applicable au secteur) pour valider et justifier la "valeurMoyenne", EN PLUS de la méthode des comparables.*`;
     }
 
     console.log(`\n========================================================`);
@@ -1185,7 +1199,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       
       RÈGLES STRICTES POUR LES COMPARABLES ET L'ÉVALUATION :
       1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 1 ou 2 liens.
-      2. 🚨 STRATÉGIE PETIT MARCHÉ (EXTRAPOLATION) : Si tu ne trouves aucun comparable direct, élargis la recherche et utilise la méthode du "Prix au pied carré".
+      2. 🚨 STRATÉGIE PETIT MARCHÉ (EXTRAPOLATION) : Si tu ne trouves aucun comparable direct, élargis la recherche et utilise la méthode du "Prix au pied carré" ou la méthode du revenu pour les plex.
       3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE pour la "valeurMoyenne" est le marché. IGNORE TOTALEMENT l'évaluation municipale.
       4. N'INVENTE JAMAIS D'URL.
       5. RÔLE ACTUEL : L'utilisateur est en mode ${isAcheteur ? 'ACHETEUR (Prospection / Deal)' : 'VENDEUR (Évaluation / Mise en vente)'}.
@@ -1200,10 +1214,10 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
          - Rédige un texte vendeur, détaillé, qui met en valeur les atouts (rénovations, localisation, revenus si applicable).
          - Utilise ta propre "valeurMoyenne" calculée comme "prixAfficheSuggere".
       `}
-      7. Réponds UNIQUEMENT avec un JSON valide.
+      7. Réponds UNIQUEMENT avec un JSON valide, SANS balise markdown (comme \`\`\`json) et SANS texte explicatif avant ou après.
+      8. ⚠️ RÈGLE SYNTAXE JSON (CRITIQUE) : Échappe correctement tous les guillemets (\\") dans les textes. Assure-toi d'inclure obligatoirement une virgule (,) entre CHAQUE objet ou chaîne de tes tableaux (ex: dans "comparables", "positifs", "renovationsRentables"). Ne mets PAS de virgule finale après le dernier élément d'un tableau ou d'un objet.
     `;
 
-    // Génération de la clé conditionnelle JSON (Optimisation vs Marketing Kit)
     const jsonRoleSpecific = isAcheteur
         ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge", "avisProspection": "Excellent deal / Prix de marché / Surévalué. Explique brièvement pourquoi." },`
         : `"marketingKit": { "titreAnnonce": "Titre très accrocheur pour l'annonce (ex: Superbe propriété de prestige...)", "prixAfficheSuggere": 0, "descriptionDuProprio": "Texte complet et très vendeur pour une annonce immobilière. Inclus localisation, caractéristiques, rénovations, proximité des services. Format paragraphe bien structuré." },`;
@@ -1237,7 +1251,13 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       FORMAT JSON ATTENDU:
       {
         "estimationActuelle": { "valeurBasse": 0, "valeurMoyenne": 0, "valeurHaute": 0, "confiance": "haute" },
-        "analyse": { "appreciationTotale": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "pourcentageGainTotal": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, "marketTrend": "vendeur", "analyseSecteur": "Paragraphe d'analyse du marché local." },
+        "analyse": { 
+            "appreciationTotale": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, 
+            "pourcentageGainTotal": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, 
+            "marketTrend": "vendeur", 
+            "analyseSecteur": "Paragraphe d'analyse du marché local.",
+            "analyseRentabilite": ${isPlex ? '"Texte analysant le MRB et le TGA estimé par rapport aux revenus fournis."' : 'null'}
+        },
         ${jsonRoleSpecific}
         "facteursPrix": { "positifs": [], "negatifs": [], "incertitudes": [] },
         "recommendations": { "renovationsRentables": [], "strategieVente": "" },
@@ -1322,7 +1342,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       if (iterations >= maxIterations) {
         toolResults.push({
           type: 'text',
-          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide."
+          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide. Assure-toi que la syntaxe JSON est parfaite, n'oublie aucune virgule entre les éléments de tes tableaux (ex: comparables) et échappe bien les guillemets."
         });
       }
 
