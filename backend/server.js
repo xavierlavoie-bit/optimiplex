@@ -432,19 +432,34 @@ app.get('/api/stripe/billing-history/:userId', async (req, res) => {
 
 app.post('/api/stripe/create-portal-session', async (req, res) => {
   try {
-    const { userId, returnUrl } = req.body;
-    const userDoc = await db.collection('users').doc(userId).get();
-    const stripeCustomerId = userDoc.data()?.stripeCustomerId;
-    
-    if (!stripeCustomerId) return res.status(400).json({ error: 'Pas de client Stripe trouvé' });
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId manquant' });
+    }
 
+    // 1. Récupérer l'utilisateur dans Firestore
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const userData = userDoc.data();
+    
+    // 2. Vérifier s'il a bien un stripeCustomerId
+    if (!userData.stripeCustomerId) {
+       return res.status(400).json({ error: 'Aucun client Stripe associé à cet utilisateur.' });
+    }
+
+    // 3. Créer la session de portail
     const session = await stripe.billingPortal.sessions.create({
-      customer: stripeCustomerId,
-      return_url: returnUrl || `${process.env.FRONTEND_URL}/dashboard/profile`
+      customer: userData.stripeCustomerId,
+      return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/`, // Où revenir après avoir géré l'abonnement
     });
 
     res.json({ url: session.url });
+
   } catch (error) {
+    console.error('Erreur lors de la création du portail Stripe:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1899,6 +1914,7 @@ app.get('/api/property/quota/:userId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 // ====================================================================
