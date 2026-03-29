@@ -17,7 +17,7 @@ import {
   onAuthStateChanged, 
   signInWithPopup, 
   GoogleAuthProvider,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
@@ -35,46 +35,14 @@ import {
   onSnapshot,
   getDoc,
   where,
-  increment
+  increment,
+  orderBy,    // Ajoute ceci pour le classement !
+  limit
 } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
 import ReactMarkdown from 'react-markdown';
 
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
-
-const formatMarkdown = (text) => {
-  if (!text) return '';
-  
-  let html = text
-    // Titres
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    // Ligne de séparation
-    .replace(/^\s*---\s*$/gim, '<hr />')
-    // Gras (fini l'effet vert dégueu, juste un texte gras propre)
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Italique
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // Listes simples
-    .replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>');
-
-  // Grouper les <li> dans un <ul>
-  html = html.replace(/(<li>.*<\/li>(\s*))+/g, '<ul>$&</ul>');
-
-  // Gestion des paragraphes et sauts de ligne
-  html = html
-    .split('\n')
-    .filter(line => line.trim() !== '') // Retire les lignes vides inutiles
-    .map(line => {
-      // Ne pas wrapper les éléments qui sont déjà des blocs HTML
-      if (line.match(/^(<h|<ul|<li|<hr)/)) return line;
-      return `<p>${line}</p>`;
-    })
-    .join('');
-
-  return html;
-};
 
 // Toujours afficher pour debug
 console.log('📡 Frontend API URL:', API_BASE_URL);
@@ -902,15 +870,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 }
 
 
-
-
-
-// ============================================
-// 💳 STRIPE CHECKOUT BUTTON
-// ============================================
-
-
-
 // ============================================
 // 👤 PROFILE TAB (NOUVEAU COMPOSANT)
 // ============================================
@@ -923,14 +882,158 @@ function ProfileTab({ user, userProfile, userPlan }) {
     company: '',
     bio: ''
   });
+  
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [billingHistory, setBillingHistory] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelLoading, setCancelLoading] = useState(false);
+  
+  // Nouveaux états pour la gestion du portail Stripe
+  const [portalLoading, setPortalLoading] = useState(false);
+  
+  // On peut retirer showCancelModal et cancelLoading si on utilise le portail
+  // const [showCancelModal, setShowCancelModal] = useState(false);
+  // const [cancelLoading, setCancelLoading] = useState(false);
+  
+  const [claimLoading, setClaimLoading] = useState(null);
 
-  // Charger les données existantes
+  // --- ÉTATS POUR LE COMPTAGE DYNAMIQUE ---
+  const [totalEvaluations, setTotalEvaluations] = useState(0);
+  const [isCounting, setIsCounting] = useState(true);
+
+  // --- ÉTATS LOCAUX POUR GAMIFICATION ---
+  const [localCredits, setLocalCredits] = useState(userProfile?.creditsBalance || 0);
+  const [localClaimed, setLocalClaimed] = useState(userProfile?.claimedAchievements || []);
+  
+  // --- ÉTATS POUR LE LEADERBOARD ---
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+
+  useEffect(() => {
+    if (userProfile) {
+      setLocalCredits(userProfile.creditsBalance || 0);
+      setLocalClaimed(userProfile.claimedAchievements || []);
+    }
+  }, [userProfile]);
+
+  // Fonction pour compter les évaluations
+  useEffect(() => {
+    const fetchRealEvaluationCount = async () => {
+      if (!user?.uid) return;
+      setIsCounting(true);
+      
+      try {
+        const db = getFirestore();
+        
+        const rootEvalsQuery = query(collection(db, 'evaluations'), where('userId', '==', user.uid));
+        const rootEvalsCommQuery = query(collection(db, 'evaluations_commerciales'), where('userId', '==', user.uid));
+        const rootAnalysesQuery = query(collection(db, 'analyses'), where('userId', '==', user.uid));
+
+        const [rootEvalsSnap, rootEvalsCommSnap, rootAnalysesSnap] = await Promise.all([
+          getDocs(rootEvalsQuery).catch(() => ({ size: 0 })),
+          getDocs(rootEvalsCommQuery).catch(() => ({ size: 0 })),
+          getDocs(rootAnalysesQuery).catch(() => ({ size: 0 }))
+        ]);
+
+        const rootTotal = rootEvalsSnap.size + rootEvalsCommSnap.size + rootAnalysesSnap.size;
+
+        const [subEvalsSnap, subEvalsCommSnap, subAnalysesSnap] = await Promise.all([
+          getDocs(collection(db, 'users', user.uid, 'evaluations')).catch(() => ({ size: 0 })),
+          getDocs(collection(db, 'users', user.uid, 'evaluations_commerciales')).catch(() => ({ size: 0 })),
+          getDocs(collection(db, 'users', user.uid, 'analyses')).catch(() => ({ size: 0 }))
+        ]);
+
+        const subTotal = subEvalsSnap.size + subEvalsCommSnap.size + subAnalysesSnap.size;
+
+        const realTotal = Math.max(rootTotal, subTotal);
+        
+        setTotalEvaluations(realTotal);
+
+        if (userProfile && (userProfile.evaluationCount || 0) !== realTotal) {
+          await updateDoc(doc(db, 'users', user.uid), { 
+            evaluationCount: realTotal,
+            updatedAt: serverTimestamp()
+          });
+        }
+      } catch (error) {
+        console.error("Erreur comptage :", error);
+        setTotalEvaluations(userProfile?.evaluationCount || 0);
+      } finally {
+        setIsCounting(false);
+      }
+    };
+
+    fetchRealEvaluationCount();
+  }, [user, userProfile]);
+
+  // --- CHARGEMENT DU LEADERBOARD ---
+  useEffect(() => {
+    if (activeProfileTab === 'leaderboard') {
+      fetchLeaderboard();
+    }
+    if (activeProfileTab === 'billing' && user?.uid) {
+      fetchBillingHistory();
+    }
+  }, [activeProfileTab, user]);
+
+  const fetchLeaderboard = async () => {
+    setLoadingLeaderboard(true);
+    try {
+      const db = getFirestore();
+      // On récupère les 50 meilleurs utilisateurs triés par nombre d'évaluations
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('evaluationCount', 'desc'), limit(50));
+      const querySnapshot = await getDocs(q);
+      
+      const topUsers = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        // On ne garde que ceux qui ont au moins 1 évaluation pour éviter de polluer le classement
+        if (data.evaluationCount && data.evaluationCount > 0) {
+          topUsers.push({ id: doc.id, ...data });
+        }
+      });
+      setLeaderboardData(topUsers);
+    } catch (error) {
+      console.error('Erreur chargement leaderboard:', error);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+
+  // Fonction pour masquer l'email (ex: j***@gmail.com ou anonyme***@gmail.com)
+  const maskEmail = (email) => {
+    if (!email) return 'Anonyme';
+    const parts = email.split('@');
+    if (parts.length !== 2) return 'Anonyme';
+    
+    const namePart = parts[0];
+    const domainPart = parts[1];
+    
+    // On montre les 3 premières lettres (ou moins si l'email est très court)
+    const showChars = Math.min(3, namePart.length);
+    const hiddenPart = '*'.repeat(Math.max(3, namePart.length - showChars));
+    
+    return `${namePart.substring(0, showChars)}${hiddenPart}@${domainPart}`;
+  };
+
+  const getLevelInfo = (count) => {
+    if (count < 10) return { title: 'Débutant', nextTier: 10, icon: '🌱', color: 'text-emerald-600', bg: 'bg-emerald-100' };
+    if (count < 50) return { title: 'Analyste', nextTier: 50, icon: '🔍', color: 'text-blue-600', bg: 'bg-blue-100' };
+    if (count < 100) return { title: 'Expert', nextTier: 100, icon: '⚡', color: 'text-purple-600', bg: 'bg-purple-100' };
+    return { title: 'Tycoon', nextTier: null, icon: '👑', color: 'text-yellow-600', bg: 'bg-yellow-100' };
+  };
+
+  const levelInfo = getLevelInfo(totalEvaluations);
+  const progressPercent = levelInfo.nextTier ? Math.min(100, (totalEvaluations / levelInfo.nextTier) * 100) : 100;
+
+  const achievements = [
+    { id: 'first_eval', title: 'Premier pas', desc: '1ère évaluation', req: 1, icon: '🎯', reward: 1 },
+    { id: 'ten_evals', title: 'L\'Œil vif', desc: '10 évaluations', req: 10, icon: '🥉', reward: 2 },
+    { id: 'fifty_evals', title: 'Machine à Deal', desc: '50 évaluations', req: 50, icon: '🥈', reward: 5 },
+    { id: 'hundred_evals', title: 'Maître du Cashflow', desc: '100 évaluations', req: 100, icon: '🥇', reward: 15 },
+  ];
+
   useEffect(() => {
     if (userProfile) {
       setFormData({
@@ -942,13 +1045,6 @@ function ProfileTab({ user, userProfile, userPlan }) {
       });
     }
   }, [userProfile]);
-
-  // Charger l'historique de facturation
-  useEffect(() => {
-    if (activeProfileTab === 'billing') {
-      fetchBillingHistory();
-    }
-  }, [activeProfileTab]);
 
   const fetchBillingHistory = async () => {
     setLoadingBilling(true);
@@ -974,7 +1070,7 @@ function ProfileTab({ user, userProfile, userPlan }) {
         updatedAt: serverTimestamp()
       });
       setMessage({ type: 'success', text: '✅ Profil mis à jour avec succès !' });
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      setTimeout(() => setMessage({ type: '', text: '' }), 4000);
     } catch (error) {
       console.error('Erreur update profile:', error);
       setMessage({ type: 'error', text: '❌ Erreur lors de la sauvegarde.' });
@@ -983,198 +1079,501 @@ function ProfileTab({ user, userProfile, userPlan }) {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    setCancelLoading(true);
+  const handleClaimReward = async (achievement) => {
+    if (!user?.uid) return;
+    setClaimLoading(achievement.id);
+    
     try {
-      await axios.post(`${API_BASE_URL}/api/stripe/cancel-subscription`, {
-        userId: user.uid
-      });
-
-      // Downgrade à essai dans Firestore
       const db = getFirestore();
-      await updateDoc(doc(db, 'users', user.uid), {
-        plan: 'essai',
+      const userRef = doc(db, 'users', user.uid);
+      
+      const newClaimedList = [...localClaimed, achievement.id];
+      
+      await updateDoc(userRef, {
+        creditsBalance: increment(achievement.reward),
+        claimedAchievements: newClaimedList,
         updatedAt: serverTimestamp()
       });
+      
+      setLocalCredits(prev => prev + achievement.reward);
+      setLocalClaimed(newClaimedList);
 
-      setMessage({ type: 'success', text: '✅ Abonnement annulé. Passage à plan Essai.' });
-      setShowCancelModal(false);
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      setMessage({ type: 'success', text: `🎉 Succès débloqué ! +${achievement.reward} diamants ajoutés à ton compte.` });
+      setTimeout(() => setMessage({ type: '', text: '' }), 5000);
     } catch (error) {
-      console.error('Erreur annulation:', error);
-      setMessage({ type: 'error', text: '❌ Erreur lors de l\'annulation.' });
+      console.error('Erreur réclamation:', error);
+      setMessage({ type: 'error', text: '❌ Erreur lors de la réclamation de la récompense.' });
     } finally {
-      setCancelLoading(false);
+      setClaimLoading(null);
+    }
+  };
+
+  // NOUVELLE FONCTION POUR LE PORTAIL STRIPE
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    try {
+      // Assure-toi que cette route est créée dans ton server.js
+      const response = await axios.post(`${API_BASE_URL}/api/stripe/create-portal-session`, {
+        userId: user.uid
+      });
+      
+      if (response.data.url) {
+        window.location.href = response.data.url; // Redirection vers Stripe
+      } else {
+         setMessage({ type: 'error', text: '❌ Impossible de générer le lien du portail.' });
+      }
+    } catch (error) {
+      console.error('Erreur portail Stripe:', error);
+      setMessage({ type: 'error', text: '❌ Une erreur est survenue lors de l\'accès au portail.' });
+    } finally {
+      setPortalLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Tabs Profil */}
-      <div className="flex gap-4 mb-8 border-b border-gray-200">
+    <div className="max-w-6xl mx-auto p-4 md:p-6 animate-fade-in">
+      
+      {/* Affichage global des messages */}
+      {message.text && (
+        <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 shadow-sm border ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
+          {message.type === 'success' ? <span className="text-xl">✅</span> : <span className="text-xl">❌</span>}
+          <span className="font-medium">{message.text}</span>
+        </div>
+      )}
+
+      {/* Tabs Principales */}
+      <div className="flex gap-2 mb-8 border-b border-gray-200 overflow-x-auto hide-scrollbar">
         {[
-          { id: 'info', label: '👤 Informations', icon: '✏️' },
-          { id: 'billing', label: '💳 Facturation', icon: '📋' }
+          { id: 'info', label: 'Mon Profil', icon: '👤' },
+          { id: 'leaderboard', label: 'Classement', icon: '🏆' },
+          { id: 'billing', label: 'Abonnement', icon: '💳' }
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveProfileTab(tab.id)}
-            className={`px-6 py-3 font-bold transition-all ${
+            className={`px-6 py-3 font-semibold transition-all whitespace-nowrap flex items-center gap-2 rounded-t-lg ${
               activeProfileTab === tab.id
-                ? 'border-b-2 border-indigo-600 text-indigo-600'
-                : 'text-gray-600 hover:text-gray-800'
+                ? 'border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
             }`}
           >
+            <span>{tab.icon}</span>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* TAB: Informations */}
+      {/* TAB PROFIL */}
       {activeProfileTab === 'info' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Carte Identité */}
-          <div className="md:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-              <div className="h-24 bg-gradient-to-r from-indigo-500 to-blue-600"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* COLONNE GAUCHE : Carte Identité & Gamification */}
+          <div className="lg:col-span-4 space-y-6">
+            
+            {/* CARTE IDENTITÉ */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
+              <div className="h-28 bg-gradient-to-r from-indigo-600 to-blue-500 relative">
+                <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm uppercase tracking-wide border border-white/30">
+                  Plan {userProfile?.plan || 'Essai'}
+                </div>
+              </div>
+              
               <div className="px-6 pb-6 text-center relative">
-                <div className="w-24 h-24 mx-auto bg-white rounded-full p-1 -mt-12 shadow-md">
-                  <div className="w-full h-full bg-indigo-100 rounded-full flex items-center justify-center text-3xl">
-                    {formData.displayName ? formData.displayName.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                {/* Avatar avec badge de niveau */}
+                <div className="w-24 h-24 mx-auto bg-white rounded-full p-1.5 -mt-12 shadow-lg relative">
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-50 to-blue-50 rounded-full flex items-center justify-center text-3xl font-black text-indigo-600 border border-indigo-100">
+                    {formData.displayName ? formData.displayName.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || 'U')}
                   </div>
+                  {!isCounting && (
+                    <div className={`absolute -bottom-1 -right-1 w-9 h-9 rounded-full border-4 border-white flex items-center justify-center shadow-md ${levelInfo.bg} ${levelInfo.color} animate-bounce-short`}>
+                      <span className="text-lg leading-none">{levelInfo.icon}</span>
+                    </div>
+                  )}
                 </div>
+                
                 <h3 className="mt-4 text-xl font-black text-gray-900">
-                  {formData.displayName || 'Utilisateur'}
+                  {formData.displayName || 'Investisseur Pro'}
                 </h3>
-                <p className="text-sm text-gray-500 mb-4">{user.email}</p>
-                <div className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
-                  {formData.role === 'courtier' ? 'Courtier' : 
-                   formData.role === 'investisseur' ? 'Investisseur' : 'Propriétaire'}
-                </div>
-                <div className="border-t border-gray-100 pt-4 text-left space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Plan</span>
-                    <span className="font-semibold text-gray-900 capitalize">{userProfile?.plan || 'Essai'}</span>
+                <p className="text-sm text-gray-500 mb-4">{user?.email}</p>
+                
+                {/* Badges Info */}
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    {formData.role === 'courtier' ? '👔' : 
+                     formData.role === 'investisseur' ? '📈' : '🏠'}
+                    {formData.role === 'courtier' ? 'COURTIER' : 
+                     formData.role === 'investisseur' ? 'INVESTISSEUR' : 'PROPRIÉTAIRE'}
+                  </div>
+                  <div className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    <span>💎</span>
+                    {localCredits} DIAMANTS
                   </div>
                 </div>
+
+                {/* SECTION PROGRESSION */}
+                <div className="border-t border-gray-100 pt-5 text-left bg-gray-50/50 -mx-6 px-6 pb-2 transition-opacity duration-500">
+                  <div className="flex justify-between items-end mb-2">
+                    <div>
+                      <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Niveau Actuel</span>
+                      <span className={`font-black text-lg ${levelInfo.color} flex items-center gap-1`}>
+                        {isCounting ? 'Calcul...' : levelInfo.title}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      {isCounting ? (
+                         <span className="text-xl font-bold text-gray-400 animate-pulse">...</span>
+                      ) : (
+                        <>
+                          <span className="text-2xl font-black text-gray-800">{totalEvaluations}</span>
+                          <span className="text-xs text-gray-500 font-medium ml-1">analyses</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {levelInfo.nextTier && !isCounting && (
+                    <div className="mt-3 relative">
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-indigo-500 to-blue-500 h-2.5 rounded-full transition-all duration-1000 ease-out relative" 
+                          style={{ width: `${progressPercent}%` }}
+                        >
+                          <div className="absolute top-0 right-0 bottom-0 w-4 bg-white/30 blur-sm"></div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3 text-center font-medium">
+                        Plus que <strong className="text-indigo-600">{levelInfo.nextTier - totalEvaluations}</strong> analyses pour le rang <span className="font-bold text-gray-700">{getLevelInfo(levelInfo.nextTier).title}</span> !
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* CARTE SUCCÈS (ACHIEVEMENTS) */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex justify-between items-center mb-5">
+                <h4 className="font-black text-gray-900 flex items-center gap-2">
+                  <span>🏆</span>
+                  Tes Succès
+                </h4>
+                <span className="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md">
+                  {localClaimed.length} / {achievements.length}
+                </span>
+              </div>
+              
+              <div className="space-y-3">
+                {achievements.map((ach) => {
+                  const isUnlocked = totalEvaluations >= ach.req;
+                  const isClaimed = localClaimed.includes(ach.id);
+                  const canClaim = isUnlocked && !isClaimed;
+
+                  return (
+                    <div key={ach.id} className={`relative overflow-hidden flex items-center gap-4 p-3 rounded-xl border transition-all duration-300 ${
+                      canClaim ? 'bg-indigo-50 border-indigo-300 shadow-sm' :
+                      isClaimed ? 'bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-blue-200' : 
+                      'bg-gray-50 border-gray-100 opacity-70 grayscale'
+                    }`}>
+                      <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center text-2xl shadow-sm ${
+                        isClaimed ? 'bg-white' : 
+                        canClaim ? 'bg-indigo-100 animate-pulse' :
+                        'bg-gray-200 text-transparent text-shadow-none'
+                      }`}>
+                         {isUnlocked ? ach.icon : '🔒'}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <h5 className={`font-bold text-sm truncate ${
+                          canClaim ? 'text-indigo-900' :
+                          isClaimed ? 'text-blue-900' : 'text-gray-600'
+                        }`}>
+                          {ach.title}
+                        </h5>
+                        <p className="text-xs text-gray-500 truncate">{ach.desc}</p>
+                      </div>
+
+                      <div className="shrink-0 flex items-center">
+                        {canClaim ? (
+                          <button 
+                            onClick={() => handleClaimReward(ach)}
+                            disabled={claimLoading === ach.id}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                          >
+                            {claimLoading === ach.id ? '⏳' : `💎 +${ach.reward}`}
+                          </button>
+                        ) : isClaimed ? (
+                          <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm shadow-sm">
+                            ✓
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Formulaire */}
-          <div className="md:col-span-2">
-            <form onSubmit={handleSave} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-                ✏️ Modifier mes informations
-              </h3>
+          {/* COLONNE DROITE : Formulaire Profil */}
+          <div className="lg:col-span-8">
+            <form onSubmit={handleSave} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 h-full">
+              <div className="mb-8">
+                <h3 className="text-2xl font-black text-gray-900">
+                  Paramètres du profil
+                </h3>
+                <p className="text-gray-500 text-sm mt-1">Gère tes informations personnelles et tes préférences.</p>
+              </div>
 
-              {message.text && (
-                <div className={`mb-6 p-4 rounded-lg ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {message.text}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-6">
-                {/* Rôle */}
+              <div className="space-y-8">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Je suis principalement...</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">Quel est ton profil principal ?</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
-                      { val: 'proprio', label: '🏠 Propriétaire' },
-                      { val: 'courtier', label: '👔 Courtier' },
-                      { val: 'investisseur', label: '📈 Investisseur' }
+                      { val: 'proprio', label: 'Propriétaire', icon: '🏠' },
+                      { val: 'courtier', label: 'Courtier', icon: '👔' },
+                      { val: 'investisseur', label: 'Investisseur', icon: '📈' }
                     ].map((opt) => (
                       <div
                         key={opt.val}
                         onClick={() => setFormData({...formData, role: opt.val})}
-                        className={`cursor-pointer px-4 py-3 rounded-lg border-2 text-center transition-all ${
+                        className={`cursor-pointer p-4 rounded-xl border-2 text-center transition-all flex flex-col items-center justify-center ${
                           formData.role === opt.val
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold'
-                            : 'border-gray-200 text-gray-600 hover:border-indigo-200'
+                            ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
+                            : 'border-gray-100 text-gray-400 hover:border-indigo-200 hover:bg-gray-50 hover:text-gray-600'
                         }`}
                       >
-                        {opt.label}
+                        <span className="text-2xl mb-2">{opt.icon}</span>
+                        <span className={`text-sm ${formData.role === opt.val ? 'font-bold' : 'font-medium'}`}>{opt.label}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Nom */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Nom complet</label>
-                  <input
-                    type="text"
-                    value={formData.displayName}
-                    onChange={(e) => setFormData({...formData, displayName: e.target.value})}
-                    placeholder="Ex: Jean Dupont"
-                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                </div>
-
-                {/* Téléphone & Compagnie */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Téléphone</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Nom complet</label>
+                    <input
+                      type="text"
+                      value={formData.displayName}
+                      onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+                      placeholder="Ex: Jean Dupont"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Téléphone</label>
                     <input
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({...formData, phone: e.target.value})}
                       placeholder="(514) 123-4567"
-                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Entreprise</label>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Entreprise / Agence (Optionnel)</label>
                     <input
                       type="text"
                       value={formData.company}
                       onChange={(e) => setFormData({...formData, company: e.target.value})}
-                      placeholder="Ex: Remax..."
-                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      placeholder="Ex: Remax, Immobilière Tremblay..."
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Courte Bio</label>
+                    <textarea
+                      value={formData.bio}
+                      onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                      placeholder="Ta stratégie d'investissement, tes secteurs de recherche..."
+                      rows="4"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
                     />
                   </div>
                 </div>
 
-                {/* Bio */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bio courte</label>
-                  <textarea
-                    value={formData.bio}
-                    onChange={(e) => setFormData({...formData, bio: e.target.value})}
-                    placeholder="Parlez un peu de vous..."
-                    rows="3"
-                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none"
-                  />
+                <div className="pt-8 border-t border-gray-100 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-8 py-3.5 bg-gray-900 text-white font-bold rounded-xl shadow-md hover:shadow-lg hover:bg-black transform hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <span>⏳</span>
+                        Enregistrement...
+                      </>
+                    ) : (
+                      'Sauvegarder les modifications'
+                    )}
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-8 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg hover:shadow-indigo-200 transform hover:-translate-y-0.5 transition-all disabled:opacity-50"
-                >
-                  {loading ? 'Sauvegarde...' : 'Enregistrer'}
-                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* TAB: Facturation */}
+      {/* NOUVELLE TAB : LEADERBOARD */}
+      {activeProfileTab === 'leaderboard' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+              <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+                🏆 Classement Général
+              </h3>
+              <p className="text-gray-500 mt-1">Les meilleurs analystes et investisseurs de la plateforme.</p>
+            </div>
+            <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+              Ton score : {totalEvaluations} analyses
+            </div>
+          </div>
+
+          {loadingLeaderboard ? (
+            <div className="py-20 flex flex-col items-center justify-center text-gray-400">
+              <span className="text-4xl animate-bounce mb-4">🏆</span>
+              <p className="font-medium text-gray-500">Chargement du podium...</p>
+            </div>
+          ) : leaderboardData.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3">
+              {leaderboardData.map((leader, index) => {
+                const rankInfo = getLevelInfo(leader.evaluationCount || 0);
+                const isCurrentUser = leader.id === user?.uid;
+                
+                // On affiche le nom d'affichage s'il existe, sinon l'email masqué, sinon "Anonyme"
+                const displayNameToUse = leader.displayName && leader.displayName.trim() !== '' 
+                  ? leader.displayName 
+                  : maskEmail(leader.email);
+                
+                // Style spécial pour le Top 3
+                let bgClass = "bg-white border-gray-200 hover:border-gray-300";
+                let rankBadge = <span className="text-gray-400 font-bold text-lg">#{index + 1}</span>;
+                
+                if (index === 0) {
+                  bgClass = "bg-gradient-to-r from-yellow-50 to-amber-100 border-yellow-300 shadow-md transform hover:-translate-y-1 transition-transform scale-[1.02] z-10";
+                  rankBadge = <span className="text-3xl" title="1ère Place">🥇</span>;
+                } else if (index === 1) {
+                  bgClass = "bg-gradient-to-r from-gray-50 to-slate-100 border-gray-300 shadow-sm";
+                  rankBadge = <span className="text-3xl" title="2ème Place">🥈</span>;
+                } else if (index === 2) {
+                  bgClass = "bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 shadow-sm";
+                  rankBadge = <span className="text-3xl" title="3ème Place">🥉</span>;
+                }
+
+                if (isCurrentUser) {
+                  bgClass += " ring-2 ring-indigo-500"; // Surbrillance de ton propre compte
+                }
+
+                return (
+                  <div key={leader.id} className={`flex items-center p-4 rounded-xl border ${bgClass}`}>
+                    <div className="w-12 text-center flex-shrink-0">
+                      {rankBadge}
+                    </div>
+                    
+                    <div className="ml-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-gray-900 truncate text-lg">
+                          {displayNameToUse}
+                          {isCurrentUser && <span className="ml-2 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">MOI</span>}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          {leader.role === 'courtier' ? '👔 Courtier' : leader.role === 'investisseur' ? '📈 Investisseur' : '🏠 Propriétaire'}
+                        </span>
+                        <span>•</span>
+                        <span className={`font-semibold ${rankInfo.color} flex items-center gap-1`}>
+                          {rankInfo.icon} {rankInfo.title}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right ml-4">
+                      <div className="text-2xl font-black text-gray-800">
+                        {leader.evaluationCount || 0}
+                      </div>
+                      <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+                        analyses
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+             <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+               <span className="text-4xl mb-4 block">👻</span>
+               <p>Le classement est vide pour le moment.</p>
+               <p className="text-sm mt-2">Fais ta première analyse pour prendre la première place !</p>
+             </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB FACTURATION */}
       {activeProfileTab === 'billing' && (
-        <BillingTab 
-          user={user} 
-          userPlan={userPlan} 
-          billingHistory={billingHistory}
-          loadingBilling={loadingBilling}
-          showCancelModal={showCancelModal}
-          setShowCancelModal={setShowCancelModal}
-          cancelLoading={cancelLoading}
-          handleCancelSubscription={handleCancelSubscription}
-          message={message}
-        />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+          <h3 className="text-2xl font-black text-gray-900 mb-6">Abonnement & Facturation</h3>
+          
+          <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Plan actuel</p>
+              <h4 className="text-2xl font-black text-indigo-700 capitalize">{userPlan || 'Essai'}</h4>
+            </div>
+            
+            {/* BOUTON PORTAIL STRIPE */}
+            {userPlan !== 'essai' && (
+              <button 
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {portalLoading ? <span>⏳</span> : <span>⚙️</span>}
+                Gérer mon abonnement
+              </button>
+            )}
+          </div>
+
+          <h4 className="font-bold text-gray-900 mb-4">Historique de facturation</h4>
+          {loadingBilling ? (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+               <span>⏳</span> Chargement...
+            </div>
+          ) : billingHistory.length > 0 ? (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
+                  <tr>
+                    <th className="p-4">Date</th>
+                    <th className="p-4">Montant</th>
+                    <th className="p-4">Statut</th>
+                    <th className="p-4 text-right">Lien</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {billingHistory.map((inv, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="p-4">{new Date(inv.created * 1000).toLocaleDateString('fr-CA')}</td>
+                      <td className="p-4 font-medium">${(inv.amount_paid / 100).toFixed(2)}</td>
+                      <td className="p-4">
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-xs font-bold">Payé</span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <a href={inv.hosted_invoice_url} target="_blank" rel="noreferrer" className="text-indigo-600 font-semibold hover:underline">
+                          Facture
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500 py-4 text-sm">Aucun historique de facturation trouvé.</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1183,123 +1582,6 @@ function ProfileTab({ user, userProfile, userPlan }) {
 // ============================================
 // 💳 BILLING TAB
 // ============================================
-function BillingTab({ user, userPlan, billingHistory, loadingBilling, 
-                     showCancelModal, setShowCancelModal, cancelLoading, 
-                     handleCancelSubscription, message }) {
-  
-  const [portalLoading, setPortalLoading] = useState(false);
-  const planInfo = {
-    essai: { name: 'Essai', price: 'Gratuit' },
-    pro: { name: 'Pro', price: '29$/mois' },
-    growth: { name: 'Growth', price: '69$/mois' },
-    premium: { name: 'Premium', price: 'Custom' }
-  };
-
-  // ✅ NOUVEAU : Portail Stripe
-  const handlePortalRedirect = async () => {
-    setPortalLoading(true);
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/stripe/create-portal-session`,
-        {
-          userId: user.uid,
-          returnUrl: window.location.origin + '/dashboard/profile'
-        }
-      );
-      window.location.href = response.data.url;
-    } catch (error) {
-      alert('Erreur: ' + (error.response?.data?.error || error.message));
-    } finally {
-      setPortalLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Plan actuel */}
-      <div className="bg-gradient-to-r from-indigo-100 to-blue-100 rounded-xl p-8 border border-indigo-300">
-        <h3 className="text-2xl font-black text-indigo-900 mb-6">Votre plan actuel</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-indigo-700 mb-2">Plan</p>
-            <p className="text-3xl font-black text-indigo-900">{planInfo[userPlan]?.name}</p>
-            <p className="text-lg text-indigo-700 mt-2">{planInfo[userPlan]?.price}</p>
-          </div>
-          
-          {userPlan !== 'essai' && (
-            <div className="flex gap-3">
-              
-              {/* ✅ PORTAIL STRIPE */}
-              <button 
-                onClick={handlePortalRedirect}
-                disabled={portalLoading}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
-              >
-                {portalLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Ouverture...
-                  </>
-                ) : (
-                  <>
-                    💳 Gérer le paiement
-                  </>
-                )}
-              </button>
-              
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Historique facturation (inchangé) */}
-      <div>
-        <h3 className="text-2xl font-black text-gray-900 mb-6">Historique de facturation</h3>
-        {loadingBilling ? (
-          <div className="text-center py-12">
-            <div className="animate-spin text-4xl mb-4"></div>
-            <p className="text-gray-600">Chargement...</p>
-          </div>
-        ) : billingHistory?.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
-            <div className="text-6xl mb-4"></div>
-            <h3 className="text-2xl font-black text-gray-900 mb-2">Aucune facture</h3>
-            <p className="text-gray-600 mb-6">Votre historique apparaîtra ici</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {billingHistory?.map((invoice, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 p-6 flex items-center justify-between hover:border-indigo-400 transition-all">
-                <div>
-                  <p className="font-bold text-gray-900">Facture #{invoice.number || invoice.id}</p>
-                  <p className="text-sm text-gray-600">
-                    {new Date(invoice.created * 1000).toLocaleDateString('fr-CA')}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-black text-gray-900 text-lg">
-                    {invoice.amount_paid / 100}.00$
-                  </p>
-                  <p className="text-xs text-gray-600 capitalize">{invoice.status}</p>
-                </div>
-                {invoice.invoice_pdf && (
-                  <a 
-                    href={invoice.invoice_pdf} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="ml-4 px-4 py-2 bg-indigo-100 text-indigo-600 rounded-lg font-semibold hover:bg-indigo-200 transition-all"
-                  >
-                    📄 Télécharger
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 
