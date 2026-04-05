@@ -164,6 +164,7 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
     { id: 'overview', label: '📈 Vue d\'ensemble' },
     { id: 'valuation', label: '📊 Évaluation' },
     { id: 'optimization', label: '⚡ Optimiseur' },
+    { id: 'leaderboard', label: '🏆 Classement' },
     { id: 'profile', label: '👤 Mon Profil' },
   ];
 
@@ -293,7 +294,6 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
     </>
   );
 }
-
 
 
 
@@ -492,6 +492,7 @@ function DashboardLayout() {
         {activeTab === 'overview' && <DashboardOverview user={user} userPlan={userPlan} setActiveTab={setActiveTab} />}
         {activeTab === 'optimization' && <OptimizationTab userPlan={userPlan} user={user} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
         {activeTab === 'valuation' && <PropertyValuationTab user={user} userPlan={userPlan} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
+        {activeTab === 'leaderboard' && <LeaderboardTab user={user} userProfile={userProfile} userPlan={userPlan} />}
         {activeTab === 'profile' && <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />}
       </div>
     </div>
@@ -757,6 +758,12 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
                        <p className={`text-[11px] font-black leading-tight text-emerald-600`}>
                           🌐 Données Web Incluses
                        </p>
+                       {(p.key === 'pro' || p.key === 'growth') && (
+                          <p className="text-[11px] font-black leading-tight text-red-600 animate-pulse-slow">
+                            🤖 Chatbot après analyse inclus
+                          </p>
+                        )}
+                       
                     </div>
                     
                     <ul className="space-y-3 md:space-y-4 text-[11px] md:text-xs font-bold text-gray-500 mb-8 flex-grow">
@@ -888,12 +895,8 @@ function ProfileTab({ user, userProfile, userPlan }) {
   const [billingHistory, setBillingHistory] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
   
-  // Nouveaux états pour la gestion du portail Stripe
+  // États pour la gestion du portail Stripe
   const [portalLoading, setPortalLoading] = useState(false);
-  
-  // On peut retirer showCancelModal et cancelLoading si on utilise le portail
-  // const [showCancelModal, setShowCancelModal] = useState(false);
-  // const [cancelLoading, setCancelLoading] = useState(false);
   
   const [claimLoading, setClaimLoading] = useState(null);
 
@@ -904,15 +907,18 @@ function ProfileTab({ user, userProfile, userPlan }) {
   // --- ÉTATS LOCAUX POUR GAMIFICATION ---
   const [localCredits, setLocalCredits] = useState(userProfile?.creditsBalance || 0);
   const [localClaimed, setLocalClaimed] = useState(userProfile?.claimedAchievements || []);
-  
-  // --- ÉTATS POUR LE LEADERBOARD ---
-  const [leaderboardData, setLeaderboardData] = useState([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
       setLocalCredits(userProfile.creditsBalance || 0);
       setLocalClaimed(userProfile.claimedAchievements || []);
+      setFormData({
+        displayName: userProfile.displayName || '',
+        role: userProfile.role || 'proprio',
+        phone: userProfile.phone || '',
+        company: userProfile.company || '',
+        bio: userProfile.bio || ''
+      });
     }
   }, [userProfile]);
 
@@ -966,56 +972,11 @@ function ProfileTab({ user, userProfile, userPlan }) {
     fetchRealEvaluationCount();
   }, [user, userProfile]);
 
-  // --- CHARGEMENT DU LEADERBOARD ---
   useEffect(() => {
-    if (activeProfileTab === 'leaderboard') {
-      fetchLeaderboard();
-    }
     if (activeProfileTab === 'billing' && user?.uid) {
       fetchBillingHistory();
     }
   }, [activeProfileTab, user]);
-
-  const fetchLeaderboard = async () => {
-    setLoadingLeaderboard(true);
-    try {
-      const db = getFirestore();
-      // On récupère les 50 meilleurs utilisateurs triés par nombre d'évaluations
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('evaluationCount', 'desc'), limit(50));
-      const querySnapshot = await getDocs(q);
-      
-      const topUsers = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        // On ne garde que ceux qui ont au moins 1 évaluation pour éviter de polluer le classement
-        if (data.evaluationCount && data.evaluationCount > 0) {
-          topUsers.push({ id: doc.id, ...data });
-        }
-      });
-      setLeaderboardData(topUsers);
-    } catch (error) {
-      console.error('Erreur chargement leaderboard:', error);
-    } finally {
-      setLoadingLeaderboard(false);
-    }
-  };
-
-  // Fonction pour masquer l'email (ex: j***@gmail.com ou anonyme***@gmail.com)
-  const maskEmail = (email) => {
-    if (!email) return 'Anonyme';
-    const parts = email.split('@');
-    if (parts.length !== 2) return 'Anonyme';
-    
-    const namePart = parts[0];
-    const domainPart = parts[1];
-    
-    // On montre les 3 premières lettres (ou moins si l'email est très court)
-    const showChars = Math.min(3, namePart.length);
-    const hiddenPart = '*'.repeat(Math.max(3, namePart.length - showChars));
-    
-    return `${namePart.substring(0, showChars)}${hiddenPart}@${domainPart}`;
-  };
 
   const getLevelInfo = (count) => {
     if (count < 10) return { title: 'Débutant', nextTier: 10, icon: '🌱', color: 'text-emerald-600', bg: 'bg-emerald-100' };
@@ -1033,18 +994,6 @@ function ProfileTab({ user, userProfile, userPlan }) {
     { id: 'fifty_evals', title: 'Machine à Deal', desc: '50 évaluations', req: 50, icon: '🥈', reward: 5 },
     { id: 'hundred_evals', title: 'Maître du Cashflow', desc: '100 évaluations', req: 100, icon: '🥇', reward: 15 },
   ];
-
-  useEffect(() => {
-    if (userProfile) {
-      setFormData({
-        displayName: userProfile.displayName || '',
-        role: userProfile.role || 'proprio',
-        phone: userProfile.phone || '',
-        company: userProfile.company || '',
-        bio: userProfile.bio || ''
-      });
-    }
-  }, [userProfile]);
 
   const fetchBillingHistory = async () => {
     setLoadingBilling(true);
@@ -1108,17 +1057,15 @@ function ProfileTab({ user, userProfile, userPlan }) {
     }
   };
 
-  // NOUVELLE FONCTION POUR LE PORTAIL STRIPE
   const handleManageSubscription = async () => {
     setPortalLoading(true);
     try {
-      // Assure-toi que cette route est créée dans ton server.js
       const response = await axios.post(`${API_BASE_URL}/api/stripe/create-portal-session`, {
         userId: user.uid
       });
       
       if (response.data.url) {
-        window.location.href = response.data.url; // Redirection vers Stripe
+        window.location.href = response.data.url;
       } else {
          setMessage({ type: 'error', text: '❌ Impossible de générer le lien du portail.' });
       }
@@ -1141,11 +1088,10 @@ function ProfileTab({ user, userProfile, userPlan }) {
         </div>
       )}
 
-      {/* Tabs Principales */}
+      {/* Tabs Principales (Sans le Leaderboard) */}
       <div className="flex gap-2 mb-8 border-b border-gray-200 overflow-x-auto hide-scrollbar">
         {[
           { id: 'info', label: 'Mon Profil', icon: '👤' },
-          { id: 'leaderboard', label: 'Classement', icon: '🏆' },
           { id: 'billing', label: 'Abonnement', icon: '💳' }
         ].map(tab => (
           <button
@@ -1178,7 +1124,6 @@ function ProfileTab({ user, userProfile, userPlan }) {
               </div>
               
               <div className="px-6 pb-6 text-center relative">
-                {/* Avatar avec badge de niveau */}
                 <div className="w-24 h-24 mx-auto bg-white rounded-full p-1.5 -mt-12 shadow-lg relative">
                   <div className="w-full h-full bg-gradient-to-br from-indigo-50 to-blue-50 rounded-full flex items-center justify-center text-3xl font-black text-indigo-600 border border-indigo-100">
                     {formData.displayName ? formData.displayName.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() || 'U')}
@@ -1416,105 +1361,9 @@ function ProfileTab({ user, userProfile, userPlan }) {
         </div>
       )}
 
-      {/* NOUVELLE TAB : LEADERBOARD */}
-      {activeProfileTab === 'leaderboard' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 animate-fade-in">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-            <div>
-              <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-                🏆 Classement Général
-              </h3>
-              <p className="text-gray-500 mt-1">Les meilleurs analystes et investisseurs de la plateforme.</p>
-            </div>
-            <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-              Ton score : {totalEvaluations} analyses
-            </div>
-          </div>
-
-          {loadingLeaderboard ? (
-            <div className="py-20 flex flex-col items-center justify-center text-gray-400">
-              <span className="text-4xl animate-bounce mb-4">🏆</span>
-              <p className="font-medium text-gray-500">Chargement du podium...</p>
-            </div>
-          ) : leaderboardData.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3">
-              {leaderboardData.map((leader, index) => {
-                const rankInfo = getLevelInfo(leader.evaluationCount || 0);
-                const isCurrentUser = leader.id === user?.uid;
-                
-                // On affiche le nom d'affichage s'il existe, sinon l'email masqué, sinon "Anonyme"
-                const displayNameToUse = leader.displayName && leader.displayName.trim() !== '' 
-                  ? leader.displayName 
-                  : maskEmail(leader.email);
-                
-                // Style spécial pour le Top 3
-                let bgClass = "bg-white border-gray-200 hover:border-gray-300";
-                let rankBadge = <span className="text-gray-400 font-bold text-lg">#{index + 1}</span>;
-                
-                if (index === 0) {
-                  bgClass = "bg-gradient-to-r from-yellow-50 to-amber-100 border-yellow-300 shadow-md transform hover:-translate-y-1 transition-transform scale-[1.02] z-10";
-                  rankBadge = <span className="text-3xl" title="1ère Place">🥇</span>;
-                } else if (index === 1) {
-                  bgClass = "bg-gradient-to-r from-gray-50 to-slate-100 border-gray-300 shadow-sm";
-                  rankBadge = <span className="text-3xl" title="2ème Place">🥈</span>;
-                } else if (index === 2) {
-                  bgClass = "bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 shadow-sm";
-                  rankBadge = <span className="text-3xl" title="3ème Place">🥉</span>;
-                }
-
-                if (isCurrentUser) {
-                  bgClass += " ring-2 ring-indigo-500"; // Surbrillance de ton propre compte
-                }
-
-                return (
-                  <div key={leader.id} className={`flex items-center p-4 rounded-xl border ${bgClass}`}>
-                    <div className="w-12 text-center flex-shrink-0">
-                      {rankBadge}
-                    </div>
-                    
-                    <div className="ml-4 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-gray-900 truncate text-lg">
-                          {displayNameToUse}
-                          {isCurrentUser && <span className="ml-2 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">MOI</span>}
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                        <span className="flex items-center gap-1">
-                          {leader.role === 'courtier' ? '👔 Courtier' : leader.role === 'investisseur' ? '📈 Investisseur' : '🏠 Propriétaire'}
-                        </span>
-                        <span>•</span>
-                        <span className={`font-semibold ${rankInfo.color} flex items-center gap-1`}>
-                          {rankInfo.icon} {rankInfo.title}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right ml-4">
-                      <div className="text-2xl font-black text-gray-800">
-                        {leader.evaluationCount || 0}
-                      </div>
-                      <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
-                        analyses
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-             <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-               <span className="text-4xl mb-4 block">👻</span>
-               <p>Le classement est vide pour le moment.</p>
-               <p className="text-sm mt-2">Fais ta première analyse pour prendre la première place !</p>
-             </div>
-          )}
-        </div>
-      )}
-
       {/* TAB FACTURATION */}
       {activeProfileTab === 'billing' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 animate-fade-in">
           <h3 className="text-2xl font-black text-gray-900 mb-6">Abonnement & Facturation</h3>
           
           <div className="p-6 bg-gray-50 rounded-xl border border-gray-200 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1523,7 +1372,6 @@ function ProfileTab({ user, userProfile, userPlan }) {
               <h4 className="text-2xl font-black text-indigo-700 capitalize">{userPlan || 'Essai'}</h4>
             </div>
             
-            {/* BOUTON PORTAIL STRIPE */}
             {userPlan !== 'essai' && (
               <button 
                 onClick={handleManageSubscription}
@@ -1575,6 +1423,163 @@ function ProfileTab({ user, userProfile, userPlan }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function LeaderboardTab({ user, userScore }) {
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
+
+  const fetchLeaderboard = async () => {
+    setLoadingLeaderboard(true);
+    try {
+      const db = getFirestore();
+      // On récupère les 50 meilleurs utilisateurs triés par nombre d'évaluations
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('evaluationCount', 'desc'), limit(50));
+      const querySnapshot = await getDocs(q);
+      
+      const topUsers = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        // On ne garde que ceux qui ont au moins 1 évaluation pour éviter de polluer le classement
+        if (data.evaluationCount && data.evaluationCount > 0) {
+          topUsers.push({ id: doc.id, ...data });
+        }
+      });
+      setLeaderboardData(topUsers);
+    } catch (error) {
+      console.error('Erreur chargement leaderboard:', error);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+
+  // Fonction pour masquer l'email (ex: j***@gmail.com ou anonyme***@gmail.com)
+  const maskEmail = (email) => {
+    if (!email) return 'Anonyme';
+    const parts = email.split('@');
+    if (parts.length !== 2) return 'Anonyme';
+    
+    const namePart = parts[0];
+    const domainPart = parts[1];
+    
+    // On montre les 3 premières lettres (ou moins si l'email est très court)
+    const showChars = Math.min(3, namePart.length);
+    const hiddenPart = '*'.repeat(Math.max(3, namePart.length - showChars));
+    
+    return `${namePart.substring(0, showChars)}${hiddenPart}@${domainPart}`;
+  };
+
+  const getLevelInfo = (count) => {
+    if (count < 10) return { title: 'Débutant', nextTier: 10, icon: '🌱', color: 'text-emerald-600', bg: 'bg-emerald-100' };
+    if (count < 50) return { title: 'Analyste', nextTier: 50, icon: '🔍', color: 'text-blue-600', bg: 'bg-blue-100' };
+    if (count < 100) return { title: 'Expert', nextTier: 100, icon: '⚡', color: 'text-purple-600', bg: 'bg-purple-100' };
+    return { title: 'Tycoon', nextTier: null, icon: '👑', color: 'text-yellow-600', bg: 'bg-yellow-100' };
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto p-4 md:p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 animate-fade-in">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+              🏆 Classement Général
+            </h3>
+            <p className="text-gray-500 mt-1">Les meilleurs analystes et investisseurs de la plateforme.</p>
+          </div>
+          {/* Affiche le score passé en paramètre depuis le parent s'il existe */}
+          {userScore !== undefined && (
+            <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+              Ton score : {userScore} analyses
+            </div>
+          )}
+        </div>
+
+        {loadingLeaderboard ? (
+          <div className="py-20 flex flex-col items-center justify-center text-gray-400">
+            <span className="text-4xl animate-bounce mb-4">🏆</span>
+            <p className="font-medium text-gray-500">Chargement du podium...</p>
+          </div>
+        ) : leaderboardData.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3">
+            {leaderboardData.map((leader, index) => {
+              const rankInfo = getLevelInfo(leader.evaluationCount || 0);
+              const isCurrentUser = leader.id === user?.uid;
+              
+              // On affiche le nom d'affichage s'il existe, sinon l'email masqué, sinon "Anonyme"
+              const displayNameToUse = leader.displayName && leader.displayName.trim() !== '' 
+                ? leader.displayName 
+                : maskEmail(leader.email);
+              
+              // Style spécial pour le Top 3
+              let bgClass = "bg-white border-gray-200 hover:border-gray-300";
+              let rankBadge = <span className="text-gray-400 font-bold text-lg">#{index + 1}</span>;
+              
+              if (index === 0) {
+                bgClass = "bg-gradient-to-r from-yellow-50 to-amber-100 border-yellow-300 shadow-md transform hover:-translate-y-1 transition-transform scale-[1.02] z-10";
+                rankBadge = <span className="text-3xl" title="1ère Place">🥇</span>;
+              } else if (index === 1) {
+                bgClass = "bg-gradient-to-r from-gray-50 to-slate-100 border-gray-300 shadow-sm";
+                rankBadge = <span className="text-3xl" title="2ème Place">🥈</span>;
+              } else if (index === 2) {
+                bgClass = "bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 shadow-sm";
+                rankBadge = <span className="text-3xl" title="3ème Place">🥉</span>;
+              }
+
+              if (isCurrentUser) {
+                bgClass += " ring-2 ring-indigo-500"; // Surbrillance de ton propre compte
+              }
+
+              return (
+                <div key={leader.id} className={`flex items-center p-4 rounded-xl border ${bgClass}`}>
+                  <div className="w-12 text-center flex-shrink-0">
+                    {rankBadge}
+                  </div>
+                  
+                  <div className="ml-4 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-gray-900 truncate text-lg">
+                        {displayNameToUse}
+                        {isCurrentUser && <span className="ml-2 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">MOI</span>}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        {leader.role === 'courtier' ? '👔 Courtier' : leader.role === 'investisseur' ? '📈 Investisseur' : '🏠 Propriétaire'}
+                      </span>
+                      <span>•</span>
+                      <span className={`font-semibold ${rankInfo.color} flex items-center gap-1`}>
+                        {rankInfo.icon} {rankInfo.title}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right ml-4">
+                    <div className="text-2xl font-black text-gray-800">
+                      {leader.evaluationCount || 0}
+                    </div>
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+                      analyses
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+            <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <span className="text-4xl mb-4 block">👻</span>
+              <p>Le classement est vide pour le moment.</p>
+              <p className="text-sm mt-2">Fais ta première analyse pour prendre la première place !</p>
+            </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1833,7 +1838,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   };
 
   const isCommercial = (analyse) => {
-    const type = analyse.proprietype || analyse.proprietetype || '';
+    const type = analyse.proprietype || analyse.proprietetype || analyse.proprietyType || '';
     return type === 'commercial' || 
            analyse.collection === 'evaluations_commerciales' || 
            ['immeuble_revenus', 'hotel', 'depanneur', 'bureau', 'commerce', 'restaurant'].includes(type);
@@ -1882,6 +1887,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
   // ============================================
   // RENDU MODALE (VUE DÉTAILLÉE)
+  // Séparée intelligemment pour Résidentiel vs Commercial
   // ============================================
   const renderModalContent = () => {
     if (!selectedAnalysis) return null;
@@ -1902,8 +1908,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const comparablesArray = result.comparables || []; 
     
     const secteurAnalysis = analyseData.analyseSecteur || analyseData.secteurAnalysis || analyseData.quartierAnalysis;
-    const qualiteAnalysis = comparable.evaluation_qualite || comparable.evaluationQualite;
-    const soldReference = comparable.soldReference;
     
     const facteurs = result.facteursPrix || result.facteurs_prix || {};
     const positifs = facteurs.positifs || facteurs.augmentent || [];
@@ -1918,8 +1922,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const timing = recs.timing || recs.venteMeilleuresChances;
     
     const marketAnalysis = result.marketanalysis || {};
-    
-    // Support pour les deux types de kit marketing (Commercial et Résidentiel)
     const marketingKit = result.marketingKit || result.marketingkit || {};
     
     const justification = recs.justification || recs.raisonnement || []; 
@@ -1931,634 +1933,593 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     
     const welcomeTax = calculateWelcomeTax(result.estimationActuelle?.valeurMoyenne);
 
-    return (
-      <div className="p-8 space-y-8 bg-gray-50/50">
-        
-        {/* EN-TÊTE PROPRIÉTÉ - STYLE VIBRANT */}
-        <div className={`rounded-2xl p-6 shadow-md border-2 ${
-          isAcheteur ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200' :
-          isVendeur ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200' :
-          isCom ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' :
-          isValuation ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200' : 
-          'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
-        }`}>
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl filter drop-shadow-md">{getPropertyIcon(selectedAnalysis.proprietyType || selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
-                <div>
-                  <h4 className="font-black text-gray-900 text-2xl leading-tight">{getPropertyLabel(selectedAnalysis)}</h4>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mt-1 font-medium">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={16} className="text-gray-500" />
-                      {selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`} {selectedAnalysis.codePostal && `(${selectedAnalysis.codePostal})`}
+    // BLOC COMMUN : EN-TÊTE DE LA PROPRIÉTÉ
+    const renderPropertyHeader = () => (
+      <div className={`rounded-2xl p-4 md:p-6 shadow-md border-2 ${
+        isAcheteur ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200' :
+        isVendeur ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200' :
+        isCom ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' :
+        isValuation ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200' : 
+        'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-4xl filter drop-shadow-md shrink-0">{getPropertyIcon(selectedAnalysis.proprietyType || selectedAnalysis.proprietype || selectedAnalysis.proprietetype)}</span> 
+              <div>
+                <h4 className="font-black text-gray-900 text-xl md:text-2xl leading-tight">{getPropertyLabel(selectedAnalysis)}</h4>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:text-sm text-gray-600 mt-1 font-medium">
+                  <span className="flex items-center gap-1">
+                    <MapPin size={16} className="text-gray-500 shrink-0" />
+                    <span className="truncate">{selectedAnalysis.ville} {selectedAnalysis.quartier && `• ${selectedAnalysis.quartier}`} {selectedAnalysis.codePostal && `(${selectedAnalysis.codePostal})`}</span>
+                  </span>
+                  {selectedAnalysis.anneeConstruction && (
+                    <span className="bg-white/50 px-2 py-0.5 rounded border border-gray-200/50 whitespace-nowrap">
+                      Construction: {selectedAnalysis.anneeConstruction}
                     </span>
-                    {selectedAnalysis.anneeConstruction && (
-                      <span className="bg-white/50 px-2 py-0.5 rounded border border-gray-200/50">
-                        Construction: {selectedAnalysis.anneeConstruction}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
+          </div>
+          
+          <div className="flex flex-col gap-2 shrink-0">
+            <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide self-start md:self-end shadow-sm border ${
+              isAcheteur ? 'bg-purple-100 text-purple-700 border-purple-200' :
+              isVendeur ? 'bg-amber-100 text-amber-700 border-amber-200' :
+              isCom ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+              isValuation ? 'bg-blue-100 text-blue-700 border-blue-200' : 
+              'bg-emerald-100 text-emerald-700 border-emerald-200'
+            }`}>
+              {isAcheteur ? '🕵️‍♂️ Prospection / Deal' : 
+               isVendeur ? '🏷️ Évaluation Vendeur' :
+               isCom ? '🏢 Commercial' : 
+               isValuation ? '🏠 Résidentiel' : '💰 Optimisation'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // BLOC COMMUN : HERO VALEUR
+    const renderValuationHero = () => (
+      <div className="relative overflow-hidden rounded-3xl shadow-2xl border border-indigo-200">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800" />
+        <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative p-6 md:p-12 text-white">
+          <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
+             <div>
+                <p className="text-sm md:text-base font-bold text-indigo-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span className="text-2xl">{isCom ? '🏢' : '🏠'}</span> Valeur Estimée ({isCom ? 'Commerciale' : 'Résidentielle'})
+                </p>
+                <h2 className="text-5xl lg:text-7xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-100 drop-shadow-sm break-words">
+                  {result.estimationActuelle?.valeurMoyenne ? `$${formatCurrency(result.estimationActuelle.valeurMoyenne)}` : 'N/A'}
+                </h2>
+             </div>
+             
+             <div className="flex flex-row md:flex-col items-start md:items-end gap-3 flex-wrap">
+                 {result.estimationActuelle?.confiance && (
+                    <div className="bg-white/10 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl flex items-center gap-3">
+                        <span className="text-2xl shrink-0">🎯</span>
+                        <div>
+                          <p className="text-[10px] text-indigo-300 uppercase font-bold tracking-wider leading-none">Confiance IA</p>
+                          <p className="font-black text-base md:text-lg text-white capitalize leading-none mt-1">{result.estimationActuelle.confiance}</p>
+                        </div>
+                    </div>
+                 )}
+                 <div className="bg-white/10 backdrop-blur-md border border-white/10 px-4 py-2 rounded-xl flex items-center gap-3 mt-0 md:mt-2">
+                    <span className="text-xl shrink-0">💸</span>
+                    <div>
+                       <p className="text-[10px] text-indigo-300 uppercase font-bold tracking-wider leading-none">Taxe mutation (Est.)</p>
+                       <p className="font-black text-base md:text-lg text-white leading-none mt-1">${formatCurrency(welcomeTax)}</p>
+                    </div>
+                 </div>
+             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-800/50 backdrop-blur-md p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner">
+              <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1">Valeur basse (📉)</p>
+              <p className="text-2xl font-black">{result.estimationActuelle?.valeurBasse ? `$${formatCurrency(result.estimationActuelle.valeurBasse)}` : 'N/A'}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md p-4 md:p-5 rounded-2xl border-2 border-indigo-400/50 shadow-[0_0_30px_rgba(99,102,241,0.2)] transform md:-translate-y-2">
+              <p className="text-xs text-white font-bold uppercase tracking-wider mb-1 text-left md:text-center">Cible Médiane (💎)</p>
+              <p className="text-3xl font-black text-left md:text-center text-white">{result.estimationActuelle?.valeurMoyenne ? `$${formatCurrency(result.estimationActuelle.valeurMoyenne)}` : 'N/A'}</p>
+            </div>
+            <div className="bg-slate-800/50 backdrop-blur-md p-4 md:p-5 rounded-2xl border border-white/5 shadow-inner">
+              <p className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1">Valeur haute (📈)</p>
+              <p className="text-2xl font-black">{result.estimationActuelle?.valeurHaute ? `$${formatCurrency(result.estimationActuelle.valeurHaute)}` : 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // BLOC COMMUN : PROSPECTION (LE DEAL)
+    const renderProspectionDeal = () => (
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-indigo-200 rounded-3xl p-6 shadow-md text-gray-800 transform hover:scale-[1.01] transition-transform">
+        <h3 className="text-xl md:text-2xl font-black mb-6 text-indigo-900 flex items-center gap-3">
+          <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">🕵️‍♂️</span> Verdict Prospection (Le Deal)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white/80 p-5 rounded-2xl border border-white shadow-sm">
+            <p className="text-indigo-600 text-sm uppercase tracking-wide font-bold mb-1">Avis de l'IA</p>
+            <p className="text-xl font-bold text-gray-900 leading-snug">{opti.avisProspection}</p>
+          </div>
+          <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-sm flex flex-col justify-center">
+            <p className="text-emerald-700 text-sm uppercase tracking-wide font-bold mb-1">Valeur potentielle (Après opti.)</p>
+            <p className="text-3xl font-black text-emerald-600">
+              {opti.valeurApresTravaux ? `$${formatCurrency(opti.valeurApresTravaux)}` : 'N/A'}
+            </p>
+            <p className="text-sm text-emerald-700 mt-2 font-medium">Marge de sécurité / ROI visé : <span className="font-bold">{opti.margeSecurite}</span></p>
+          </div>
+        </div>
+      </div>
+    );
+
+    // BLOC COMMUN : FACTEURS DE VALEUR
+    const renderFacteursValeur = () => (
+      <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+        <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+          <span className="bg-slate-100 p-2 rounded-xl text-2xl shadow-sm shrink-0">⚖️</span> Facteurs de Valeur
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {incertitudes.length > 0 && (
+             <div className="md:col-span-2 bg-amber-50/80 border border-amber-200 rounded-2xl p-4 md:p-6">
+               <p className="font-black text-amber-800 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                 ⚠️ Incertitudes & Risques perçus
+               </p>
+               <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {incertitudes.map((item, idx) => (
+                   <li key={idx} className="flex gap-3 text-sm text-amber-900 font-medium">
+                     <span className="shrink-0 text-amber-500">•</span>
+                     <span className="leading-snug">{item}</span>
+                   </li>
+                 ))}
+               </ul>
+             </div>
+          )}
+          {positifs.length > 0 && (
+            <div className="bg-white border border-green-200 rounded-2xl p-4 md:p-6 shadow-sm">
+              <p className="font-black text-green-700 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                ✅ Points Forts (+)
+              </p>
+              <ul className="space-y-3">
+                {positifs.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-green-500 font-bold flex-shrink-0 mt-0.5">+</span>
+                    <span className="leading-snug">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {negatifs.length > 0 && (
+            <div className="bg-white border border-red-200 rounded-2xl p-4 md:p-6 shadow-sm">
+              <p className="font-black text-red-700 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                ❌ Désuétude & Points Faibles (-)
+              </p>
+              <ul className="space-y-3">
+                {negatifs.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                    <span className="text-red-500 font-bold flex-shrink-0 mt-0.5">-</span>
+                    <span className="leading-snug">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
+    // BLOC COMMUN : SECTEUR & COMPARABLES (Même interface pour Com et Résidentiel)
+    const renderSecteurEtComparables = () => (
+      <div className="space-y-6">
+        {secteurAnalysis && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-6 md:p-8 shadow-sm">
+            <h3 className="text-xl md:text-2xl font-black text-amber-900 mb-4 flex items-center gap-3">
+              <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">📍</span> Analyse du Secteur
+            </h3>
+            <p className="text-amber-900/80 leading-relaxed text-sm md:text-base whitespace-pre-wrap text-justify font-medium">
+              {secteurAnalysis}
+            </p>
+          </div>
+        )}
+
+        {comparablesArray.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+             <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+                <span className="bg-indigo-50 p-2 rounded-xl text-2xl shadow-sm shrink-0">🏘️</span> Propriétés Comparables
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {comparablesArray.map((comp, idx) => (
+                   <div key={idx} className="border border-gray-100 rounded-2xl p-5 md:p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50 flex flex-col h-full">
+                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-slate-400' : 'bg-green-500'}`}></div>
+                      
+                      <div className="flex justify-between items-start mb-4 pl-2">
+                         <div className="pr-2">
+                            <p className="font-bold text-gray-900 text-sm md:text-base leading-snug">{comp.adresse}</p>
+                            <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">{comp.date}</p>
+                         </div>
+                         <span className={`px-2 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest shrink-0 border shadow-sm ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-white text-slate-600 border-slate-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                           {comp.statut}
+                         </span>
+                      </div>
+                      
+                      <p className="text-2xl md:text-3xl font-black text-indigo-900 mb-4 pl-2 tracking-tight">
+                         {typeof comp.prix === 'number' && comp.prix > 0 ? `$${formatCurrency(comp.prix)}` : 'Non affiché'}
+                      </p>
+                      
+                      <div className="flex-1">
+                        {comp.caracteristiques && (
+                          <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-3 ml-2 border border-gray-100 shadow-inner font-medium">
+                             {comp.caracteristiques}
+                          </div>
+                        )}
+                        
+                        {/* AFFICHER L'AJUSTEMENT DE PARITÉ S'IL EXISTE */}
+                        {comp.ajustementParite && (
+                          <div className="bg-indigo-50/50 rounded-xl p-3 md:p-4 text-xs md:text-sm text-indigo-800 mb-4 ml-2 border border-indigo-100/50 font-medium flex items-start gap-2">
+                             <span className="shrink-0 mt-0.5">⚖️</span>
+                             <p><span className="font-bold">Parité:</span> {comp.ajustementParite}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {comp.url && comp.url !== "null" && (
+                         <div className="pl-2 mt-auto">
+                           <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-full md:w-auto gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-indigo-200">
+                             Consulter l'annonce
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                           </a>
+                         </div>
+                      )}
+                   </div>
+                ))}
+             </div>
+          </div>
+        )}
+      </div>
+    );
+
+    // BLOC COMMUN : MARKETING KIT
+    const renderMarketingKit = () => (
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-3xl p-6 md:p-8 shadow-md text-gray-800">
+        <h3 className="text-xl md:text-2xl font-black mb-6 text-purple-900 flex items-center gap-3">
+          <span className="shrink-0">📢</span> Kit Marketing (Prêt à publier)
+        </h3>
+        <div className="bg-white p-5 md:p-6 rounded-2xl border border-purple-100 shadow-sm space-y-5">
+          <div>
+            <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Titre suggéré</p>
+            <p className="text-lg md:text-xl font-bold text-gray-900">{marketingKit.titreAnnonce || marketingKit.titreannonce}</p>
+          </div>
+          
+          {marketingKit.prixAfficheSuggere && (
+            <div>
+              <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Prix à afficher suggéré</p>
+              <p className="text-2xl md:text-3xl font-black text-purple-700">
+                ${formatCurrency(marketingKit.prixAfficheSuggere)}
+              </p>
+            </div>
+          )}
+          
+          {marketingKit.descriptionaccroche && (
+             <div>
+              <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Accroche</p>
+              <p className="text-sm text-gray-700 italic">"{marketingKit.descriptionaccroche}"</p>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-end gap-3 mb-3">
+               <p className="text-purple-600 text-xs uppercase tracking-wide font-bold">Description générée (DuProprio/Centris)</p>
+               <button 
+                  onClick={() => copyToClipboard(marketingKit.descriptionDuProprio || marketingKit.descriptionaccroche)}
+                  className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 w-full md:w-auto ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+               >
+                  {copySuccess ? '✅ Copiée !' : '📋 Copier le texte'}
+               </button>
+            </div>
+            <div className="bg-gray-50 p-4 md:p-5 rounded-xl border border-gray-200 whitespace-pre-line text-sm md:text-base text-gray-700 leading-relaxed font-medium">
+              {marketingKit.descriptionDuProprio || "Veuillez utiliser l'accroche ci-dessus pour votre description."}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // ==========================================
+    // RENDU : COMMERCIAL
+    // ==========================================
+    const renderCommercialValuationSection = () => (
+      <>
+        {renderValuationHero()}
+        {isAcheteur && opti && renderProspectionDeal()}
+
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+          <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+             <span className="bg-indigo-50 text-indigo-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📊</span> Métriques Commerciales
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {typeof metrics.capRate === 'number' && (
+              <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 hover:border-indigo-200 transition-colors">
+                <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cap Rate</p>
+                <p className="text-xl md:text-3xl font-black text-indigo-600">{metrics.capRate.toFixed(2)}%</p>
+              </div>
+            )}
+            {typeof metrics.noiAnnuel === 'number' && (
+              <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 hover:border-emerald-200 transition-colors">
+                <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">RNE Annuel</p>
+                <p className="text-xl md:text-3xl font-black text-emerald-600">${formatCurrency(metrics.noiAnnuel)}</p>
+              </div>
+            )}
+            {typeof metrics.cashOnCash === 'number' && metrics.cashOnCash > 0 && (
+              <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 hover:border-purple-200 transition-colors">
+                <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cash-on-Cash</p>
+                <p className="text-xl md:text-3xl font-black text-purple-600">{metrics.cashOnCash.toFixed(2)}%</p>
+              </div>
+            )}
+            {typeof metrics.multiplicateurRevenu === 'number' && metrics.multiplicateurRevenu > 0 && (
+              <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 hover:border-orange-200 transition-colors">
+                <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">MRB</p>
+                <p className="text-xl md:text-3xl font-black text-orange-600">{metrics.multiplicateurRevenu.toFixed(2)}x</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {analyseData.analyseRentabilite && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 md:p-8 shadow-sm">
+             <h4 className="font-black text-indigo-900 mb-4 flex items-center gap-3 text-lg md:text-xl">
+               <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">💵</span> Analyse de Rentabilité
+             </h4>
+             <p className="text-sm md:text-base text-indigo-900 leading-relaxed text-justify whitespace-pre-line font-medium">
+               {analyseData.analyseRentabilite}
+             </p>
+          </div>
+        )}
+
+        {renderSecteurEtComparables()}
+        {renderFacteursValeur()}
+        {marketingKit && (marketingKit.descriptionDuProprio || marketingKit.titreannonce) && renderMarketingKit()}
+      </>
+    );
+
+    // ==========================================
+    // RENDU : RÉSIDENTIEL
+    // ==========================================
+    const renderResidentialValuationSection = () => (
+      <>
+        {renderValuationHero()}
+        {isAcheteur && opti && renderProspectionDeal()}
+
+        {/* Historique et Plus-Value */}
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
+          <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+             <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📈</span> Performance de l'Actif
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isAcheteur && selectedAnalysis.prixAffichage && (
+               <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
+                  <p className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-2">Prix Affiché (Annonce)</p>
+                  <p className="text-3xl font-black text-purple-900">${formatCurrency(selectedAnalysis.prixAffichage)}</p>
+               </div>
+            )}
+            {isVendeur && selectedAnalysis.prixAchat && (
+               <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">Acheté en {selectedAnalysis.anneeAchat}</p>
+                  <p className="text-3xl font-black text-amber-900">${formatCurrency(selectedAnalysis.prixAchat)}</p>
+               </div>
+            )}
             
-            <div className="flex flex-col gap-2">
-              <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide self-start md:self-end shadow-sm border ${
-                isAcheteur ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                isVendeur ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                isCom ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-                isValuation ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-                'bg-emerald-100 text-emerald-700 border-emerald-200'
-              }`}>
-                {isAcheteur ? '🕵️‍♂️ Prospection / Deal' : 
-                 isVendeur ? '🏷️ Évaluation Vendeur' :
-                 isCom ? '🏢 Commercial' : 
-                 isValuation ? '🏠 Résidentiel' : '💰 Optimisation'}
+            {typeof appreciationDollars === 'number' && (
+              <div className="col-span-1 md:col-span-2 mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100">
+                 <div>
+                    <p className="text-sm font-bold text-emerald-800 uppercase tracking-wide">Plus-Value Estimée</p>
+                    <p className="text-xs text-emerald-600 mt-1 font-medium">Historique du gain / Perte</p>
+                 </div>
+                 <div className="text-left sm:text-right flex items-center gap-4">
+                    <p className={`text-xl font-bold ${gainPct >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {gainPct > 0 ? '+' : ''}{gainPct.toFixed(1)}%
+                    </p>
+                    <p className={`text-3xl font-black ${appreciationDollars >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {appreciationDollars >= 0 ? '+' : ''}${formatCurrency(appreciationDollars)}
+                    </p>
+                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {renderSecteurEtComparables()}
+        {renderFacteursValeur()}
+
+        {/* Stratégies & Recommandations (Plus fréquent en résidentiel) */}
+        {(renovations.length > 0 || strategie || timing || optRevenus.length > 0 || redDepenses.length > 0) && (
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-3xl p-6 md:p-8 shadow-sm">
+            <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-6 flex items-center gap-3">
+               <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">💡</span> Recommandations & Stratégie
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              {renovations.length > 0 && (
+                <div className="bg-white rounded-2xl p-5 md:p-6 border border-indigo-50 shadow-sm">
+                  <p className="font-black text-indigo-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                    🔨 Rénovations à haut ROI
+                  </p>
+                  <ul className="space-y-3">
+                    {renovations.map((item, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                        <span className="text-indigo-500 font-bold flex-shrink-0">»</span>
+                        <span className="leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {optRevenus.length > 0 && (
+                <div className="bg-white rounded-2xl p-5 md:p-6 border border-emerald-50 shadow-sm">
+                  <p className="font-black text-emerald-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                    💰 Optimisation Revenus
+                  </p>
+                  <ul className="space-y-3">
+                    {optRevenus.map((item, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                        <span className="text-emerald-500 font-bold flex-shrink-0">$</span>
+                        <span className="leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {redDepenses.length > 0 && (
+                <div className="bg-white rounded-2xl p-5 md:p-6 border border-blue-50 shadow-sm">
+                  <p className="font-black text-blue-900 mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                    📉 Réduction Dépenses
+                  </p>
+                  <ul className="space-y-3">
+                    {redDepenses.map((item, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm text-gray-700 font-medium">
+                        <span className="text-blue-500 font-bold flex-shrink-0">🔻</span>
+                        <span className="leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {strategie && (
+              <div className="bg-white rounded-2xl p-5 md:p-8 border border-indigo-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                <p className="font-black text-indigo-900 mb-4 text-xs md:text-sm uppercase tracking-widest">
+                    📋 Stratégie de Marché Conseillée
+                </p>
+                <p className="text-sm md:text-base text-gray-700 leading-loose whitespace-pre-line text-justify font-medium">{strategie}</p>
+              </div>
+            )}
+
+            {timing && (
+              <div className="mt-6 bg-white/60 p-5 md:p-6 rounded-2xl border border-indigo-200/50">
+                <p className="font-black text-indigo-800 mb-3 text-xs uppercase tracking-widest">⏳ Timing / Fenêtre de vente</p>
+                <div className="space-y-3">
+                   <p className="text-sm text-gray-800 font-medium leading-relaxed">{timing}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {marketingKit && (marketingKit.descriptionDuProprio || marketingKit.titreannonce) && renderMarketingKit()}
+      </>
+    );
+
+    // ==========================================
+    // RENDU : OPTIMISATION PURE
+    // ==========================================
+    const renderOptimizationSection = () => (
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-6 md:p-8 shadow-sm border border-emerald-100">
+          <h4 className="font-black text-emerald-900 text-xl md:text-2xl mb-6 flex items-center gap-3">
+             <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">💰</span> Potentiel d'Optimisation
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 divide-x divide-emerald-200/50">
+            <div className="px-2 md:px-4 first:pl-0">
+              <p className="text-[10px] md:text-xs text-emerald-700 font-bold uppercase mb-1">Loyer Optimal</p>
+              <p className="text-xl md:text-3xl font-black text-emerald-800">${formatCurrency(recs.loyeroptimal)}</p>
+            </div>
+            <div className="px-2 md:px-4">
+              <p className="text-[10px] md:text-xs text-emerald-700 font-bold uppercase mb-1">Gain Annuel</p>
+              <p className="text-xl md:text-3xl font-black text-emerald-800">+${formatCurrency(recs.gainannuel)}</p>
+            </div>
+             <div className="px-2 md:px-4">
+              <p className="text-[10px] md:text-xs text-emerald-700 font-bold uppercase mb-1">Augmentation</p>
+              <p className="text-xl md:text-3xl font-black text-emerald-800">{formatPercent(recs.pourcentageaugmentation)}</p>
+            </div>
+            <div className="px-2 md:px-4">
+              <p className="text-[10px] md:text-xs text-emerald-700 font-bold uppercase mb-1">Confiance IA</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xl md:text-2xl">🤖</span>
+                <span className="font-black text-emerald-800 text-lg md:text-xl">{recs.confiance || 85}%</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* --- SECTION PROSPECTION (LE DEAL) --- */}
-        {isAcheteur && opti && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-indigo-200 rounded-3xl p-6 md:p-8 shadow-md">
-            <h4 className="font-black text-indigo-900 mb-6 flex items-center gap-3 text-2xl">
-              <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">🕵️‍♂️</span> Verdict Prospection (Le Deal)
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white/80 p-5 rounded-2xl border border-white shadow-sm">
-                <p className="text-indigo-600 text-xs uppercase tracking-wide font-bold mb-2">Avis de l'IA</p>
-                <p className="text-lg font-bold text-gray-900 leading-snug">{opti.avisProspection}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {marketAnalysis.mediane && (
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+              <h5 className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
+                📊 Marché Locatif
+              </h5>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 text-sm font-bold">Médiane Quartier</span>
+                  <span className="font-black text-gray-900 text-lg">${formatCurrency(marketAnalysis.mediane)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 text-sm font-bold">Taux Occupation</span>
+                  <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{marketAnalysis.occupation}%</span>
+                </div>
+                 <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                  <span className="text-gray-600 text-sm font-bold">Tendance (30j)</span>
+                  <span className={`font-black flex items-center gap-1 ${marketAnalysis.tendance30j >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {marketAnalysis.tendance30j > 0 ? '↗️' : '↘️'} {marketAnalysis.tendance30j}%
+                  </span>
+                </div>
               </div>
-              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-200 shadow-sm flex flex-col justify-center">
-                <p className="text-emerald-700 text-xs uppercase tracking-wide font-bold mb-1">Valeur estimée après optimisation (Value-Add)</p>
-                <p className="text-3xl font-black text-emerald-600">
-                  {opti.valeurApresTravaux ? `$${formatCurrency(opti.valeurApresTravaux)}` : 'N/A'}
-                </p>
-                <p className="text-sm text-emerald-700 mt-2 font-medium">Marge de sécurité / ROI visé : <span className="font-bold">{opti.margeSecurite}</span></p>
-              </div>
+            </div>
+          )}
+
+          <div className="md:col-span-2">
+            <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm h-full">
+              <h5 className="font-black text-gray-900 mb-4 flex items-center gap-2 text-xl">
+                🎯 Analyse & Justification
+              </h5>
+              <p className="text-sm md:text-base text-gray-600 leading-relaxed text-justify whitespace-pre-line font-medium">
+                {recs.raisonnement || (Array.isArray(justification) ? justification.join('\n') : justification)}
+              </p>
             </div>
           </div>
-        )}
-
-        {/* --- SECTION ÉVALUATION --- */}
-        {isValuation && (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Carte Principale Valeur */}
-              <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-lg border border-blue-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                
-                <div className="flex justify-between items-center mb-6 relative">
-                  <h4 className="font-black text-gray-900 flex items-center gap-2 text-lg">
-                    <span className="text-2xl">💎</span> Estimation de Valeur Actuelle
-                  </h4>
-                  {result.estimationActuelle?.confiance && (
-                    <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${
-                        result.estimationActuelle.confiance === 'haute' ? 'bg-green-100 text-green-700 border-green-200' :
-                        result.estimationActuelle.confiance === 'moyenne' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                        'bg-orange-100 text-orange-700 border-orange-200'
-                    }`}>
-                       Confiance {result.estimationActuelle.confiance}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex flex-col md:flex-row gap-8 items-end relative">
-                  <div>
-                    <p className="text-sm text-gray-500 font-bold mb-1 uppercase">Valeur Moyenne</p>
-                    <p className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 tracking-tight">
-                      ${formatCurrency(result.estimationActuelle?.valeurMoyenne)}
-                    </p>
-                  </div>
-                  
-                  <div className="flex-1 w-full">
-                    {/* Visualisation Barre de Prix */}
-                    <div className="relative pt-6 pb-2">
-                       <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                         <span>📉 ${formatCurrency(result.estimationActuelle?.valeurBasse)}</span>
-                         <span>📈 ${formatCurrency(result.estimationActuelle?.valeurHaute)}</span>
-                       </div>
-                       <div className="h-4 bg-gray-100 rounded-full overflow-hidden relative shadow-inner">
-                         <div className="absolute left-[15%] right-[15%] top-0 bottom-0 bg-blue-200/50 rounded-full"></div>
-                         <div className="absolute left-[48%] top-0 bottom-0 w-1.5 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* KPI Secondaires (Gain/Appréciation & Taxe de Bienvenue) */}
-              <div className="space-y-4">
-                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center text-center">
-                    <p className="text-xs text-gray-500 font-bold uppercase mb-2">
-                      {isCom ? 'Cap Rate Actuel' : 'Gain Historique Potentiel'}
-                    </p>
-                    
-                    {isCom ? (
-                        <>
-                            <p className="text-4xl font-black text-indigo-600">{formatPercent(metrics.capRate)}</p>
-                            <p className="text-2xl mt-2">🏢</p>
-                        </>
-                    ) : (
-                        <>
-                            {(appreciationDollars !== null && appreciationDollars !== undefined) ? (
-                                <div>
-                                    <p className={`text-3xl font-black ${appreciationDollars >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                      {appreciationDollars > 0 ? '+' : ''}${formatCurrency(appreciationDollars)}
-                                    </p>
-                                    <p className={`text-sm font-bold mt-1 ${gainPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      ({gainPct > 0 ? '+' : ''}{gainPct.toFixed(1)}%)
-                                    </p>
-                                </div>
-                            ) : (
-                                <div>
-                                    <p className="text-xl font-bold text-gray-400">Non calculé</p>
-                                    <p className="text-xs text-gray-500 mt-2">Prix d'achat initial non fourni</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-                 </div>
-
-                 {/* Taxe de Bienvenue */}
-                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-md border border-gray-100 flex flex-col justify-center text-center">
-                    <p className="text-xs text-gray-500 font-bold uppercase mb-2 flex justify-center items-center gap-1">
-                      💸 Frais de mutation
-                    </p>
-                    <p className="text-2xl font-black text-gray-900">
-                      ${formatCurrency(welcomeTax)}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">Taxe de bienvenue est.</p>
-                 </div>
-              </div>
-            </div>
-
-            {/* --- DASHBOARD COMMERCIAL SPECIFIQUE --- */}
-            {isCom && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: 'RNE Annuel', val: `$${formatCurrency(metrics.noiAnnuel)}`, icon: '💵', color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                  { label: 'MRB', val: `${metrics.multiplicateurRevenu?.toFixed(2) || '-'} x`, icon: '📊', color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                  { label: 'Cash on Cash', val: formatPercent(metrics.cashOnCash), icon: '🔄', color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                  { label: 'Appréciation', val: `${(analyseData.appreciationTotale || 0) >= 0 ? '+' : ''}${formatCurrency(analyseData.appreciationTotale || analyseData.appreciationAnnuelle)}$`, icon: '📈', color: (analyseData.appreciationTotale || 0) >= 0 ? 'text-green-600' : 'text-red-600', bg: (analyseData.appreciationTotale || 0) >= 0 ? 'bg-green-50' : 'bg-red-50' },
-                ].map((stat, i) => (
-                  <div key={i} className={`${stat.bg} p-4 rounded-xl shadow-sm border border-opacity-50 border-gray-200`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">{stat.icon}</span>
-                      <p className="text-xs text-gray-600 font-bold uppercase">{stat.label}</p>
-                    </div>
-                    <p className={`text-xl font-black ${stat.color}`}>{stat.val}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* --- NOUVEAU BLOC : RENTABILITÉ PLEX --- */}
-            {analyseData.analyseRentabilite && (
-              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 shadow-sm">
-                 <h4 className="font-black text-indigo-900 mb-3 flex items-center gap-2 text-lg">
-                   💵 Rentabilité (MRB / TGA)
-                 </h4>
-                 <p className="text-sm text-indigo-900 leading-relaxed text-justify whitespace-pre-line">
-                   {analyseData.analyseRentabilite}
-                 </p>
-              </div>
-            )}
-
-            {/* --- ANALYSE TEXTUELLE & CONTEXTE --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-4">
-                {analyseData.marketTrend && (
-                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-2">Tendance Marché</p>
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">
-                        {analyseData.marketTrend.toLowerCase().includes('acheteur') ? '🛒' : 
-                         analyseData.marketTrend.toLowerCase().includes('equilibre') ? '⚖️' : '🔥'}
-                      </span>
-                      <p className="text-lg font-black text-gray-900 capitalize">
-                        {analyseData.marketTrend.toLowerCase().includes('acheteur') ? 'Favori Acheteur' : 
-                         analyseData.marketTrend.toLowerCase().includes('equilibre') ? 'Marché Équilibré' : 
-                         'Favori Vendeur'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Historique Achat (Seulement pour vendeur) */}
-                {isVendeur && selectedAnalysis.prixAchat && selectedAnalysis.anneeAchat && (
-                  <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-sm">
-                    <p className="text-xs font-bold text-amber-600 uppercase mb-2">Historique d'achat</p>
-                    <div className="flex justify-between items-center">
-                       <span className="font-bold text-gray-700">Acheté en {selectedAnalysis.anneeAchat}</span>
-                       <span className="font-black text-gray-900">${formatCurrency(selectedAnalysis.prixAchat)}</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Prix demandé si acheteur */}
-                {isAcheteur && selectedAnalysis.prixAffichage && (
-                  <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-sm">
-                    <p className="text-xs font-bold text-purple-600 uppercase mb-2">Prix Affiché (Annonce)</p>
-                    <div className="flex justify-between items-center">
-                       <span className="font-black text-gray-900 text-2xl">${formatCurrency(selectedAnalysis.prixAffichage)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Texte Principal Droite (Analyse Secteur) */}
-              <div className="md:col-span-2 space-y-4">
-                {secteurAnalysis && (
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-full">
-                    <h5 className="font-black text-gray-900 mb-3 flex items-center gap-2 text-lg">
-                      📍 Analyse du Secteur
-                    </h5>
-                    <p className="text-sm text-gray-600 leading-relaxed text-justify">
-                      {secteurAnalysis}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* --- TABLEAU DES COMPARABLES --- */}
-            {comparablesArray.length > 0 && (
-                <div className="space-y-4 mt-8">
-                  <h4 className="font-black text-gray-900 text-xl flex items-center gap-2">
-                    🏘️ Propriétés Comparables du Marché
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {comparablesArray.map((comp, idx) => (
-                      <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-400' : 'bg-green-400'}`}></div>
-                        
-                        <div className="flex justify-between items-start pl-2 mb-3">
-                          <div className="pr-2">
-                             <p className="font-bold text-gray-900 text-sm md:text-base leading-tight">{comp.adresse}</p>
-                             <p className="text-xs text-gray-500 mt-1">{comp.date}</p>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded font-bold uppercase shrink-0 border ${
-                              comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'
-                          }`}>
-                              {comp.statut}
-                          </span>
-                        </div>
-                        
-                        <p className="text-2xl font-black text-indigo-900 pl-2 mb-3">
-                          {comp.prix ? `$${formatCurrency(comp.prix)}` : 'Sur demande / Non affiché'}
-                        </p>
-                        
-                        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100">
-                          {comp.caracteristiques}
-                        </div>
-
-                        {comp.url && comp.url !== "null" && comp.url !== "" && (
-                          <div className="pl-2">
-                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
-                              Voir l'annonce
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            </a>
-                          </div>
-                        )}
-                      </div>
+        </div>
+        
+        {(prochainesEtabpes.length > 0 || pointsCles.length > 0) && (
+          <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm">
+            <h4 className="font-black text-gray-900 text-xl mb-6 flex items-center gap-2">
+              📋 Plan d'Action
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {pointsCles.length > 0 && (
+                <div>
+                  <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🔑 Stratégie Clé</h5>
+                  <ul className="space-y-3">
+                    {pointsCles.map((pt, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-600 font-medium">
+                        <span className="text-indigo-500 font-bold">•</span> {pt}
+                      </li>
                     ))}
-                  </div>
-                </div>
-            )}
-
-            {/* Ancien format (si encore présent) */}
-            {comparablesArray.length === 0 && (qualiteAnalysis || soldReference) && (
-              <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
-                <h5 className="font-black text-purple-900 mb-3 flex items-center gap-2 text-lg">
-                  {isCom ? '💼 Analyse Qualitative' : '🏡 Profil & Comparables'}
-                </h5>
-                <p className="text-sm text-purple-900 leading-relaxed italic text-justify">
-                  "{isCom ? qualiteAnalysis : soldReference}"
-                </p>
-              </div>
-            )}
-
-            {/* --- FACTEURS D'INFLUENCE --- */}
-            {(positifs.length > 0 || negatifs.length > 0 || incertitudes.length > 0) && (
-              <div className="space-y-4 pt-4">
-                <h4 className="font-black text-gray-900 text-xl">🎯 Facteurs d'Influence</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
-                  {incertitudes.length > 0 && (
-                    <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-5">
-                      <h5 className="font-black text-amber-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ⚠️ Incertitudes & Risques à vérifier
-                      </h5>
-                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {incertitudes.map((item, idx) => (
-                          <li key={idx} className="flex gap-2 text-sm text-amber-900 font-medium">
-                            <span className="shrink-0">❓</span> {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {positifs.length > 0 && (
-                    <div className="bg-white border border-green-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-green-50/50 to-white">
-                      <h5 className="font-black text-green-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ✅ Points Positifs (Valeur Ajoutée)
-                      </h5>
-                      <ul className="space-y-3">
-                        {positifs.map((item, idx) => (
-                          <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-green-500 font-bold shrink-0">+</span> 
-                            <span className="leading-snug">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {negatifs.length > 0 && (
-                    <div className="bg-white border border-red-100 rounded-xl p-5 shadow-sm bg-gradient-to-br from-red-50/50 to-white">
-                      <h5 className="font-black text-red-700 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        ❌ Points Négatifs (Désuétude)
-                      </h5>
-                      <ul className="space-y-3">
-                        {negatifs.map((item, idx) => (
-                          <li key={idx} className="flex gap-2 text-sm text-gray-700">
-                            <span className="text-red-500 font-bold shrink-0">-</span>
-                            <span className="leading-snug">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* --- NOUVEAU BLOC : MARKETING KIT (Vendeur Résidentiel) --- */}
-            {isValuation && marketingKit && marketingKit.descriptionDuProprio && (
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-3xl p-6 md:p-8 shadow-md text-gray-800 mt-8">
-                <h3 className="text-xl md:text-2xl font-black mb-6 text-purple-900 flex items-center gap-3">
-                  📢 Kit Marketing (Prêt à publier)
-                </h3>
-                <div className="bg-white p-6 rounded-2xl border border-purple-100 shadow-sm space-y-5">
-                  <div>
-                    <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Titre suggéré</p>
-                    <p className="text-xl font-bold text-gray-900">{marketingKit.titreAnnonce}</p>
-                  </div>
-                  <div>
-                    <p className="text-purple-600 text-xs uppercase tracking-wide font-bold mb-1">Prix à afficher suggéré</p>
-                    <p className="text-2xl font-black text-purple-700">
-                      {marketingKit.prixAfficheSuggere ? `$${formatCurrency(marketingKit.prixAfficheSuggere)}` : 'Selon valeur moyenne'}
-                    </p>
-                  </div>
-                  <div className="pt-2">
-                    <div className="flex justify-between items-end mb-2">
-                       <p className="text-purple-600 text-xs uppercase tracking-wide font-bold">Description générée (DuProprio/Centris)</p>
-                       <button 
-                          onClick={() => copyToClipboard(marketingKit.descriptionDuProprio)}
-                          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${copySuccess ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                       >
-                          {copySuccess ? '✅ Copiée !' : '📋 Copier le texte'}
-                       </button>
-                    </div>
-                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 whitespace-pre-line text-gray-700 leading-relaxed font-medium">
-                      {marketingKit.descriptionDuProprio}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </>
-        )}
-
-        {/* --- SECTION OPTIMISATION (Reste inchangé) --- */}
-        {!isValuation && (
-          <div className="space-y-6">
-            
-            {/* 1. KPIs Financiers */}
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 shadow-sm border border-emerald-100">
-              <h4 className="font-black text-emerald-900 text-lg mb-6 flex items-center gap-2">
-                💰 Potentiel d'Optimisation
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-emerald-200/50">
-                <div className="px-4 first:pl-0">
-                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Loyer Optimal</p>
-                  <p className="text-3xl font-black text-emerald-800">${formatCurrency(recs.loyeroptimal)}</p>
-                </div>
-                <div className="px-4">
-                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Gain Annuel</p>
-                  <p className="text-3xl font-black text-emerald-800">+${formatCurrency(recs.gainannuel)}</p>
-                </div>
-                 <div className="px-4">
-                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Augmentation</p>
-                  <p className="text-3xl font-black text-emerald-800">{formatPercent(recs.pourcentageaugmentation)}</p>
-                </div>
-                <div className="px-4">
-                  <p className="text-xs text-emerald-700 font-bold uppercase mb-1">Confiance IA</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🤖</span>
-                    <span className="font-black text-emerald-800 text-xl">{recs.confiance || 85}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Analyse Marché & Raisonnement */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-4">
-                {/* Stats Marché */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-                  <h5 className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
-                    📊 Marché Locatif
-                  </h5>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 text-sm font-bold">Médiane Quartier</span>
-                      <span className="font-black text-gray-900 text-lg">${formatCurrency(marketAnalysis.mediane)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 text-sm font-bold">Taux Occupation</span>
-                      <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{marketAnalysis.occupation}%</span>
-                    </div>
-                     <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                      <span className="text-gray-600 text-sm font-bold">Tendance (30j)</span>
-                      <span className={`font-black flex items-center gap-1 ${marketAnalysis.tendance30j >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {marketAnalysis.tendance30j > 0 ? '↗️' : '↘️'}
-                        {marketAnalysis.tendance30j}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Raisonnement */}
-              <div className="md:col-span-2">
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-full">
-                  <h5 className="font-black text-gray-900 mb-3 flex items-center gap-2">
-                    🎯 Analyse & Justification
-                  </h5>
-                  <p className="text-sm text-gray-600 leading-relaxed text-justify whitespace-pre-line">
-                    {recs.raisonnement || (Array.isArray(justification) ? justification.join('\n') : justification)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Marketing Kit Commercial (Ancien) */}
-            {marketingKit.titreannonce && (
-              <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-indigo-100 rounded-2xl p-1">
-                <div className="bg-white/80 backdrop-blur-md p-6 rounded-xl">
-                  <h4 className="font-black text-purple-900 text-lg mb-4 flex items-center gap-2">
-                    📣 Marketing Kit AI
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
-                      <p className="text-xs text-purple-600 font-bold uppercase mb-1">Titre Suggéré</p>
-                      <p className="font-bold text-gray-900 text-lg">"{marketingKit.titreannonce}"</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
-                        <p className="text-xs text-purple-600 font-bold uppercase mb-2 flex items-center gap-1">
-                          📝 Accroche
-                        </p>
-                        <p className="text-sm text-gray-600 italic">"{marketingKit.descriptionaccroche}"</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
-                        <p className="text-xs text-purple-600 font-bold uppercase mb-2 flex items-center gap-1">
-                          👥 Profil Cible
-                        </p>
-                        <p className="text-sm text-gray-600">{marketingKit.profillocataire}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 4. Plan d'action */}
-            {(prochainesEtabpes.length > 0 || pointsCles.length > 0) && (
-              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <h4 className="font-black text-gray-900 text-lg mb-6 flex items-center gap-2">
-                  📋 Plan d'Action
-                </h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {pointsCles.length > 0 && (
-                    <div>
-                      <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🔑 Stratégie Clé</h5>
-                      <ul className="space-y-3">
-                        {pointsCles.map((pt, i) => (
-                          <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
-                            <span className="text-indigo-500 font-bold">•</span>
-                            {pt}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {prochainesEtabpes.length > 0 && (
-                    <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-                      <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🚀 Prochaines Étapes</h5>
-                      <ul className="space-y-4">
-                        {prochainesEtabpes.map((step, i) => (
-                          <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
-                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px]">
-                              {i + 1}
-                            </span>
-                            <span className="mt-0.5 font-medium">{step}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* --- STRATÉGIE (Commun Évaluation) --- */}
-        {isValuation && (renovations.length > 0 || strategie || timing) && (
-          <div className="space-y-6 pt-6 border-t border-gray-200">
-            <h4 className="font-black text-gray-900 text-xl flex items-center gap-3">
-              <span className="bg-yellow-100 p-2 rounded-lg text-2xl">💡</span> 
-              Recommandations Stratégiques
-            </h4>
-            
-            <div className="grid grid-cols-1 gap-6">
-              
-              {strategie && (
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-xs uppercase tracking-wide">
-                    📈 Stratégie Conseillée
-                  </p>
-                  <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line text-justify">{strategie}</p>
+                  </ul>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {renovations.length > 0 && (
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
-                      🛠️ Rénovations à Haut ROI
-                    </p>
-                    <ul className="space-y-3">
-                      {renovations.map((item, i) => (
-                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-orange-50 p-3 rounded-lg border border-orange-100">
-                           <span className="text-orange-500 font-bold shrink-0 mt-0.5">🔨</span>
-                           <span className="leading-snug">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {optRevenus.length > 0 && (
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
-                      💵 Augmentation Revenus
-                    </p>
-                    <ul className="space-y-3">
-                      {optRevenus.map((item, i) => (
-                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                          <span className="text-emerald-500 font-bold shrink-0 mt-0.5">💰</span>
-                          <span className="leading-snug">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {redDepenses.length > 0 && (
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <p className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-xs uppercase tracking-wide">
-                      📉 Réduction Dépenses
-                    </p>
-                    <ul className="space-y-3">
-                      {redDepenses.map((item, i) => (
-                        <li key={i} className="flex items-start gap-3 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                          <span className="text-blue-500 font-bold shrink-0 mt-0.5">🔻</span>
-                          <span className="leading-snug">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {timing && (
-                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                  <p className="font-bold text-gray-900 mb-3 flex items-center gap-2 text-xs uppercase tracking-wide">
-                    ⏳ Timing Optimal
-                  </p>
-                  <p className="text-gray-700 text-sm leading-relaxed text-justify">{timing}</p>
+              {prochainesEtabpes.length > 0 && (
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <h5 className="font-bold text-gray-700 mb-4 text-xs uppercase tracking-wider">🚀 Prochaines Étapes</h5>
+                  <ul className="space-y-4">
+                    {prochainesEtabpes.map((step, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px]">
+                          {i + 1}
+                        </span>
+                        <span className="mt-0.5 font-medium">{step}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
@@ -2566,44 +2527,56 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         )}
       </div>
     );
+
+    return (
+      <div className="p-4 md:p-8 space-y-8 bg-gray-50/50">
+        {renderPropertyHeader()}
+        
+        {!isValuation 
+          ? renderOptimizationSection() 
+          : isCom 
+            ? renderCommercialValuationSection() 
+            : renderResidentialValuationSection()
+        }
+      </div>
+    );
   };
 
   return (
     <div className="space-y-8 pb-12">
       {/* HEADER AVEC EMOJI */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight mb-2 flex items-center gap-3">
-            <span className="text-4xl">🚀</span> Tableau de bord
+          <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight mb-2 flex items-center gap-3">
+            <span className="text-3xl md:text-4xl">🚀</span> Tableau de bord
           </h1>
-          <p className="text-gray-500 text-lg">Gérez vos analyses et suivez la performance de votre parc.</p>
+          <p className="text-gray-500 text-base md:text-lg">Gérez vos analyses et suivez la performance de votre parc.</p>
         </div>
-        <div className="flex gap-2">
-           <button onClick={() => setActiveTab('valuation')} className="px-5 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+           <button onClick={() => setActiveTab('valuation')} className="w-full sm:w-auto justify-center px-5 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
              <span>📊</span> Nouvelle Évaluation
            </button>
-           <button onClick={() => setActiveTab('optimization')} className="px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+           <button onClick={() => setActiveTab('optimization')} className="w-full sm:w-auto justify-center px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
              <span>💰</span> Nouvelle Optimisation
            </button>
         </div>
       </div>
 
       {/* STATS CARDS - STYLE NEW GEN */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Propriétés', val: stats.totalProperties, icon: '🏘️', from: 'from-indigo-50', to: 'to-blue-50', border: 'border-indigo-100' },
           { label: 'Valeur Totale', val: `$${formatCurrency(stats.totalValuation)}`, icon: '💎', from: 'from-blue-50', to: 'to-cyan-50', border: 'border-blue-100' },
           { label: 'Gain Potentiel', val: `+$${formatCurrency(stats.totalGainsPotential)}`, icon: '📈', from: 'from-emerald-50', to: 'to-teal-50', border: 'border-emerald-100' },
           { label: 'Analyses', val: stats.evaluations + stats.optimizations, icon: '📋', from: 'from-purple-50', to: 'to-fuchsia-50', border: 'border-purple-100' }
         ].map((stat, i) => (
-          <div key={i} className={`bg-gradient-to-br ${stat.from} ${stat.to} p-5 rounded-2xl border ${stat.border} shadow-sm hover:shadow-md transition-all`}>
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-4xl filter drop-shadow-sm">{stat.icon}</span>
-              {i === 2 && <span className="bg-white/50 backdrop-blur-sm text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-full border border-emerald-100">+12%</span>}
+          <div key={i} className={`bg-gradient-to-br ${stat.from} ${stat.to} p-4 md:p-5 rounded-2xl border ${stat.border} shadow-sm hover:shadow-md transition-all`}>
+            <div className="flex justify-between items-start mb-3 md:mb-4">
+              <span className="text-2xl md:text-4xl filter drop-shadow-sm">{stat.icon}</span>
             </div>
             <div>
-              <p className="text-3xl font-black text-gray-900">{stat.val}</p>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mt-1">{stat.label}</p>
+              <p className="text-xl md:text-3xl font-black text-gray-900 truncate">{stat.val}</p>
+              <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wide mt-1 truncate">{stat.label}</p>
             </div>
           </div>
         ))}
@@ -2611,13 +2584,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
       {/* QUICK START SI VIDE */}
       {stats.totalProperties === 0 && (
-        <div className="bg-gradient-to-r from-indigo-50 via-white to-purple-50 rounded-3xl p-10 border border-indigo-100 text-center shadow-sm">
-          <div className="text-6xl mb-6 animate-bounce">👋</div>
-          <h2 className="text-3xl font-black text-gray-900 mb-3">Bienvenue sur votre espace !</h2>
-          <p className="text-gray-500 max-w-md mx-auto mb-8 text-lg">
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-purple-50 rounded-3xl p-6 md:p-10 border border-indigo-100 text-center shadow-sm">
+          <div className="text-5xl md:text-6xl mb-6 animate-bounce">👋</div>
+          <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">Bienvenue sur votre espace !</h2>
+          <p className="text-gray-500 max-w-md mx-auto mb-8 text-sm md:text-lg">
             Commencez par analyser votre première propriété pour découvrir sa valeur réelle et son potentiel d'optimisation.
           </p>
-          <button onClick={() => setActiveTab('valuation')} className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 text-lg">
+          <button onClick={() => setActiveTab('valuation')} className="px-6 py-3 md:px-8 md:py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 text-base md:text-lg">
             🚀 Lancer ma première analyse
           </button>
         </div>
@@ -2626,26 +2599,26 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       {/* LISTE DES ANALYSES */}
       {stats.totalProperties > 0 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-gray-900">Analyses Récentes</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-xl md:text-2xl font-black text-gray-900">Analyses Récentes</h2>
             
             {/* FILTRE LISTE */}
-            <div className="flex bg-gray-100 p-1 rounded-xl">
+            <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-auto">
                <button 
                 onClick={() => setListFilter('all')}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 sm:flex-none px-3 py-1.5 md:px-4 text-[10px] md:text-xs font-bold rounded-lg transition-all ${listFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                >
                  Tout
                </button>
                <button 
                 onClick={() => setListFilter('valuation')}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'valuation' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 sm:flex-none px-3 py-1.5 md:px-4 text-[10px] md:text-xs font-bold rounded-lg transition-all ${listFilter === 'valuation' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                >
                  Évaluations
                </button>
                <button 
                 onClick={() => setListFilter('optimization')}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${listFilter === 'optimization' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 sm:flex-none px-3 py-1.5 md:px-4 text-[10px] md:text-xs font-bold rounded-lg transition-all ${listFilter === 'optimization' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                >
                  Optimisations
                </button>
@@ -2683,11 +2656,11 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 <div
                   key={analyse.id}
                   onClick={() => !isEditing && setSelectedAnalysis(analyse)}
-                  className={`group ${cardBg} p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 ${borderClass}`}
+                  className={`group ${cardBg} p-4 md:p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 ${borderClass}`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
                     {/* ICONE EMOJI GROS */}
-                    <div className="text-4xl filter drop-shadow-sm transition-transform group-hover:scale-110">
+                    <div className="text-3xl md:text-4xl filter drop-shadow-sm transition-transform group-hover:scale-110 shrink-0">
                       {getPropertyIcon(analyse.proprietyType || analyse.proprietype || analyse.proprietetype)}
                     </div>
 
@@ -2709,18 +2682,18 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-black text-gray-900 text-lg truncate group-hover:text-indigo-600 transition-colors">
+                            <h3 className="font-black text-gray-900 text-sm md:text-lg truncate group-hover:text-indigo-600 transition-colors">
                               {getPropertyLabel(analyse)}
                             </h3>
                             
                             {/* BADGES ACHETEUR / VENDEUR SUR LA LISTE */}
                             {isAcheteur && (
-                              <span className="bg-purple-100 text-purple-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <span className="bg-purple-100 text-purple-700 text-[8px] md:text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
                                 🕵️‍♂️ Deal
                               </span>
                             )}
                             {isVendeur && (
-                              <span className="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
+                              <span className="bg-amber-100 text-amber-700 text-[8px] md:text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
                                 🏷️ Vente
                               </span>
                             )}
@@ -2729,24 +2702,24 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 font-medium mt-1">
-                         <span className="flex items-center gap-1"><MapPin size={12}/> {analyse.ville}</span>
-                         <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                      <div className="flex flex-wrap items-center gap-y-1 gap-x-2 md:gap-x-3 text-[10px] md:text-xs text-gray-500 font-medium mt-1">
+                         <span className="flex items-center gap-1 truncate"><MapPin size={10} /> {analyse.ville}</span>
+                         <span className="hidden md:inline w-1 h-1 bg-gray-300 rounded-full"></span>
                          <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp || Date.now()).toLocaleDateString('fr-CA')}</span>
                       </div>
                       
                       {/* VERDICT RAPIDE POUR ACHETEUR */}
                       {isAcheteur && opti && (
                         <div className="mt-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100/50 inline-block max-w-full">
-                           <p className="text-xs font-medium text-indigo-900 line-clamp-1">
+                           <p className="text-[10px] md:text-xs font-medium text-indigo-900 line-clamp-1">
                              <span className="font-bold mr-1">Avis IA:</span> {opti.avisProspection}
                            </p>
                         </div>
                       )}
                     </div>
 
-                    {/* KPIs RAPIDES */}
-                    <div className="hidden sm:flex items-center gap-8 mr-4">
+                    {/* KPIs RAPIDES - Cachés sur très petits écrans, visibles en paysage ou md */}
+                    <div className="hidden lg:flex items-center gap-8 mr-4 shrink-0">
                        {isAcheteur && opti ? (
                          <>
                            <div className="text-right">
@@ -2786,22 +2759,24 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                     </div>
 
                     {/* ACTIONS */}
-                    <div className="flex items-center gap-2 pl-4 border-l border-gray-100">
-                      <button 
-                        onClick={(e) => handleShare(analyse, e)} 
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                        title="Partager"
-                      >
-                        <Share2 size={18} />
-                      </button>
-                      <button 
-                        onClick={(e) => handleDelete(analyse.id, analyse.collection, e)} 
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                        title="Supprimer"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                      <div className="p-1 text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all">
+                    <div className="flex flex-col sm:flex-row items-center gap-1 md:gap-2 pl-2 md:pl-4 border-l border-gray-100 shrink-0">
+                      <div className="flex items-center">
+                        <button 
+                          onClick={(e) => handleShare(analyse, e)} 
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                          title="Partager"
+                        >
+                          <Share2 size={16} className="md:w-[18px] md:h-[18px]" />
+                        </button>
+                        <button 
+                          onClick={(e) => handleDelete(analyse.id, analyse.collection, e)} 
+                          className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
+                        </button>
+                      </div>
+                      <div className="hidden sm:block p-1 text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all">
                         <ChevronRight size={20} />
                       </div>
                     </div>
@@ -2815,31 +2790,32 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
       {/* MODALE DÉTAILS - PRO + NEW GEN */}
       {selectedAnalysis && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl max-w-5xl w-full max-h-[95vh] md:max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
             {/* Header Modale */}
-            <div className="bg-white border-b border-gray-100 px-8 py-5 flex items-center justify-between z-10">
+            <div className="bg-white border-b border-gray-100 px-4 md:px-8 py-3 md:py-5 flex items-center justify-between z-10">
               <div>
-                <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                   {getAnalysisType(selectedAnalysis) === 'valuation' ? <span className="text-2xl">📊</span> : <span className="text-2xl">💰</span>}
-                   {getAnalysisType(selectedAnalysis) === 'valuation' ? 'Détails de l\'évaluation' : 'Détails de l\'optimisation'}
+                <h3 className="text-base md:text-xl font-black text-gray-900 flex items-center gap-2">
+                   {getAnalysisType(selectedAnalysis) === 'valuation' ? <span className="text-xl md:text-2xl">📊</span> : <span className="text-xl md:text-2xl">💰</span>}
+                   <span className="hidden sm:inline">{getAnalysisType(selectedAnalysis) === 'valuation' ? 'Détails de l\'évaluation' : 'Détails de l\'optimisation'}</span>
+                   <span className="sm:hidden">Détails</span>
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 md:gap-2">
                  <button 
                     onClick={(e) => handleShare(selectedAnalysis, e)} 
-                    className="flex items-center gap-2 px-3 py-2 text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all mr-1"
+                    className="flex items-center gap-1.5 md:gap-2 px-2 py-1.5 md:px-3 md:py-2 text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
                     title="Partager cette analyse"
                  >
-                    <Share2 size={18} />
+                    <Share2 size={16} className="md:w-[18px] md:h-[18px]" />
                     <span className="hidden sm:inline text-sm">Partager</span>
                  </button>
-                 <button onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
-                    <Trash2 size={20} />
+                 <button onClick={(e) => handleDelete(selectedAnalysis.id, selectedAnalysis.collection, e)} className="p-1.5 md:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                    <Trash2 size={18} className="md:w-[20px] md:h-[20px]" />
                  </button>
-                 <div className="w-px h-6 bg-gray-200 mx-2"></div>
-                 <button onClick={() => setSelectedAnalysis(null)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all">
-                    <X size={24} />
+                 <div className="w-px h-5 md:h-6 bg-gray-200 mx-1 md:mx-2"></div>
+                 <button onClick={() => setSelectedAnalysis(null)} className="p-1.5 md:p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-all">
+                    <X size={20} className="md:w-[24px] md:h-[24px]" />
                  </button>
               </div>
             </div>
@@ -2850,14 +2826,14 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             </div>
 
             {/* Footer */}
-            <div className="bg-gray-50 border-t border-gray-200 px-8 py-4 flex justify-end gap-3">
+            <div className="bg-gray-50 border-t border-gray-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row justify-end gap-2 md:gap-3">
               <button 
                 onClick={(e) => handleShare(selectedAnalysis, e)} 
-                className="px-6 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center gap-2"
+                className="w-full sm:w-auto justify-center px-4 md:px-6 py-2.5 md:py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center gap-2"
               >
-                <Share2 size={18} /> Partager les résultats
+                <Share2 size={16} className="md:w-[18px] md:h-[18px]" /> Partager
               </button>
-              <button onClick={() => setSelectedAnalysis(null)} className="px-6 py-3 bg-white border border-gray-300 text-gray-800 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm">
+              <button onClick={() => setSelectedAnalysis(null)} className="w-full sm:w-auto justify-center px-4 md:px-6 py-2.5 md:py-3 bg-white border border-gray-300 text-gray-800 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm">
                 Fermer
               </button>
             </div>
@@ -4541,8 +4517,20 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const isSubmittingRef = useRef(false);
   const resultRef = useRef(null);
 
+  // --- NOUVEAUX STATES POUR LE CHATBOT ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatScrollRef = useRef(null);
+
+  // Détermine si l'utilisateur a accès au chat (Ajuste 'pro'/'growth' selon ta base de données)
+  // Par exemple, si quotaInfo a une propriété 'plan' ou 'planId'
+  const userPlan = quotaInfo?.plan?.toLowerCase() || quotaInfo?.planId?.toLowerCase() || 'gratuit';
+  const hasPremiumAccess = ['pro', 'growth', 'premium', 'illimite'].includes(userPlan) || quotaInfo?.isUnlimited;
+
   const [formData, setFormData] = useState({
-    userType: 'acheteur', // 'acheteur' ou 'vendeur'
+    userType: 'acheteur', 
     titre: '',
     proprietyType: 'unifamilial',
     ville: '',
@@ -4553,10 +4541,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     urlAnnonce: '', 
     prixAchat: '', 
     anneeAchat: '', 
-    // NOUVEAUX CHAMPS POUR PLEX
     revenusAnnuels: '', 
     depensesAnnuelles: '',
-    // FIN NOUVEAUX CHAMPS
     anneeConstruction: 1990,
     surfaceHabitee: '',
     surfaceLot: '',
@@ -4631,6 +4617,13 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   useEffect(() => {
     setSlideProgress(((currentSlide + 1) / slides.length) * 100);
   }, [currentSlide, slides.length]);
+
+  // Scroll to bottom of chat when new messages arrive
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isChatLoading]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -4708,6 +4701,10 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       setSelectedProperty(result);
       setShowForm(false);
       setCurrentSlide(0);
+      
+      // Reset chat if new evaluation
+      setChatMessages([]);
+      setIsChatOpen(false);
 
       setTimeout(() => {
         resultRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -4737,6 +4734,45 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     document.body.removeChild(textArea);
   };
 
+  // --- NOUVELLE FONCTION : ENVOYER MESSAGE CHATBOT ---
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+
+    const userMessage = { role: 'user', content: chatInput.trim() };
+    const updatedMessages = [...chatMessages, userMessage];
+    
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-chat`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          propertyData: selectedProperty // On passe tout l'objet en contexte
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erreur de communication avec le Stratège IA');
+      
+      const data = await response.json();
+      
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+    } catch (err) {
+      console.error(err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion à mes systèmes. Veuillez réessayer." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+
+  // --- RENDUS DES SLIDES DU FORMULAIRE ---
   const renderProfilSlide = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4932,7 +4968,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           </>
         )}
 
-        {/* NOUVELLE SECTION CONDITIONNELLE POUR LES PLEX */}
         {isPlex && (
           <div className="mt-6 border-t border-gray-200 pt-5">
             <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">🏢 Chiffres de l'immeuble (Optionnel)</h4>
@@ -4980,6 +5015,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     </div>
   );
 
+  // --- RENDUS DES RÉSULTATS ---
   const renderHeroValuation = () => {
     const est = selectedProperty.estimationActuelle || {};
     return (
@@ -4999,14 +5035,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                   {est.valeurMoyenne ? `${est.valeurMoyenne.toLocaleString('fr-CA')} $` : 'N/A'}
                 </h2>
              </div>
-             {est.confiance && (
-                <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-xl border border-white/20">
-                    <p className="text-xs opacity-80 uppercase font-bold tracking-wider mb-1">Indice de confiance</p>
-                    <p className="font-bold text-xl capitalize flex items-center gap-2">
-                      {est.confiance === 'haute' ? '🟢' : est.confiance === 'moyenne' ? '🟡' : '🔴'} {est.confiance}
-                    </p>
-                </div>
-             )}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10">
@@ -5100,7 +5128,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     const showFinancials = analyse.appreciationTotale || analyse.pourcentageGainTotal;
     const showMarket = analyse.marketTrend;
 
-    // NOUVEAU: On vérifie si y'a une analyse de rentabilité
     if (!showFinancials && !showMarket && !analyse.analyseRentabilite) return null;
 
     return (
@@ -5109,11 +5136,10 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           📈 Analyse Financière & Marché
         </h3>
         
-        {/* NOUVEAU: Encadré pour l'analyse de rentabilité des Plex */}
         {analyse.analyseRentabilite && (
           <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-xl p-5">
             <p className="text-sm font-bold text-indigo-900 uppercase tracking-wide mb-2 flex items-center gap-2">
-               💵 Rentabilité (MRB / TGA)
+                💵 Rentabilité (MRB / TGA)
             </p>
             <p className="text-gray-800 text-sm leading-relaxed">{analyse.analyseRentabilite}</p>
           </div>
@@ -5184,7 +5210,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
              </h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {comparables.map((comp, idx) => (
-                   <div key={idx} className="border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                   <div key={idx} className="border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group flex flex-col">
                       <div className={`absolute left-0 top-0 bottom-0 w-1 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-red-400' : 'bg-green-400'}`}></div>
                       <div className="flex justify-between items-start mb-3 pl-2">
                          <div>
@@ -5198,11 +5224,20 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                       <p className="text-2xl font-black text-indigo-900 mb-3 pl-2">
                          {typeof comp.prix === 'number' ? `${comp.prix.toLocaleString('fr-CA')} $` : comp.prix}
                       </p>
-                      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100">
+                      
+                      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 mb-4 ml-2 border border-gray-100 flex-grow">
                          {comp.caracteristiques}
                       </div>
+
+                      {comp.ajustementParite && (
+                        <div className="bg-indigo-50 rounded-lg p-3 text-sm text-indigo-900 mb-4 ml-2 border border-indigo-100 flex items-start gap-2">
+                          <span className="mt-0.5">⚖️</span>
+                          <p className="font-medium">{comp.ajustementParite}</p>
+                        </div>
+                      )}
+
                       {comp.url && comp.url !== "null" && comp.url !== "" && (
-                         <div className="pl-2">
+                         <div className="pl-2 mt-auto">
                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg">
                               Voir l'annonce
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -5310,10 +5345,115 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
+  // --- RENDU DU CHATBOT (NOUVEAU) ---
+  const renderChatHeader = () => (
+    <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
+      <div>
+        <h2 className="text-2xl font-black flex items-center gap-2">
+          🤖 Discuter de cette évaluation avec l'IA
+        </h2>
+        <p className="text-indigo-200 mt-1 text-sm md:text-base">
+          Posez des questions sur le financement, la stratégie de flip, ou comment maximiser le prix de vente.
+        </p>
+      </div>
+      
+      {hasPremiumAccess ? (
+        <button 
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center gap-2 whitespace-nowrap"
+        >
+          {isChatOpen ? 'Fermer le chat' : '💬 Ouvrir le Stratège IA'}
+        </button>
+      ) : (
+        <button 
+          onClick={() => alert("Redirection vers la page d'upgrade (À implémenter !)")}
+          className="bg-slate-800 border border-slate-600 hover:bg-slate-700 text-slate-300 font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center gap-2 whitespace-nowrap"
+        >
+          🔒 Débloquer avec Pro/Growth
+        </button>
+      )}
+    </div>
+  );
+
+  const renderChatWindow = () => {
+  if (!isChatOpen) return null;
+
   return (
-    <div className="max-w-4xl mx-auto w-full font-sans">
-      {/* Tu auras besoin de ton propre LoadingSpinner ici */}
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
+    <div className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[95vw] md:w-[400px] h-[600px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-50 overflow-hidden">
+      {/* Header */}
+      <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🤖</span>
+          <div>
+            <h3 className="font-bold text-sm">Stratège Immobilier IA</h3>
+            <p className="text-xs text-indigo-300">Analyse en direct</p>
+          </div>
+        </div>
+        <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-1">✕</button>
+      </div>
+
+      {/* Messages avec correction de style */}
+      <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+        {chatMessages.length === 0 && (
+          <div className="text-center text-gray-400 text-xs mt-12 px-6">
+            Posez-moi vos questions sur le financement, la stratégie de rénovation ou le potentiel de revente.
+          </div>
+        )}
+        
+        {chatMessages.map((msg, idx) => (
+          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+              msg.role === 'user' 
+                ? 'bg-indigo-600 text-white rounded-br-none' 
+                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
+            }`}
+            style={{ 
+              whiteSpace: 'pre-wrap', // INDISPENSABLE pour respecter les doubles sauts de ligne (\n\n)
+              wordBreak: 'break-word'
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        
+        {isChatLoading && (
+          <div className="flex justify-start">
+            <div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-bl-none flex gap-1">
+              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce"></div>
+              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input Form */}
+      <form onSubmit={sendChatMessage} className="p-3 bg-white border-t border-gray-100 shrink-0">
+        <div className="relative">
+          <input 
+            type="text" 
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Écrivez votre question ici..." 
+            className="w-full bg-gray-100 border-transparent rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm transition-all"
+            disabled={isChatLoading}
+          />
+          <button 
+            type="submit" 
+            disabled={isChatLoading || !chatInput.trim()}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-30 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+  return (
+    <div className="max-w-4xl mx-auto w-full font-sans relative">
+       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
       
       {/* FORM MODAL */}
       {showForm && (
@@ -5413,7 +5553,11 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       )}
 
       {selectedProperty && (
-        <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-24">
+          
+          {/* NOUVEAU: Encadré Chatbot au dessus des résultats */}
+          {renderChatHeader()}
+
           {renderHeroValuation()}
           {selectedProperty.potentielOptimisation && renderProspectionAvis()}
           {renderResidentialAppreciation()}
@@ -5429,6 +5573,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                 setSelectedProperty(null);
                 setShowForm(false);
                 setCurrentSlide(0);
+                setIsChatOpen(false);
               }}
               className="px-8 py-3 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-bold rounded-xl transition-all hover:bg-gray-50 flex items-center gap-2 shadow-sm"
             >
@@ -5437,6 +5582,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           </div>
         </div>
       )}
+
+      {/* Rendu du Chatbot Flottant s'il est ouvert */}
+      {renderChatWindow()}
     </div>
   );
 }
@@ -5497,9 +5645,9 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   const loadingMessages = [
     '🏪 Analyse de l\'actif commercial...',
-    '📊 Structuration des données financières...',
-    '🌐 Recherche de comparables sur Centris/LoopNet...',
-    '💹 Calcul du Cap Rate et du RNE...',
+    '🌐 Recherche globale (Scouting) sur Centris/LoopNet...',
+    '🔍 Extraction et ciblage des fiches individuelles...',
+    '💹 Calcul du NOI, Cap Rate et valeur économique...',
     formData.userType === 'acheteur' 
         ? '🎯 Évaluation du deal et du potentiel de Value-Add...' 
         : '📝 Préparation de la stratégie de mise en marché...',
@@ -5804,24 +5952,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">
-          Adresse complète (Optionnelle)
-        </label>
-        <input 
-          type="text" 
-          placeholder="Ex: 1234 Boul. Charest, local 100..." 
-          value={formData.addresseComplete} 
-          onChange={(e) => handleChange('addresseComplete', e.target.value)} 
-          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-sm" 
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Nom du dossier (optionnel)</label>
-        <input type="text" placeholder="Ex: 6-plex Sainte-Foy" value={formData.titre} onChange={(e) => handleChange('titre', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">
           Type d'actif * {slideErrors.proprietyType && <span className="text-red-500">requis</span>}
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -5839,14 +5969,39 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">
+          Adresse complète (Très recommandée)
+        </label>
+        <input 
+          type="text" 
+          placeholder="Ex: 1234 Boul. Charest, local 100..." 
+          value={formData.addresseComplete} 
+          onChange={(e) => handleChange('addresseComplete', e.target.value)} 
+          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-sm" 
+        />
+        <p className="text-xs text-gray-500 mt-1">Aide l'IA à effectuer des recherches ciblées si l'annonce n'est pas trouvée.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
             <label className="block text-sm font-bold text-gray-700 mb-2">Ville * {slideErrors.ville && <span className="text-red-500">requis</span>}</label>
             <input type="text" placeholder="Ex: Québec" value={formData.ville} onChange={(e) => handleChange('ville', e.target.value)} className={`w-full px-4 py-3 border rounded-xl focus:ring-2 ${slideErrors.ville ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
         </div>
         <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Quartier</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Code Postal</label>
+            <input type="text" placeholder="Ex: G1V 2M2" value={formData.codePostal} onChange={(e) => handleChange('codePostal', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Quartier (Optionnel)</label>
             <input type="text" placeholder="Ex: Ste-Foy" value={formData.quartier} onChange={(e) => handleChange('quartier', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-2">Nom du dossier (Optionnel)</label>
+          <input type="text" placeholder="Ex: 6-plex Sainte-Foy" value={formData.titre} onChange={(e) => handleChange('titre', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
         </div>
       </div>
     </div>
@@ -5867,7 +6022,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                 <input type="number" placeholder="Ex: 1200000" value={formData.prixAffichage} onChange={(e) => handleChange('prixAffichage', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Lien web (Optionnel)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Lien web de l'annonce (Très recommandé)</label>
                 <input type="text" placeholder="https://..." value={formData.urlAnnonce} onChange={(e) => handleChange('urlAnnonce', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
               </div>
             </div>
@@ -6533,7 +6688,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={120} />
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={150} />
 
       {/* FORM MODAL */}
       {showForm && (
@@ -6658,6 +6813,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     </>
   );
 }
+
 
 //CHAT TAB
 
