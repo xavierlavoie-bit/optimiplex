@@ -1162,7 +1162,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         DONNÉES DE PROSPECTION (L'utilisateur envisage d'acheter):
         - Prix affiché / demandé : ${prixAffichage ? prixAffichage + '$' : 'Non fourni'}
         - URL de l'annonce : ${urlAnnonce || 'Non fournie'}
-        TA TÂCHE : Déterminer si ce prix est une aubaine, au prix du marché, ou trop cher.
+        TA TÂCHE : Déterminer si ce prix est une aubaine, au prix du marché, ou trop cher en te basant sur la parité avec les comparables.
         `;
     } else {
         const aDesDonneesAchat = !!(prixAchat && anneeAchat);
@@ -1178,7 +1178,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
         DONNÉES D'OPÉRATION (IMMEUBLE À REVENUS):
         - Revenus bruts annuels : ${revenusAnnuels ? revenusAnnuels + ' $' : 'Non spécifiés'}
         - Dépenses annuelles estimées : ${depensesAnnuelles ? depensesAnnuelles + ' $' : 'Non spécifiées'}
-        *DIRECTIVE PLEX : Si les revenus sont fournis, utilise l'approche du revenu (Taux Global d'Actualisation - TGA, ou Multiplicateur de Revenu Brut - MRB applicable au secteur) pour valider et justifier la "valeurMoyenne", EN PLUS de la méthode des comparables.*`;
+        *DIRECTIVE PLEX : Si les revenus sont fournis, utilise l'approche du revenu (TGA ou MRB) en combinaison avec le principe de parité des comparables.*`;
     }
 
     console.log(`\n========================================================`);
@@ -1188,21 +1188,21 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     const tools = [
       {
         name: "web_search",
-        description: "Recherche en temps réel les propriétés vendues ou à vendre sur Centris, JLR, DuProprio.",
+        description: "Recherche Google. S'utilise en TROIS TEMPS : 1) Trouver des pages de résultats globaux (ex: 'maisons à vendre Lévis Centris') pour extraire des numéros MLS/Centris. 2) Chercher ensuite ces numéros précis. 3) PLAN B (Fallback) : Chercher directement l'ADRESSE COMPLÈTE (ex: '123 rue Principale, Lévis') si le lien exact ou l'ID Centris est introuvable.",
         input_schema: {
           type: "object",
           properties: {
-            query: { type: "string", description: "La requête de recherche (ex: 'maison à vendre Lévis Desjardins Centris 2026')" }
+            query: { type: "string", description: "La requête de recherche (ex 1: 'maisons Lévis Centris', ex 2: 'Centris 12345678', ex 3: '123 rue Principale Lévis')" }
           },
           required: ["query"]
         }
       },
       {
         name: "read_webpage",
-        description: "Lit le contenu textuel complet d'une annonce immobilière pour extraire les détails précis.",
+        description: "Lit une page web. Si c'est une liste de résultats, extrais-en les numéros d'annonces (ID Centris, MLS). Si c'est une fiche individuelle ciblée, extrais toutes les caractéristiques de la propriété.",
         input_schema: {
           type: "object",
-          properties: { url: { type: "string", description: "L'URL de l'annonce immobilière à lire" } },
+          properties: { url: { type: "string", description: "L'URL à lire" } },
           required: ["url"]
         }
       }
@@ -1213,24 +1213,29 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       Tu AS accès à Internet via les outils 'web_search' et 'read_webpage'.
       
       RÈGLES STRICTES POUR LES COMPARABLES ET L'ÉVALUATION :
-      1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 1 ou 2 liens.
-      2. 🚨 STRATÉGIE PETIT MARCHÉ (EXTRAPOLATION) : Si tu ne trouves aucun comparable direct, élargis la recherche et utilise la méthode du "Prix au pied carré" ou la méthode du revenu pour les plex.
-      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE pour la "valeurMoyenne" est le marché. IGNORE TOTALEMENT l'évaluation municipale.
-      4. N'INVENTE JAMAIS D'URL.
-      5. RÔLE ACTUEL : L'utilisateur est en mode ${isAcheteur ? 'ACHETEUR (Prospection / Deal)' : 'VENDEUR (Évaluation / Mise en vente)'}.
-      
+      1. 🚨 STRATÉGIE EN DEUX TEMPS (ENTONNOIR) + FALLBACK : 
+         - ÉTAPE 1 (Scouting) : Fais une recherche générale pour trouver des listes de propriétés dans le secteur demandé et RÉCUPÈRE des numéros d'annonces (ID Centris, MLS) depuis les extraits Google ou la lecture de la page.
+         - ÉTAPE 2 (Ciblage) : Fais de nouvelles recherches (web_search) EN UTILISANT CES NUMÉROS PRÉCIS (ex: "Centris 12345678") pour isoler et lire les fiches individuelles.
+         - ÉTAPE 3 (Plan B / Adresse) : Si tu ne trouves pas de fiches avec l'ID, lance une recherche Google directement avec l'ADRESSE COMPLÈTE exacte de la propriété (la cible ou les comparables potentiels).
+      2. 🚨 VALIDATION DES COMPARABLES : Tes comparables finaux dans le JSON DOIVENT provenir de fiches individuelles lues ou vérifiées, et non d'un vague résumé de liste.
+      3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE - PARITÉ) : Ta source de VÉRITÉ ABSOLUE pour la "valeurMoyenne" est le marché. Tu DOIS utiliser le principe de parité/substitution : l'estimation est dictée par le prix exact auquel se vendent les propriétés comparables. IGNORE TOTALEMENT l'évaluation municipale.
+      4. 🚨 JUSTIFICATION DE PARITÉ : Pour CHAQUE comparable, tu DOIS fournir un "ajustementParite". Explique brièvement la différence majeure avec la propriété cible (ex: "Vendu 450k$, mais possède un garage de plus, valeur cible ajustée à la baisse").
+      5. 🚨 IMPACT DES RÉNOVATIONS MINIMISÉ : Les rénovations ont un impact MINEUR sur la valeur finale. Ne gonfle pas le prix estimé à cause des rénovations. Le poids du calcul doit reposer à 95% sur la valeur brute des comparables trouvés (parité).
+      6. 🚨 FORMAT DU LIEN (CRITIQUE) : Pour tes comparables, la clé "url" DOIT contenir UNIQUEMENT une URL absolue valide et cliquable (ex: "https://www.centris.ca/..."). S'il n'y a pas de lien exact, retourne null. AUCUN texte autour du lien.
+      7. RÔLE ACTUEL : L'utilisateur est en mode ${isAcheteur ? 'ACHETEUR (Prospection / Deal)' : 'VENDEUR (Évaluation / Mise en vente)'}.
       ${isAcheteur ? `
-      6. DIRECTIVE PROSPECTION (TRÈS IMPORTANT) : Compare AGRESSIVEMENT le "Prix demandé" à ta "valeurMoyenne".
+      7. DIRECTIVE PROSPECTION (TRÈS IMPORTANT) : Compare AGRESSIVEMENT le "Prix demandé" à ta "valeurMoyenne".
          - Si la valeur marchande est beaucoup plus élevée que le prix demandé, c'est un deal !
          - Génère OBLIGATOIREMENT la clé JSON "potentielOptimisation" pour donner ton verdict franc et direct.
       ` : `
-      6. DIRECTIVE VENDEUR (TRÈS IMPORTANT) : Concentre-toi sur la meilleure stratégie pour vendre vite et cher.
+      7. DIRECTIVE VENDEUR (TRÈS IMPORTANT) : Concentre-toi sur la meilleure stratégie pour vendre vite et cher.
          - Génère OBLIGATOIREMENT la clé JSON "marketingKit" contenant une description professionnelle prête à être publiée sur DuProprio/Centris.
          - Rédige un texte vendeur, détaillé, qui met en valeur les atouts (rénovations, localisation, revenus si applicable).
          - Utilise ta propre "valeurMoyenne" calculée comme "prixAfficheSuggere".
       `}
-      7. Réponds UNIQUEMENT avec un JSON valide, SANS balise markdown (comme \`\`\`json) et SANS texte explicatif avant ou après.
-      8. ⚠️ RÈGLE SYNTAXE JSON (CRITIQUE) : Échappe correctement tous les guillemets (\\") dans les textes. Assure-toi d'inclure obligatoirement une virgule (,) entre CHAQUE objet ou chaîne de tes tableaux (ex: dans "comparables", "positifs", "renovationsRentables"). Ne mets PAS de virgule finale après le dernier élément d'un tableau ou d'un objet.
+      8. Réponds UNIQUEMENT avec un JSON valide, SANS balise markdown (comme \`\`\`json) et SANS texte explicatif avant ou après.
+      9. ⚠️ RÈGLE SYNTAXE JSON (CRITIQUE) : Échappe correctement tous les guillemets (\\") dans les textes. Assure-toi d'inclure obligatoirement une virgule (,) entre CHAQUE objet ou chaîne de tes tableaux (ex: dans "comparables", "positifs", "renovationsRentables"). Ne mets PAS de virgule finale après le dernier élément d'un tableau ou d'un objet.
+      10. ⚠️ CONCISION (CRITIQUE) : Sois extrêmement concis dans tes descriptions (max 3 ou 4 phrases) pour éviter que ta réponse ne soit tronquée en atteignant la limite de tokens.
     `;
 
     const jsonRoleSpecific = isAcheteur
@@ -1252,7 +1257,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       - Garage: ${garage > 0 ? garage : '0'} | Sous-sol: ${sous_sol}
       - Piscine: ${piscine ? 'Oui' : 'Non'}
 
-      ÉTAT ET COMPOSANTES:
+      ÉTAT ET COMPOSANTES (RAPPEL: Impact mineur sur la valorisation finale):
       - État Général: ${etatGeneral.toUpperCase()}
       - Toiture: ${toitureAnnee ? 'Année ' + toitureAnnee : 'Inconnu'}
       - Fenêtres: ${fenetresAnnee ? 'Année ' + fenetresAnnee : 'Inconnu'}
@@ -1261,7 +1266,13 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
 
       ${infoFinanciere}
 
-      RECHERCHE : Trouve les comparables de prix vendus ou actifs pour ce type de propriété dans ce secteur.
+      RECHERCHE (2 ÉTAPES + PLAN B) : 
+      1. Cherche d'abord à récupérer des numéros d'ID Centris/MLS pour ce secteur.
+      2. Utilise ensuite ces numéros pour ouvrir les fiches individuelles et construire tes comparables.
+      3. PLAN B : En cas d'échec avec les ID, recherche directement les adresses exactes des propriétés sur Google.
+      ⚠️ OBLIGATOIRE : Tu DOIS utiliser l'outil 'web_search' avant de générer ton JSON.
+
+      CALCUL (PRINCIPE DE PARITÉ) : Une fois les comparables trouvés, calcule "valeurBasse", "valeurMoyenne" et "valeurHaute" EN TE BASANT STRICTEMENT sur la valeur de ces comparables bruts. Les rénovations mentionnées ci-haut ont un impact mineur et ne doivent faire varier le prix que de façon très marginale.
 
       FORMAT JSON ATTENDU:
       {
@@ -1270,14 +1281,22 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
             "appreciationTotale": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, 
             "pourcentageGainTotal": ${isAcheteur ? 'null' : (prixAchat ? '0' : 'null')}, 
             "marketTrend": "vendeur", 
-            "analyseSecteur": "Paragraphe d'analyse du marché local.",
+            "analyseSecteur": "Paragraphe d'analyse du marché local. Mentionne l'utilisation du principe de parité avec les comparables.",
             "analyseRentabilite": ${isPlex ? '"Texte analysant le MRB et le TGA estimé par rapport aux revenus fournis."' : 'null'}
         },
         ${jsonRoleSpecific}
         "facteursPrix": { "positifs": [], "negatifs": [], "incertitudes": [] },
         "recommendations": { "renovationsRentables": [], "strategieVente": "" },
         "comparables": [
-          { "adresse": "...", "statut": "vendu ou actif", "prix": 0, "date": "...", "caracteristiques": "...", "url": "Lien exact ou null" }
+          { 
+            "adresse": "...", 
+            "statut": "vendu ou actif", 
+            "prix": 0, 
+            "date": "...", 
+            "caracteristiques": "...", 
+            "url": "https://lien-valide-ou-null.com",
+            "ajustementParite": "Brève justification de l'ajustement (ex: 'Vendu 400k$, mais possède une chambre supplémentaire, donc la cible est estimée légèrement plus bas.')"
+          }
         ]
       }
     `;
@@ -1296,20 +1315,23 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
     });
 
     let iterations = 0;
-    const maxIterations = 3;
+    const maxIterations = 5; // AUGMENTÉ À 5 POUR LA STRATÉGIE EN DEUX TEMPS
+
+    console.log(`🤖 [IA] Raison du premier arrêt : ${response.stop_reason}`);
 
     while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
       iterations++;
       console.log(`\n🔄 [ITÉRATION ${iterations}/${maxIterations}] L'IA utilise ses outils (Résidentiel)...`);
       
       const toolCalls = response.content.filter(c => c.type === 'tool_use');
+      console.log(`   🛠️ L'IA demande à utiliser ${toolCalls.length} outil(s).`);
 
       const toolResults = await Promise.all(toolCalls.map(async (toolCall) => {
         let resultStr = "Aucun résultat trouvé.";
         
         if (toolCall.name === 'web_search') {
           const query = toolCall.input.query;
-          console.log(`   🔍 Recherche Web : "${query}"`);
+          console.log(`   🔍 [WEB_SEARCH] Requête envoyée à Google : "${query}"`);
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -1323,13 +1345,18 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
             const data = await searchResponse.json();
             const resultsList = data.organic?.slice(0, 5) || [];
             resultStr = resultsList.map(r => `Titre: ${r.title}\nLien: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n') || "Pas de résultats.";
+            
+            console.log(`   ✅ [WEB_SEARCH] ${resultsList.length} résultats trouvés et transmis à l'IA :`);
+            resultsList.forEach((r, idx) => console.log(`      [${idx+1}] 🔗 ${r.link}`));
+
           } catch (e) {
+            console.error(`   ❌ [WEB_SEARCH] Erreur API : ${e.message}`);
             resultStr = "Erreur technique de recherche.";
           }
         }
         else if (toolCall.name === 'read_webpage') {
           const url = toolCall.input.url;
-          console.log(`   📖 Lecture Page : "${url}"`);
+          console.log(`   📖 [READ_WEBPAGE] Tentative de lecture Jina : "${url}"`);
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -1341,10 +1368,13 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
             if (readResponse.ok) {
               const text = await readResponse.text();
               resultStr = text.slice(0, 8000);
+              console.log(`   ✅ [READ_WEBPAGE] Succès ! (${resultStr.length} caractères extraits du site)`);
             } else {
+              console.log(`   ❌ [READ_WEBPAGE] Échec. Le site a bloqué le robot (Code HTTP: ${readResponse.status})`);
               resultStr = "La page a bloqué la lecture.";
             }
           } catch (e) {
+            console.error(`   ❌ [READ_WEBPAGE] Erreur Timeout/Fetch : ${e.message}`);
             resultStr = "Erreur de lecture.";
           }
         }
@@ -1357,7 +1387,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       if (iterations >= maxIterations) {
         toolResults.push({
           type: 'text',
-          text: "Dernière recherche. Analyse les résultats et génère UNIQUEMENT le JSON final valide. Assure-toi que la syntaxe JSON est parfaite, n'oublie aucune virgule entre les éléments de tes tableaux (ex: comparables) et échappe bien les guillemets."
+          text: "⚠️ LIMITE DE RECHERCHE ATTEINTE. Analyse les résultats obtenus et génère IMMÉDIATEMENT le JSON final valide. RÈGLE CRITIQUE : Commence ta réponse directement par '{' et termine par '}'. N'écris AUCUN texte avant (il est strictement interdit de dire 'I'll read...', 'Je vais analyser...', ou 'Voici le JSON')."
         });
       }
 
@@ -1373,7 +1403,31 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       });
     }
 
-    const finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    let finalContent = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    
+    // 1. SÉCURITÉ : Vérification de contenu vide
+    if (!finalContent || finalContent.trim() === '') {
+      throw new Error("L'IA n'a pas retourné de réponse texte valide.");
+    }
+
+    // 2. SÉCURITÉ : Alerte si la limite de tokens a été atteinte
+    if (response.stop_reason === 'max_tokens') {
+      console.warn("⚠️ [ATTENTION] Limite de tokens atteinte. Le JSON final risque fort d'être tronqué !");
+    }
+
+    // 3. NETTOYAGE : Extraction de sécurité via Regex pour isoler uniquement le JSON
+    const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      finalContent = jsonMatch[0];
+    } else {
+      // Si la regex n'a trouvé AUCUNE accolade, on log l'erreur exacte
+      console.error("❌ [CRITIQUE] Réponse non-JSON de Claude :", finalContent);
+      throw new Error("L'IA a généré du texte au lieu d'un format JSON strict. L'opération a été annulée pour éviter de corrompre les données. Veuillez relancer l'analyse.");
+    }
+
+    // Affichage des 150 derniers caractères pour aider à débugger une potentielle coupure
+    console.log(`\n📄 [JSON DEBUG] Fin de la réponse IA : "${finalContent.slice(-150).replace(/\n/g, '')}"\n`);
+
     const valuationResult = parseClaudeJSON(finalContent);
 
     const evaluationRef = await db.collection('users').doc(userId).collection('evaluations').add({
@@ -1403,6 +1457,61 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
   } catch (error) {
     console.error('\n❌ Erreur Critique Valuation:', error);
     res.status(500).json({ error: "Échec de l'évaluation", details: error.message });
+  }
+});
+
+
+//https://api.optimiplex.com/api/admin/sync-leaderboard
+app.get('/api/admin/sync-leaderboard', async (req, res) => {
+  try {
+    const db = getFirestore();
+    console.log("🔄 Début de la synchronisation globale des scores...");
+
+    const usersSnap = await db.collection('users').get();
+    let updatedCount = 0;
+
+    for (const userDoc of usersSnap.docs) {
+      const userId = userDoc.id;
+      const userData = userDoc.data();
+
+      // Compter les documents à la racine
+      const [rootEvalsSnap, rootEvalsCommSnap, rootAnalysesSnap] = await Promise.all([
+        db.collection('evaluations').where('userId', '==', userId).get(),
+        db.collection('evaluations_commerciales').where('userId', '==', userId).get(),
+        db.collection('analyses').where('userId', '==', userId).get()
+      ]);
+      const rootTotal = rootEvalsSnap.size + rootEvalsCommSnap.size + rootAnalysesSnap.size;
+
+      // Compter les documents dans les sous-collections de l'utilisateur
+      const [subEvalsSnap, subEvalsCommSnap, subAnalysesSnap] = await Promise.all([
+        db.collection(`users/${userId}/evaluations`).get(),
+        db.collection(`users/${userId}/evaluations_commerciales`).get(),
+        db.collection(`users/${userId}/analyses`).get()
+      ]);
+      const subTotal = subEvalsSnap.size + subEvalsCommSnap.size + subAnalysesSnap.size;
+
+      const realTotal = Math.max(rootTotal, subTotal);
+
+      // Mettre à jour seulement si le score enregistré est différent du compte réel
+      if ((userData.evaluationCount || 0) !== realTotal) {
+        await userDoc.ref.update({
+          evaluationCount: realTotal,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        updatedCount++;
+        console.log(`✅ Utilisateur ${userId} mis à jour : ${realTotal} analyses.`);
+      }
+    }
+
+    console.log(`🎉 Terminé ! ${updatedCount} profils mis à jour.`);
+    res.json({ 
+      success: true, 
+      message: `${updatedCount} profils ont été mis à jour avec le score exact !` 
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur lors de la synchronisation :", error);
+    res.status(500).json({ error: 'Erreur interne lors de la synchronisation des scores.' });
   }
 });
 
@@ -1436,7 +1545,7 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
   try {
     const {
       userId,
-      userType = 'vendeur', // Nouveau champ: 'acheteur' ou 'vendeur'
+      userType = 'vendeur', // 'acheteur' ou 'vendeur'
       proprietyType, 
       typeCom, 
       ville,
@@ -1526,22 +1635,22 @@ app.post('/api/property/valuation-estimator-commercial', checkQuotaOrCredits, as
             : `DONNÉES HISTORIQUES D'ACHAT:\n- Historique non fourni. Ne pas calculer d'appréciation historique.`;
     }
 
-    // 1. Définition des outils de recherche commerciaux
+    // 1. Définition des outils de recherche commerciaux (MIS À JOUR AVEC STRATÉGIE 3 TEMPS)
     const tools = [
       {
         name: "web_search",
-        description: "Recherche en temps réel les propriétés commerciales vendues ou actives sur Centris Commercial, LoopNet, et rapports de marché au Québec. Trouve les prix et les URL exactes.",
+        description: "Recherche Google. S'utilise en TROIS TEMPS : 1) Trouver des pages de résultats globaux (ex: 'plex commerciaux à vendre Lévis Centris') pour extraire des numéros MLS/Centris. 2) Chercher ensuite ces numéros précis. 3) PLAN B (Fallback) : Chercher directement l'ADRESSE COMPLÈTE (ex: '123 rue Principale, Lévis') si le lien exact ou l'ID Centris est introuvable.",
         input_schema: {
           type: "object",
           properties: {
-            query: { type: "string", description: "La requête (ex: '5-plex à vendre ${ville} Centris' ou 'prix par porte plex ${ville} 2025')" }
+            query: { type: "string", description: "La requête de recherche (ex 1: 'multiplex commercial Lévis Centris', ex 2: 'Centris 12345678', ex 3: '123 rue Principale Lévis')" }
           },
           required: ["query"]
         }
       },
       {
         name: "read_webpage",
-        description: "Lit le contenu textuel complet d'une annonce commerciale ou d'un rapport de marché pour extraire les détails financiers exacts (NOI, Cap Rate, baux, zonage).",
+        description: "Lit une page web. Si c'est une liste de résultats, extrais-en les numéros d'annonces. Si c'est une fiche individuelle ciblée ou un rapport de marché, extrais tous les détails financiers exacts (NOI, Cap Rate, baux, zonage).",
         input_schema: {
           type: "object",
           properties: { url: { type: "string", description: "L'URL de la page à lire" } },
@@ -1622,14 +1731,19 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       3. 🚨 RÈGLE D'OR DU PRIX (CRITIQUE) : Ta source de VÉRITÉ ABSOLUE est la combinaison de la valeur économique (NOI/Cap Rate) et de la valeur marchande.`;
     }
 
+    // SYSTEM PROMPT MIS À JOUR AVEC STRATÉGIE EN DEUX TEMPS
     const systemPrompt = `
       Tu es un expert évaluateur immobilier commercial et multi-résidentiel (A.É.) au Québec.
       Tu AS accès à Internet via 'web_search' et 'read_webpage'.
       
       RÈGLES STRICTES :
-      1. 🚨 STRATÉGIE DE RECHERCHE ULTRA-RAPIDE : Utilise 'web_search' pour trouver des annonces. ENSUITE, utilise 'read_webpage' sur MAXIMUM 2 liens hyper pertinents pour valider en profondeur.${reglesEvaluation}
+      1. 🚨 STRATÉGIE EN DEUX TEMPS (ENTONNOIR) + FALLBACK : 
+         - ÉTAPE 1 (Scouting) : Fais une recherche générale pour trouver des listes commerciales ou multi-résidentielles dans le secteur demandé et RÉCUPÈRE des numéros d'annonces (ID Centris, Loopnet, MLS).
+         - ÉTAPE 2 (Ciblage) : Fais de nouvelles recherches (web_search) EN UTILISANT CES NUMÉROS PRÉCIS pour isoler et lire les fiches individuelles.
+         - ÉTAPE 3 (Plan B / Adresse) : Si tu ne trouves pas de fiches avec l'ID, lance une recherche Google directement avec l'ADRESSE COMPLÈTE de la propriété.
+         - VALIDATION : Utilise 'read_webpage' sur MAXIMUM 2 liens hyper pertinents pour valider le NOI, Cap Rate, etc.${reglesEvaluation}
       4. 🚨 ATTENTION À L'ÉVALUATION MUNICIPALE : Ne confonds JAMAIS l'évaluation municipale (le rôle foncier utilisé pour les taxes) avec la valeur marchande.
-      5. COMMENTAIRES SECONDAIRES : Les calculs financiers (Cap Rate, MRB, rentabilité) doivent UNIQUEMENT servir de commentaire.
+      5. COMMENTAIRES SECONDAIRES : Les calculs financiers (Cap Rate, MRB, rentabilité) doivent UNIQUEMENT servir de commentaire pour les petits plex, mais sont prioritaires pour le commercial de 7+ unités.
       6. N'INVENTE JAMAIS D'URL. Si aucun lien web_search valide, mets "url": null.
       7. CONCISION : Sois extrêmement concis (max 3 phrases) dans les champs textuels du JSON.
       8. FORMAT DES NOMBRES (CRITIQUE) : Tous les montants financiers dans le JSON doivent obligatoirement être des nombres entiers purs, SANS ESPACES et SANS VIRGULES (ex: 1500000 et non 1 500 000 ou 1,500,000).
@@ -1649,6 +1763,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
         ? `"potentielOptimisation": { "valeurApresTravaux": 0, "margeSecurite": "Pourcentage ou montant de marge visé", "avisProspection": "Verdict tranché: Excellent deal / Prix de marché juste / Surévalué. Explique brièvement l'angle d'attaque ou l'opportunité d'optimisation." },` 
         : '';
 
+    // VALUATION PROMPT MIS À JOUR
     const valuationPrompt = `
       ÉVALUATION COMMERCIALE:
       - Date de l'analyse: Mars 2026
@@ -1662,7 +1777,11 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       ${promptSpecifique}
       ${infoFinanciere}
 
-      RECHERCHE: Trouve 2 à 4 comparables (vendus ou actifs) dans ce secteur pour 2025/2026.
+      RECHERCHE (2 ÉTAPES + PLAN B) : 
+      1. Cherche d'abord à récupérer des numéros d'ID (Centris Commercial, LoopNet, MLS) pour ce secteur.
+      2. Utilise ensuite ces numéros pour ouvrir les fiches individuelles et construire tes comparables.
+      3. PLAN B : En cas d'échec avec les ID, recherche directement les adresses exactes des propriétés sur Google.
+      ⚠️ OBLIGATOIRE : Tu DOIS utiliser l'outil 'web_search' avant de générer ton JSON pour trouver 2 à 4 comparables.
       
       FORMAT JSON ATTENDU (Assure-toi de fournir un JSON valide et d'utiliser des entiers SANS ESPACES pour tous les nombres):
       {
@@ -1692,9 +1811,9 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       messages: messages
     }));
 
-    // 3. Boucle Tool Use (Avec Parallélisation + Timeouts)
+    // 3. Boucle Tool Use (AUGMENTÉE À 5 ITÉRATIONS)
     let iterations = 0;
-    const maxIterations = 3; 
+    const maxIterations = 5; // AUGMENTÉ À 5 POUR LA STRATÉGIE EN DEUX TEMPS
 
     while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
       iterations++;
@@ -1764,7 +1883,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       if (iterations >= maxIterations) {
         console.log("   ⚠️ Limite d'itérations. Conclusion forcée.");
         
-        let fallbackInstruction = "Dernière recherche/lecture. Analyse les données recueillies. ";
+        let fallbackInstruction = "⚠️ LIMITE DE RECHERCHE ATTEINTE. Analyse les données recueillies. ";
         if (finalProprieTyType === 'immeuble_revenus' && nombreUnites > 0 && nombreUnites <= 6) {
             fallbackInstruction += "Si tu évalues un plex (2-6 unités), détermine la valeur EXCLUSIVEMENT avec les Comparables et le Prix par Porte du secteur. Ignore le MRB et le Cap Rate s'ils sous-évaluent la propriété.";
         } else if (finalProprieTyType === 'immeuble_revenus' && nombreUnites > 6) {
@@ -1773,7 +1892,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
             fallbackInstruction += "Détermine la valeur marchande selon les standards commerciaux.";
         }
 
-        fallbackInstruction += " RETOURNE UNIQUEMENT LE JSON VALIDE. Assure-toi que tous les nombres soient des entiers SANS ESPACES et SANS VIRGULES (ex: 1200000).";
+        fallbackInstruction += " RÈGLE CRITIQUE : Commence ta réponse directement par '{' et termine par '}'. N'écris AUCUN texte avant. Assure-toi que tous les nombres soient des entiers SANS ESPACES et SANS VIRGULES (ex: 1200000).";
 
         toolResults.push({ 
           type: 'text', 
@@ -1803,7 +1922,13 @@ DONNÉES SPÉCIFIQUES TERRAIN:
     const jsonMatch = finalContent.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
        finalContent = jsonMatch[0];
+    } else {
+       console.error("❌ [CRITIQUE] Réponse non-JSON de Claude :", finalContent);
+       throw new Error("L'IA a généré du texte au lieu d'un format JSON strict. L'opération a été annulée.");
     }
+
+    // Affichage des derniers caractères pour aider à débugger
+    console.log(`\n📄 [JSON DEBUG] Fin de la réponse IA : "${finalContent.slice(-150).replace(/\n/g, '')}"\n`);
 
     // On passe le string nettoyé à la fonction
     const valuationResult = parseClaudeJSON(finalContent);
@@ -1856,12 +1981,63 @@ DONNÉES SPÉCIFIQUES TERRAIN:
         details: error.message 
       });
     } else {
-      res.status(500).json({ error: "Échec de l'évaluation commerciale, le format renvoyé par l'IA était incomplet.", details: error.message });
+      res.status(500).json({ error: "Échec de l'évaluation commerciale, le format renvoyé par l'IA était incomplet ou corrompu.", details: error.message });
     }
   }
 });
 
-// ENDPOINT CHATBOT IMMOBILIER QUÉBEC (GRATUIT / PRO) AVEC SAUVEGARDE FIRESTORE
+
+app.post('/api/property/valuation-chat', async (req, res) => {
+  try {
+    const { userId, messages, propertyData } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Messages manquants ou invalides" });
+    }
+
+    // Prompt système encore plus direct
+    const systemPrompt = `Tu es un expert en investissement immobilier au Québec.
+Ton rôle : conseiller privé, ton : professionnel et concis.
+
+RÈGLE D'OR : ÉCRIS EN TEXTE BRUT UNIQUEMENT.
+- AUCUN symbole Markdown : Pas de #, *, _, ~, ---, >, |
+- AUCUN Emoji.
+- AUCUN mot en gras ou italique.
+- TITRES : Écris les titres de sections en LETTRES MAJUSCULES.
+- LISTES : Utilise uniquement le tiret simple "-" suivi d'un espace.
+- ESPACEMENT : Sépare chaque bloc par DEUX sauts de ligne.
+
+CONTEXTE DE LA PROPRIÉTÉ :
+${JSON.stringify(propertyData, null, 2)}
+
+Réponds directement en texte clair (Plain Text).`;
+
+    const response = await claude.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1200,
+      system: systemPrompt,
+      messages: messages,
+    });
+
+    let text = response.content[0].text;
+
+    // --- FONCTION DE SÉCURITÉ : NETTOYAGE POST-GÉNÉRATION ---
+    // Supprime les résidus de Markdown si l'IA en a généré par erreur
+    const cleanText = (str) => {
+      return str
+        .replace(/[#*~_]/g, '')        // Supprime # * ~ _
+        .replace(/---/g, '')           // Supprime les lignes de séparation ---
+        .replace(/\[.*\]\(.*\)/g, '')  // Supprime les liens Markdown [text](url)
+        .trim();
+    };
+
+    res.json({ reply: cleanText(text) });
+
+  } catch (error) {
+    console.error('❌ Erreur Chatbot Stratège:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 
