@@ -1612,6 +1612,18 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   const [copySuccess, setCopySuccess] = useState(false); 
 
   // ============================================
+  // ÉTATS DU CHATBOT IA
+  // ============================================
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatScrollRef = useRef(null);
+
+  const userPlanLower = userPlan?.toLowerCase() || 'gratuit';
+  const hasPremiumAccess = ['pro', 'growth', 'premium', 'illimite'].includes(userPlanLower);
+
+  // ============================================
   // CHARGER LES ANALYSES
   // ============================================
   useEffect(() => {
@@ -1687,6 +1699,77 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
     fetchAnalyses();
   }, [user?.uid]);
+
+  // ============================================
+  // LOGIQUE CHATBOT (CHARGEMENT & SAUVEGARDE)
+  // ============================================
+  
+  // Charger l'historique du chat quand on ouvre une analyse
+  useEffect(() => {
+    if (selectedAnalysis) {
+      setChatMessages(selectedAnalysis.chatHistory || []);
+      setIsChatOpen(false);
+    }
+  }, [selectedAnalysis]);
+
+  // Auto-scroll du chat
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isChatLoading]);
+
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isChatLoading || !selectedAnalysis) return;
+
+    const userMessage = { role: 'user', content: chatInput.trim() };
+    const updatedMessages = [...chatMessages, userMessage];
+    
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const isCom = isCommercial(selectedAnalysis);
+      const endpointSuffix = isCom ? 'valuation-chat-commercial' : 'valuation-chat';
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/${endpointSuffix}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          propertyData: selectedAnalysis 
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erreur de communication avec le Stratège IA');
+      
+      const data = await response.json();
+      const assistantMessage = { role: 'assistant', content: data.reply };
+      const finalMessages = [...updatedMessages, assistantMessage];
+      
+      setChatMessages(finalMessages);
+
+      // --- SAUVEGARDE DANS FIRESTORE ---
+      const db = getFirestore();
+      const docRef = doc(db, 'users', user.uid, selectedAnalysis.collection, selectedAnalysis.id);
+      await updateDoc(docRef, { chatHistory: finalMessages });
+
+      // Mettre à jour les états locaux pour maintenir la synchro sans recharger
+      setSelectedAnalysis(prev => ({ ...prev, chatHistory: finalMessages }));
+      setAnalyses(prev => prev.map(a => a.id === selectedAnalysis.id ? { ...a, chatHistory: finalMessages } : a));
+
+    } catch (err) {
+      console.error(err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion. Vos données ont été sauvegardées, veuillez réessayer." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
 
   // ============================================
   // ACTIONS & PARTAGE
@@ -1886,8 +1969,131 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   }
 
   // ============================================
+  // RENDU DU CHATBOT (HEADER & WINDOW)
+  // ============================================
+  const renderChatHeader = () => {
+    if (!hasPremiumAccess) {
+      return (
+        <div className="mt-8 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-3xl p-6 md:p-8 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm group hover:shadow-md transition-all">
+           {/* Icône décorative géante en arrière-plan */}
+           <div className="absolute -right-8 -top-8 text-9xl opacity-5 transform group-hover:scale-110 transition-transform duration-500 pointer-events-none">🤖</div>
+           
+           <div className="relative z-10 max-w-xl">
+             <h3 className="text-xl md:text-2xl font-black text-indigo-900 flex items-center gap-3">
+               <span className="bg-white p-2 rounded-xl text-2xl shadow-sm">🤖</span> Stratège IA (Premium)
+             </h3>
+             <p className="text-indigo-800/80 mt-3 text-sm md:text-base font-medium leading-relaxed">
+               Besoin d'aller plus loin ? Discutez avec notre IA pour simuler des scénarios de financement, obtenir des conseils de négociation et affiner votre stratégie d'optimisation.
+             </p>
+           </div>
+           
+           <button 
+             onClick={() => alert("Passez au plan Pro ou Growth pour débloquer le Stratège IA et discuter de vos actifs ! (Redirection à implémenter)")} 
+             className="relative z-10 w-full md:w-auto shrink-0 bg-white border-2 border-indigo-200 hover:border-indigo-600 text-indigo-700 hover:text-white hover:bg-indigo-600 font-black py-3.5 px-6 rounded-xl transition-all flex justify-center items-center gap-2"
+           >
+             🔒 Débloquer la fonctionnalité
+           </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-8 bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-3xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 text-white border border-indigo-800">
+        <div>
+          <h2 className="text-xl md:text-2xl font-black flex items-center gap-3">
+            <span className="text-3xl">🤖</span> Discuter de cet actif
+          </h2>
+          <p className="text-indigo-200 mt-2 text-sm md:text-base leading-relaxed max-w-xl">
+            L'historique de votre discussion est sauvegardé. Posez des questions sur le financement, la négo ou les travaux.
+          </p>
+        </div>
+        
+        <button 
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="w-full md:w-auto bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3.5 px-8 rounded-xl transition-all shadow-md flex justify-center items-center gap-2 whitespace-nowrap"
+        >
+          {isChatOpen ? 'Fermer le chat' : '💬 Ouvrir le Stratège IA'}
+        </button>
+      </div>
+    );
+  };
+
+  const renderChatWindow = () => {
+    if (!isChatOpen || !selectedAnalysis) return null;
+
+    return (
+      <div className="fixed inset-0 z-[100] w-full h-[100dvh] flex flex-col bg-white overflow-hidden md:inset-auto md:bottom-8 md:right-8 md:w-[400px] md:h-[600px] md:max-h-[80vh] md:rounded-2xl shadow-2xl md:border md:border-gray-200">
+        
+        {/* Header du chat */}
+        <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl md:text-3xl">🤖</span>
+            <div>
+              <h3 className="font-bold text-sm md:text-base leading-tight">Stratège IA</h3>
+              <p className="text-xs text-indigo-300 truncate max-w-[200px]">Dossier: {getPropertyLabel(selectedAnalysis)}</p>
+            </div>
+          </div>
+          <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-2 text-xl font-bold rounded-lg hover:bg-white/10 transition">✕</button>
+        </div>
+
+        {/* Messages */}
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          {chatMessages.length === 0 && (
+            <div className="text-center text-gray-400 text-sm mt-12 px-6">
+              Posez-moi vos questions sur le financement multi-logement, la rentabilité de ce projet ou la stratégie de négociation. L'historique sera sauvegardé !
+            </div>
+          )}
+          
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+                msg.role === 'user' 
+                  ? 'bg-indigo-600 text-white rounded-br-none' 
+                  : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
+              }`}
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          
+          {isChatLoading && (
+            <div className="flex justify-start">
+              <div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-bl-none flex gap-1">
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce"></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire & Input */}
+        <form onSubmit={sendChatMessage} className="p-3 md:p-4 bg-white border-t border-gray-100 shrink-0 pb-safe">
+          <div className="relative">
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Écrivez votre question ici..." 
+              className="w-full bg-gray-100 border-transparent rounded-xl py-3.5 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base md:text-sm transition-all"
+              disabled={isChatLoading}
+            />
+            <button 
+              type="submit" 
+              disabled={isChatLoading || !chatInput.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-30 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  // ============================================
   // RENDU MODALE (VUE DÉTAILLÉE)
-  // Séparée intelligemment pour Résidentiel vs Commercial
   // ============================================
   const renderModalContent = () => {
     if (!selectedAnalysis) return null;
@@ -2115,7 +2321,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       </div>
     );
 
-    // BLOC COMMUN : SECTEUR & COMPARABLES (Même interface pour Com et Résidentiel)
+    // BLOC COMMUN : SECTEUR & COMPARABLES
     const renderSecteurEtComparables = () => (
       <div className="space-y-6">
         {secteurAnalysis && (
@@ -2160,7 +2366,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                           </div>
                         )}
                         
-                        {/* AFFICHER L'AJUSTEMENT DE PARITÉ S'IL EXISTE */}
                         {comp.ajustementParite && (
                           <div className="bg-indigo-50/50 rounded-xl p-3 md:p-4 text-xs md:text-sm text-indigo-800 mb-4 ml-2 border border-indigo-100/50 font-medium flex items-start gap-2">
                              <span className="shrink-0 mt-0.5">⚖️</span>
@@ -2172,8 +2377,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       {comp.url && comp.url !== "null" && (
                          <div className="pl-2 mt-auto">
                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-full md:w-auto gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-indigo-200">
-                             Consulter l'annonce
-                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                              Consulter l'annonce
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                            </a>
                          </div>
                       )}
@@ -2237,6 +2442,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const renderCommercialValuationSection = () => (
       <>
         {renderValuationHero()}
+        {renderChatHeader()}
         {isAcheteur && opti && renderProspectionDeal()}
 
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
@@ -2294,9 +2500,9 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     const renderResidentialValuationSection = () => (
       <>
         {renderValuationHero()}
+        {renderChatHeader()}
         {isAcheteur && opti && renderProspectionDeal()}
 
-        {/* Historique et Plus-Value */}
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
           <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
              <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📈</span> Performance de l'Actif
@@ -2338,7 +2544,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         {renderSecteurEtComparables()}
         {renderFacteursValeur()}
 
-        {/* Stratégies & Recommandations (Plus fréquent en résidentiel) */}
         {(renovations.length > 0 || strategie || timing || optRevenus.length > 0 || redDepenses.length > 0) && (
           <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-3xl p-6 md:p-8 shadow-sm">
             <h3 className="text-xl md:text-2xl font-black text-indigo-900 mb-6 flex items-center gap-3">
@@ -2425,6 +2630,8 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
     // ==========================================
     const renderOptimizationSection = () => (
       <div className="space-y-6">
+        {renderChatHeader()}
+        
         <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-6 md:p-8 shadow-sm border border-emerald-100">
           <h4 className="font-black text-emerald-900 text-xl md:text-2xl mb-6 flex items-center gap-3">
              <span className="bg-white p-2 rounded-xl text-2xl shadow-sm shrink-0">💰</span> Potentiel d'Optimisation
@@ -2543,7 +2750,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
   };
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-8 pb-12 relative">
       {/* HEADER AVEC EMOJI */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
@@ -2562,7 +2769,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         </div>
       </div>
 
-      {/* STATS CARDS - STYLE NEW GEN */}
+      {/* STATS CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Propriétés', val: stats.totalProperties, icon: '🏘️', from: 'from-indigo-50', to: 'to-blue-50', border: 'border-indigo-100' },
@@ -2634,16 +2841,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
               const analysisType = getAnalysisType(analyse);
               const isValuation = analysisType === 'valuation';
               
-              // Détermination du profil
               const isAcheteur = analyse.userType === 'acheteur' || !!analyse.result?.potentielOptimisation;
               const isVendeur = analyse.userType === 'vendeur';
               const opti = analyse.result?.potentielOptimisation;
               
               const isEditing = editingId === analyse.id;
-              
               const residentialGain = getResidentialPercentage(analyse);
               
-              // Styles dynamiques basés sur le type
               const cardBg = isAcheteur ? 'bg-gradient-to-r from-white to-purple-50/30' : 
                              isVendeur ? 'bg-gradient-to-r from-white to-amber-50/30' :
                              isValuation ? 'bg-gradient-to-r from-white to-blue-50/30' : 
@@ -2659,12 +2863,10 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                   className={`group ${cardBg} p-4 md:p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 ${borderClass}`}
                 >
                   <div className="flex items-center gap-3 md:gap-4">
-                    {/* ICONE EMOJI GROS */}
                     <div className="text-3xl md:text-4xl filter drop-shadow-sm transition-transform group-hover:scale-110 shrink-0">
                       {getPropertyIcon(analyse.proprietyType || analyse.proprietype || analyse.proprietetype)}
                     </div>
 
-                    {/* INFOS PRINCIPALES */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                          {isEditing ? (
@@ -2686,7 +2888,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                               {getPropertyLabel(analyse)}
                             </h3>
                             
-                            {/* BADGES ACHETEUR / VENDEUR SUR LA LISTE */}
                             {isAcheteur && (
                               <span className="bg-purple-100 text-purple-700 text-[8px] md:text-[10px] font-black uppercase px-2 py-0.5 rounded-full whitespace-nowrap">
                                 🕵️‍♂️ Deal
@@ -2708,7 +2909,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                          <span className="flex items-center gap-1">🗓️ {analyse.createdAt?.toDate?.().toLocaleDateString('fr-CA') || new Date(analyse.timestamp || Date.now()).toLocaleDateString('fr-CA')}</span>
                       </div>
                       
-                      {/* VERDICT RAPIDE POUR ACHETEUR */}
                       {isAcheteur && opti && (
                         <div className="mt-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100/50 inline-block max-w-full">
                            <p className="text-[10px] md:text-xs font-medium text-indigo-900 line-clamp-1">
@@ -2718,7 +2918,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                       )}
                     </div>
 
-                    {/* KPIs RAPIDES - Cachés sur très petits écrans, visibles en paysage ou md */}
                     <div className="hidden lg:flex items-center gap-8 mr-4 shrink-0">
                        {isAcheteur && opti ? (
                          <>
@@ -2758,7 +2957,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                        )}
                     </div>
 
-                    {/* ACTIONS */}
+                    {/* ACTIONS BARS LIST */}
                     <div className="flex flex-col sm:flex-row items-center gap-1 md:gap-2 pl-2 md:pl-4 border-l border-gray-100 shrink-0">
                       <div className="flex items-center">
                         <button 
@@ -2791,9 +2990,10 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
       {/* MODALE DÉTAILS - PRO + NEW GEN */}
       {selectedAnalysis && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl max-w-5xl w-full max-h-[95vh] md:max-h-[90vh] flex flex-col overflow-hidden border border-gray-100">
+          <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl max-w-5xl w-full max-h-[95vh] md:max-h-[90vh] flex flex-col overflow-hidden border border-gray-100 relative">
+            
             {/* Header Modale */}
-            <div className="bg-white border-b border-gray-100 px-4 md:px-8 py-3 md:py-5 flex items-center justify-between z-10">
+            <div className="bg-white border-b border-gray-100 px-4 md:px-8 py-3 md:py-5 flex items-center justify-between z-10 shrink-0">
               <div>
                 <h3 className="text-base md:text-xl font-black text-gray-900 flex items-center gap-2">
                    {getAnalysisType(selectedAnalysis) === 'valuation' ? <span className="text-xl md:text-2xl">📊</span> : <span className="text-xl md:text-2xl">💰</span>}
@@ -2826,7 +3026,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
             </div>
 
             {/* Footer */}
-            <div className="bg-gray-50 border-t border-gray-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row justify-end gap-2 md:gap-3">
+            <div className="bg-gray-50 border-t border-gray-200 px-4 md:px-8 py-3 md:py-4 flex flex-col sm:flex-row justify-end gap-2 md:gap-3 shrink-0">
               <button 
                 onClick={(e) => handleShare(selectedAnalysis, e)} 
                 className="w-full sm:w-auto justify-center px-4 md:px-6 py-2.5 md:py-3 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200 transition-all shadow-sm flex items-center gap-2"
@@ -2837,9 +3037,13 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
                 Fermer
               </button>
             </div>
+
           </div>
         </div>
       )}
+
+      {/* Fenêtre de Chat flottante (en dehors de la modale pour passer par-dessus) */}
+      {renderChatWindow()}
     </div>
   );
 }
@@ -3308,7 +3512,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 
   return (
     <div className="space-y-8">
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={25} />
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={30} type="optimization" />
 
      
       {/* FORMULAIRE PRINCIPAL */}
@@ -3881,11 +4085,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
 
   return (
     <div className="space-y-8">
-      <LoadingSpinner 
-        isLoading={loading} 
-        messages={loadingMessages}
-        estimatedTime={25}
-      />
+      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={30} type="optimization" />
  
 
       {/* FORMULAIRE PRINCIPAL */}
@@ -4503,7 +4703,6 @@ function PropertyValuationTab({
   );
 }
 
-
 function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
   const [loading, setLoading] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
@@ -4524,8 +4723,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatScrollRef = useRef(null);
 
-  // Détermine si l'utilisateur a accès au chat (Ajuste 'pro'/'growth' selon ta base de données)
-  // Par exemple, si quotaInfo a une propriété 'plan' ou 'planId'
+  // Détermine si l'utilisateur a accès au chat
   const userPlan = quotaInfo?.plan?.toLowerCase() || quotaInfo?.planId?.toLowerCase() || 'gratuit';
   const hasPremiumAccess = ['pro', 'growth', 'premium', 'illimite'].includes(userPlan) || quotaInfo?.isUnlimited;
 
@@ -4618,7 +4816,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     setSlideProgress(((currentSlide + 1) / slides.length) * 100);
   }, [currentSlide, slides.length]);
 
-  // Scroll to bottom of chat when new messages arrive
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -4702,7 +4899,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       setShowForm(false);
       setCurrentSlide(0);
       
-      // Reset chat if new evaluation
       setChatMessages([]);
       setIsChatOpen(false);
 
@@ -4734,7 +4930,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     document.body.removeChild(textArea);
   };
 
-  // --- NOUVELLE FONCTION : ENVOYER MESSAGE CHATBOT ---
   const sendChatMessage = async (e) => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
@@ -4754,15 +4949,35 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         body: JSON.stringify({
           userId: user?.uid,
           messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
-          propertyData: selectedProperty // On passe tout l'objet en contexte
+          propertyData: selectedProperty
         }),
       });
 
       if (!response.ok) throw new Error('Erreur de communication avec le Stratège IA');
       
       const data = await response.json();
+      const assistantMessage = { role: 'assistant', content: data.reply };
+      const finalMessages = [...updatedMessages, assistantMessage];
       
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      setChatMessages(finalMessages);
+
+      // --- SAUVEGARDE DANS FIRESTORE ---
+      if (selectedProperty?.id && user?.uid) {
+        try {
+          const db = getFirestore();
+          // Pour l'évaluateur résidentiel, la collection par défaut est 'evaluations'
+          const collectionName = selectedProperty.collection || 'evaluations';
+          const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
+          
+          await updateDoc(docRef, { chatHistory: finalMessages });
+          
+          // Mettre à jour la propriété locale pour garder la synchro
+          setSelectedProperty(prev => ({ ...prev, chatHistory: finalMessages }));
+        } catch (dbErr) {
+          console.error("Erreur lors de la sauvegarde Firestore de l'historique:", dbErr);
+        }
+      }
+      
     } catch (err) {
       console.error(err);
       setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion à mes systèmes. Veuillez réessayer." }]);
@@ -4771,8 +4986,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     }
   };
 
-
-  // --- RENDUS DES SLIDES DU FORMULAIRE ---
   const renderProfilSlide = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5015,7 +5228,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     </div>
   );
 
-  // --- RENDUS DES RÉSULTATS ---
   const renderHeroValuation = () => {
     const est = selectedProperty.estimationActuelle || {};
     return (
@@ -5345,7 +5557,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
-  // --- RENDU DU CHATBOT (NOUVEAU) ---
+  // --- RENDU DU CHATBOT CORRIGÉ ---
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
       <div>
@@ -5376,84 +5588,90 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   );
 
   const renderChatWindow = () => {
-  if (!isChatOpen) return null;
+    if (!isChatOpen) return null;
 
-  return (
-    <div className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[95vw] md:w-[400px] h-[600px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-50 overflow-hidden">
-      {/* Header */}
-      <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🤖</span>
-          <div>
-            <h3 className="font-bold text-sm">Stratège Immobilier IA</h3>
-            <p className="text-xs text-indigo-300">Analyse en direct</p>
-          </div>
-        </div>
-        <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-1">✕</button>
-      </div>
-
-      {/* Messages avec correction de style */}
-      <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-        {chatMessages.length === 0 && (
-          <div className="text-center text-gray-400 text-xs mt-12 px-6">
-            Posez-moi vos questions sur le financement, la stratégie de rénovation ou le potentiel de revente.
-          </div>
-        )}
+    return (
+      // CORRECTION : On passe en inset-0 et h-[100dvh] (pleine page dynamique) sur mobile, pour ignorer les décalages du clavier !
+      <div className="fixed inset-0 z-[100] w-full h-[100dvh] flex flex-col bg-white overflow-hidden md:inset-auto md:bottom-8 md:right-8 md:w-[400px] md:h-[600px] md:max-h-[80vh] md:rounded-2xl shadow-2xl md:border md:border-gray-200">
         
-        {chatMessages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
-              msg.role === 'user' 
-                ? 'bg-indigo-600 text-white rounded-br-none' 
-                : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
-            }`}
-            style={{ 
-              whiteSpace: 'pre-wrap', // INDISPENSABLE pour respecter les doubles sauts de ligne (\n\n)
-              wordBreak: 'break-word'
-            }}>
-              {msg.content}
+        {/* Header du chat */}
+        <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl md:text-3xl">🤖</span>
+            <div>
+              <h3 className="font-bold text-sm md:text-base">Stratège Immobilier IA</h3>
+              <p className="text-xs text-indigo-300">Analyse en direct</p>
             </div>
           </div>
-        ))}
-        
-        {isChatLoading && (
-          <div className="flex justify-start">
-            <div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-bl-none flex gap-1">
-              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce"></div>
-              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Input Form */}
-      <form onSubmit={sendChatMessage} className="p-3 bg-white border-t border-gray-100 shrink-0">
-        <div className="relative">
-          <input 
-            type="text" 
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            placeholder="Écrivez votre question ici..." 
-            className="w-full bg-gray-100 border-transparent rounded-xl py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm transition-all"
-            disabled={isChatLoading}
-          />
-          <button 
-            type="submit" 
-            disabled={isChatLoading || !chatInput.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-30 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-          </button>
+          {/* Un gros bouton pour refermer facilement sur mobile */}
+          <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-2 text-xl font-bold rounded-lg hover:bg-white/10 transition">✕</button>
         </div>
-      </form>
-    </div>
-  );
-};
+
+        {/* Messages */}
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          {chatMessages.length === 0 && (
+            <div className="text-center text-gray-400 text-sm mt-12 px-6">
+              Posez-moi vos questions sur le financement, la stratégie de rénovation ou le potentiel de revente.
+            </div>
+          )}
+          
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+                msg.role === 'user' 
+                  ? 'bg-indigo-600 text-white rounded-br-none' 
+                  : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
+              }`}
+              style={{ 
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          
+          {isChatLoading && (
+            <div className="flex justify-start">
+              <div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-bl-none flex gap-1">
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce"></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire & Input */}
+        {/* On rajoute un padding pour s'assurer que l'input n'est pas collé tout en bas s'il n'y a pas de clavier */}
+        <form onSubmit={sendChatMessage} className="p-3 md:p-4 bg-white border-t border-gray-100 shrink-0 pb-safe">
+          <div className="relative">
+            {/* CORRECTION : L'utilisation de text-base sur l'input empêche iOS Safari de zoomer automatiquement au focus ! */}
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Écrivez votre question ici..." 
+              className="w-full bg-gray-100 border-transparent rounded-xl py-3.5 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base md:text-sm transition-all"
+              disabled={isChatLoading}
+            />
+            <button 
+              type="submit" 
+              disabled={isChatLoading || !chatInput.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-30 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto w-full font-sans relative">
-       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={90} /> 
+      
+        <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={100} type="residential" /> 
       
       {/* FORM MODAL */}
       {showForm && (
@@ -5555,9 +5773,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       {selectedProperty && (
         <div ref={resultRef} className="space-y-6 md:space-y-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-24">
           
-          {/* NOUVEAU: Encadré Chatbot au dessus des résultats */}
           {renderChatHeader()}
-
           {renderHeroValuation()}
           {selectedProperty.potentielOptimisation && renderProspectionAvis()}
           {renderResidentialAppreciation()}
@@ -5583,7 +5799,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         </div>
       )}
 
-      {/* Rendu du Chatbot Flottant s'il est ouvert */}
+      {/* Rendu du Chatbot Flottant */}
       {renderChatWindow()}
     </div>
   );
@@ -5600,6 +5816,17 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   
   const isSubmittingRef = useRef(false);
   const resultRef = useRef(null);
+
+  // --- NOUVEAUX STATES POUR LE CHATBOT ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatScrollRef = useRef(null);
+
+  // Détermine si l'utilisateur a accès au chat
+  const userPlan = quotaInfo?.plan?.toLowerCase() || quotaInfo?.planId?.toLowerCase() || 'gratuit';
+  const hasPremiumAccess = ['pro', 'growth', 'premium', 'illimite'].includes(userPlan) || quotaInfo?.isUnlimited;
 
   const [formData, setFormData] = useState({
     userType: 'acheteur', // 'acheteur' ou 'vendeur'
@@ -5766,6 +5993,13 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     setSlideProgress(((currentSlide + 1) / activeSlides.length) * 100);
   }, [currentSlide, activeSlides.length]);
 
+  // Scroll auto du chat
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isChatLoading]);
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setSlideErrors((prev) => {
@@ -5907,6 +6141,10 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       setSelectedProperty(result);
       setShowForm(false);
       setCurrentSlide(0);
+      
+      // Réinitialiser le chatbot
+      setChatMessages([]);
+      setIsChatOpen(false);
 
       setTimeout(() => {
         resultRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -5917,6 +6155,62 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;
+    }
+  };
+
+  // --- NOUVELLE FONCTION CHATBOT AVEC SAUVEGARDE FIRESTORE ---
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
+
+    const userMessage = { role: 'user', content: chatInput.trim() };
+    const updatedMessages = [...chatMessages, userMessage];
+    
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-chat-commercial`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid,
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
+          propertyData: selectedProperty 
+        }),
+      });
+
+      if (!response.ok) throw new Error('Erreur de communication avec le Stratège IA');
+      
+      const data = await response.json();
+      const assistantMessage = { role: 'assistant', content: data.reply };
+      const finalMessages = [...updatedMessages, assistantMessage];
+      
+      setChatMessages(finalMessages);
+
+      // --- SAUVEGARDE DANS FIRESTORE ---
+      if (selectedProperty?.id && user?.uid) {
+        try {
+          const db = getFirestore();
+          const collectionName = selectedProperty.collection || 'evaluations_commerciales';
+          const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
+          
+          await updateDoc(docRef, { chatHistory: finalMessages });
+          
+          // Mettre à jour la propriété locale pour garder la synchro
+          setSelectedProperty(prev => ({ ...prev, chatHistory: finalMessages }));
+        } catch (dbErr) {
+          console.error("Erreur lors de la sauvegarde Firestore de l'historique:", dbErr);
+        }
+      }
+      
+    } catch (err) {
+      console.error(err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion à mes systèmes. Veuillez réessayer." }]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -6520,8 +6814,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                       {comp.url && comp.url !== "null" && (
                          <div className="pl-2">
                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm shadow-indigo-200">
-                             Consulter l'annonce
-                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                              Consulter l'annonce
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                            </a>
                          </div>
                       )}
@@ -6686,9 +6980,117 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     );
   };
 
+  // --- RENDU DU CHATBOT CORRIGÉ ---
+  const renderChatHeader = () => (
+    <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-3xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
+      <div>
+        <h2 className="text-2xl font-black flex items-center gap-2">
+          🤖 Discuter de cet actif avec l'IA
+        </h2>
+        <p className="text-indigo-200 mt-1 text-sm md:text-base">
+          Posez des questions sur le Cap Rate, le financement ou la stratégie d'optimisation (Value-Add).
+        </p>
+      </div>
+      
+      {hasPremiumAccess ? (
+        <button 
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center gap-2 whitespace-nowrap"
+        >
+          {isChatOpen ? 'Fermer le chat' : '💬 Ouvrir le Stratège IA'}
+        </button>
+      ) : (
+        <button 
+          onClick={() => alert("Redirection vers la page d'upgrade (À implémenter !)")}
+          className="bg-slate-800 border border-slate-600 hover:bg-slate-700 text-slate-300 font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center gap-2 whitespace-nowrap"
+        >
+          🔒 Débloquer avec Pro/Growth
+        </button>
+      )}
+    </div>
+  );
+
+  const renderChatWindow = () => {
+    if (!isChatOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-[100] w-full h-[100dvh] flex flex-col bg-white overflow-hidden md:inset-auto md:bottom-8 md:right-8 md:w-[400px] md:h-[600px] md:max-h-[80vh] md:rounded-2xl shadow-2xl md:border md:border-gray-200">
+        
+        {/* Header du chat */}
+        <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl md:text-3xl">🤖</span>
+            <div>
+              <h3 className="font-bold text-sm md:text-base">Stratège Commercial IA</h3>
+              <p className="text-xs text-indigo-300">Analyse en direct</p>
+            </div>
+          </div>
+          <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-2 text-xl font-bold rounded-lg hover:bg-white/10 transition">✕</button>
+        </div>
+
+        {/* Messages */}
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          {chatMessages.length === 0 && (
+            <div className="text-center text-gray-400 text-sm mt-12 px-6">
+              Posez-moi vos questions sur le financement multi-logement, la rentabilité de ce projet ou les loyers du marché.
+            </div>
+          )}
+          
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] p-4 rounded-2xl text-sm leading-relaxed ${
+                msg.role === 'user' 
+                  ? 'bg-indigo-600 text-white rounded-br-none' 
+                  : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
+              }`}
+              style={{ 
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          
+          {isChatLoading && (
+            <div className="flex justify-start">
+              <div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-bl-none flex gap-1">
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce"></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire & Input */}
+        <form onSubmit={sendChatMessage} className="p-3 md:p-4 bg-white border-t border-gray-100 shrink-0 pb-safe">
+          <div className="relative">
+            <input 
+              type="text" 
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Écrivez votre question ici..." 
+              className="w-full bg-gray-100 border-transparent rounded-xl py-3.5 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base md:text-sm transition-all"
+              disabled={isChatLoading}
+            />
+            <button 
+              type="submit" 
+              disabled={isChatLoading || !chatInput.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-30 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
   return (
     <>
-      <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={150} />
+     
+       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" />
 
       {/* FORM MODAL */}
       {showForm && (
@@ -6793,6 +7195,10 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       {/* RESULTS */}
       {selectedProperty && (
         <div ref={resultRef} className="space-y-8 mt-8 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
+          
+          {/* NOUVEAU: Encadré Chatbot en haut des résultats */}
+          {renderChatHeader()}
+          
           {renderHeroValuation()}
           {selectedProperty.potentielOptimisation && renderProspectionAvis()}
           {renderCommercialMetrics()}
@@ -6804,16 +7210,23 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
             <button type="button" onClick={handleShare} className="w-full sm:w-auto px-8 py-4 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-black rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2">
               <span role="img" aria-label="share">🔗</span> Partager les résultats
             </button>
-            <button type="button" onClick={() => { setSelectedProperty(null); setShowForm(false); setCurrentSlide(0); }} className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl transition-colors shadow-sm">
+            <button type="button" onClick={() => { 
+                setSelectedProperty(null); 
+                setShowForm(false); 
+                setCurrentSlide(0); 
+                setIsChatOpen(false); // Reset du chatbot au redémarrage
+              }} className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl transition-colors shadow-sm">
               ← Nouvelle évaluation
             </button>
           </div>
         </div>
       )}
+
+      {/* Fenêtre de Chat flottante */}
+      {renderChatWindow()}
     </>
   );
 }
-
 
 //CHAT TAB
 
