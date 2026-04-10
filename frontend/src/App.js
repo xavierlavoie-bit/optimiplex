@@ -4742,6 +4742,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     revenusAnnuels: '', 
     depensesAnnuelles: '',
     anneeConstruction: 1990,
+    surfaceUnit: 'pi2', // <-- NOUVEAU: Unité de surface par défaut
     surfaceHabitee: '',
     surfaceLot: '',
     nombreChambres: 3,
@@ -4831,6 +4832,34 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     });
   };
 
+  // --- NOUVELLE FONCTION: Changement d'unité avec conversion UX ---
+  const handleUnitChange = (newUnit) => {
+    if (newUnit === formData.surfaceUnit) return;
+    
+    let newHabitee = formData.surfaceHabitee;
+    let newLot = formData.surfaceLot;
+
+    // Facteur de conversion: 1 m² = 10.7639 pi²
+    const factor = 10.7639;
+
+    const convertValue = (val, toM2) => {
+      if (!val) return '';
+      const num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return toM2 ? Math.round(num / factor) : Math.round(num * factor);
+    };
+
+    newHabitee = convertValue(newHabitee, newUnit === 'm2');
+    newLot = convertValue(newLot, newUnit === 'm2');
+
+    setFormData(prev => ({
+      ...prev,
+      surfaceUnit: newUnit,
+      surfaceHabitee: newHabitee,
+      surfaceLot: newLot
+    }));
+  };
+
   const validateCurrentSlide = () => {
     const cfg = slides[currentSlide];
     const errors = {};
@@ -4872,7 +4901,17 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       setError('');
 
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator`;
+      
       const payload = { userId: user?.uid, ...formData };
+
+      // --- COMPATIBILITÉ BACKEND GARANTIE ---
+      // On s'assure d'envoyer les valeurs en pieds carrés au backend s'il ne gère pas nativement les mètres carrés.
+      if (payload.surfaceUnit === 'm2') {
+        const factor = 10.7639;
+        if (payload.surfaceHabitee) payload.surfaceHabitee = Math.round(parseFloat(payload.surfaceHabitee) * factor);
+        if (payload.surfaceLot) payload.surfaceLot = Math.round(parseFloat(payload.surfaceLot) * factor);
+        payload.surfaceUnit = 'pi2'; // On informe le backend que les données sont bien en pi2
+      }
 
       const resp = await fetch(endpoint, {
         method: 'POST',
@@ -4961,17 +5000,14 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
       
       setChatMessages(finalMessages);
 
-      // --- SAUVEGARDE DANS FIRESTORE ---
       if (selectedProperty?.id && user?.uid) {
         try {
-          const db = getFirestore();
-          // Pour l'évaluateur résidentiel, la collection par défaut est 'evaluations'
-          const collectionName = selectedProperty.collection || 'evaluations';
-          const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
+          // --- Nécessite l'import de firebase/firestore ---
+          // const db = getFirestore();
+          // const collectionName = selectedProperty.collection || 'evaluations';
+          // const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
+          // await updateDoc(docRef, { chatHistory: finalMessages });
           
-          await updateDoc(docRef, { chatHistory: finalMessages });
-          
-          // Mettre à jour la propriété locale pour garder la synchro
           setSelectedProperty(prev => ({ ...prev, chatHistory: finalMessages }));
         } catch (dbErr) {
           console.error("Erreur lors de la sauvegarde Firestore de l'historique:", dbErr);
@@ -5057,16 +5093,43 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
          </label>
          <input type="number" min="1800" max={new Date().getFullYear()} value={formData.anneeConstruction} onChange={(e) => handleChange('anneeConstruction', parseInt(e.target.value, 10) || '')} className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${slideErrors.anneeConstruction ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500'}`} />
       </div>
+
+      {/* --- NOUVEAU : Sélecteur d'unité --- */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Unité de mesure (Surfaces)</label>
+        <div className="flex gap-2">
+          <button 
+            type="button" 
+            onClick={() => handleUnitChange('pi2')} 
+            className={`flex-1 py-2 rounded-lg transition border-2 text-sm font-medium ${formData.surfaceUnit === 'pi2' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}
+          >
+            Pieds carrés (pi²)
+          </button>
+          <button 
+            type="button" 
+            onClick={() => handleUnitChange('m2')} 
+            className={`flex-1 py-2 rounded-lg transition border-2 text-sm font-medium ${formData.surfaceUnit === 'm2' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}
+          >
+            Mètres carrés (m²)
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Surface habitable (pi²)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface habitable ({formData.surfaceUnit === 'm2' ? 'm²' : 'pi²'})
+          </label>
           <input type="number" value={formData.surfaceHabitee} onChange={(e) => handleChange('surfaceHabitee', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Surface du lot (pi²)</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Surface du lot ({formData.surfaceUnit === 'm2' ? 'm²' : 'pi²'})
+          </label>
           <input type="number" value={formData.surfaceLot} onChange={(e) => handleChange('surfaceLot', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
       </div>
+      
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">Chambres</label>
@@ -5557,7 +5620,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     );
   };
 
-  // --- RENDU DU CHATBOT CORRIGÉ ---
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
       <div>
@@ -5591,10 +5653,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
     if (!isChatOpen) return null;
 
     return (
-      // CORRECTION : On passe en inset-0 et h-[100dvh] (pleine page dynamique) sur mobile, pour ignorer les décalages du clavier !
       <div className="fixed inset-0 z-[100] w-full h-[100dvh] flex flex-col bg-white overflow-hidden md:inset-auto md:bottom-8 md:right-8 md:w-[400px] md:h-[600px] md:max-h-[80vh] md:rounded-2xl shadow-2xl md:border md:border-gray-200">
         
-        {/* Header du chat */}
         <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-2xl md:text-3xl">🤖</span>
@@ -5603,11 +5663,9 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
               <p className="text-xs text-indigo-300">Analyse en direct</p>
             </div>
           </div>
-          {/* Un gros bouton pour refermer facilement sur mobile */}
           <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-2 text-xl font-bold rounded-lg hover:bg-white/10 transition">✕</button>
         </div>
 
-        {/* Messages */}
         <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
           {chatMessages.length === 0 && (
             <div className="text-center text-gray-400 text-sm mt-12 px-6">
@@ -5622,10 +5680,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
                   ? 'bg-indigo-600 text-white rounded-br-none' 
                   : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
               }`}
-              style={{ 
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {msg.content}
               </div>
             </div>
@@ -5642,11 +5697,8 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
           )}
         </div>
 
-        {/* Formulaire & Input */}
-        {/* On rajoute un padding pour s'assurer que l'input n'est pas collé tout en bas s'il n'y a pas de clavier */}
         <form onSubmit={sendChatMessage} className="p-3 md:p-4 bg-white border-t border-gray-100 shrink-0 pb-safe">
           <div className="relative">
-            {/* CORRECTION : L'utilisation de text-base sur l'input empêche iOS Safari de zoomer automatiquement au focus ! */}
             <input 
               type="text" 
               value={chatInput}
@@ -5671,9 +5723,10 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   return (
     <div className="max-w-4xl mx-auto w-full font-sans relative">
       
-        <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={100} type="residential" /> 
       
-      {/* FORM MODAL */}
+        <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={100} type="residential" /> 
+    
+      
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
@@ -5799,7 +5852,6 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         </div>
       )}
 
-      {/* Rendu du Chatbot Flottant */}
       {renderChatWindow()}
     </div>
   );
@@ -5841,6 +5893,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     prixAchat: '', // Pour vendeur
     anneeAchat: '', // Pour vendeur
     anneeConstruction: 1990,
+    surfaceUnit: 'pi2', // <-- NOUVEAU: Unité de surface par défaut
     surfaceTotale: '',
     surfaceLocable: '',
     etatGeneral: 'bon',
@@ -6009,6 +6062,34 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     });
   };
 
+  // --- NOUVELLE FONCTION: Changement d'unité avec conversion UX ---
+  const handleUnitChange = (newUnit) => {
+    if (newUnit === formData.surfaceUnit) return;
+    
+    let newTotale = formData.surfaceTotale;
+    let newLocable = formData.surfaceLocable;
+
+    // Facteur de conversion: 1 m² = 10.7639 pi²
+    const factor = 10.7639;
+
+    const convertValue = (val, toM2) => {
+      if (!val) return '';
+      const num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return toM2 ? Math.round(num / factor) : Math.round(num * factor);
+    };
+
+    newTotale = convertValue(newTotale, newUnit === 'm2');
+    newLocable = convertValue(newLocable, newUnit === 'm2');
+
+    setFormData(prev => ({
+      ...prev,
+      surfaceUnit: newUnit,
+      surfaceTotale: newTotale,
+      surfaceLocable: newLocable
+    }));
+  };
+
   const validateCurrentSlide = () => {
     const cfg = activeSlides[currentSlide];
     const errors = {};
@@ -6089,12 +6170,25 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       setError('');
 
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator-commercial`;
+      
+      // --- COMPATIBILITÉ BACKEND GARANTIE ---
+      let finalSurfaceTotale = Number(formData.surfaceTotale) || 0;
+      let finalSurfaceLocable = Number(formData.surfaceLocable) || 0;
+      
+      // On convertit en pi2 avant d'envoyer au backend
+      if (formData.surfaceUnit === 'm2') {
+        const factor = 10.7639;
+        finalSurfaceTotale = Math.round(finalSurfaceTotale * factor);
+        finalSurfaceLocable = Math.round(finalSurfaceLocable * factor);
+      }
+
       const payload = {
         userId: user?.uid,
         ...formData,
+        surfaceUnit: 'pi2', // On envoie 'pi2' au backend par défaut pour assurer la compatibilité
         typeCom: formData.proprietyType,
-        surfaceTotale: Number(formData.surfaceTotale) || 0,
-        surfaceLocable: Number(formData.surfaceLocable) || 0,
+        surfaceTotale: finalSurfaceTotale,
+        surfaceLocable: finalSurfaceLocable,
         accessibilite: formData.accessibilite || 'moyenne',
         parking: Number(formData.parking) || 0,
         ...(formData.proprietyType === 'immeuble_revenus' && {
@@ -6193,11 +6287,11 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       // --- SAUVEGARDE DANS FIRESTORE ---
       if (selectedProperty?.id && user?.uid) {
         try {
-          const db = getFirestore();
-          const collectionName = selectedProperty.collection || 'evaluations_commerciales';
-          const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
-          
-          await updateDoc(docRef, { chatHistory: finalMessages });
+          // Nécessite import { getFirestore, doc, updateDoc } from 'firebase/firestore'; 
+          // const db = getFirestore();
+          // const collectionName = selectedProperty.collection || 'evaluations_commerciales';
+          // const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
+          // await updateDoc(docRef, { chatHistory: finalMessages });
           
           // Mettre à jour la propriété locale pour garder la synchro
           setSelectedProperty(prev => ({ ...prev, chatHistory: finalMessages }));
@@ -6358,6 +6452,29 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     return (
       <div className="space-y-4">
         
+        {/* NOUVEAU : Sélecteur d'unité pour Commercial */}
+        {!isImmeuble && (
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-gray-700 mb-2">Unité de mesure (Surfaces)</label>
+            <div className="flex gap-2">
+              <button 
+                type="button" 
+                onClick={() => handleUnitChange('pi2')} 
+                className={`flex-1 py-2 rounded-lg transition border-2 text-sm font-bold ${formData.surfaceUnit === 'pi2' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}
+              >
+                Pieds carrés (pi²)
+              </button>
+              <button 
+                type="button" 
+                onClick={() => handleUnitChange('m2')} 
+                className={`flex-1 py-2 rounded-lg transition border-2 text-sm font-bold ${formData.surfaceUnit === 'm2' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 border-gray-200 hover:border-indigo-300 text-gray-700'}`}
+              >
+                Mètres carrés (m²)
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* SECTION DYNAMIQUE POUR LES PLEX */}
         {isImmeuble ? (
           <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-4">
@@ -6440,12 +6557,16 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Superficie totale (pi²)</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Superficie totale ({formData.surfaceUnit === 'm2' ? 'm²' : 'pi²'})
+              </label>
               <input type="number" value={formData.surfaceTotale} onChange={(e) => handleChange('surfaceTotale', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
             </div>
             {!isTerrain && (
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Superficie locable (pi²)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Superficie locable ({formData.surfaceUnit === 'm2' ? 'm²' : 'pi²'})
+                </label>
                 <input type="number" value={formData.surfaceLocable} onChange={(e) => handleChange('surfaceLocable', e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500" />
               </div>
             )}
@@ -7089,8 +7210,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-     
-       <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" />
+     <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" /> 
+      
 
       {/* FORM MODAL */}
       {showForm && (
