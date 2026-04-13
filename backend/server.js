@@ -22,6 +22,9 @@ const cors = require('cors');
 const Anthropic = require('@anthropic-ai/sdk');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const admin = require('firebase-admin');
+const sgMail = require('@sendgrid/mail');
+// Configure la clé API (Assure-toi d'ajouter SENDGRID_API_KEY dans ton fichier .env)
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // ✅ IMPORTS FIRESTORE
 const { getFirestore, collection, query, where, getDocs, FieldValue } = require('firebase-admin/firestore');
@@ -2039,6 +2042,295 @@ Réponds directement en texte clair (Plain Text).`;
   }
 });
 
+
+// ====================================================================
+// 🏢 ROUTE : IA COURTIER HYPOTHÉCAIRE (AVEC SENDGRID)
+// ====================================================================
+
+app.post('/api/broker/chat', async (req, res) => {
+  try {
+    const { message, history, evaluationId, userId, evaluationData, brokerId, userEmail } = req.body;
+
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const claudeHistory = history.map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content
+    }));
+    claudeHistory.push({ role: 'user', content: message });
+
+    // ⚠️ RÉCUPÉRATION ROBUSTE AMÉLIORÉE (Fouille dans result)
+    const prix = evaluationData?.result?.estimationActuelle?.valeurMoyenne || 
+                 evaluationData?.estimationActuelle?.valeurMoyenne || 
+                 evaluationData?.prixAffichage || 
+                 evaluationData?.prixDemande || 'Non spécifié';
+    
+    // ⚠️ EXTRACTION ADRESSE OU VILLE DE SECOURS
+    let adresse = evaluationData?.addresseComplete || evaluationData?.adresse || evaluationData?.address || evaluationData?.titre || '';
+    if (!adresse || adresse.trim() === '') {
+      if (evaluationData?.ville) {
+        adresse = `la propriété à ${evaluationData.ville}`;
+        if (evaluationData?.quartier) adresse += ` (${evaluationData.quartier})`;
+      } else {
+        adresse = 'la propriété sélectionnée';
+      }
+    }
+    
+    const idPropriete = evaluationData?.id || evaluationId || 'ID non disponible';
+
+    const systemPrompt = `
+      Tu es l'assistant de qualification hypothécaire chez Optimiplex.
+      
+      CONTEXTE DU PROJET SÉLECTIONNÉ : 
+      - Cible: ${adresse}
+      - Prix: ${prix}
+      
+      RÈGLE D'OR : Le client veut aller vite. Ton ton doit être amical, humain et concis.
+      NE DEMANDE JAMAIS LA COTE DE CRÉDIT.
+      
+      OBJECTIF : Obtenir EXACTEMENT ces 2 informations (UNE À LA FOIS) :
+      1. La mise de fonds disponible (cash)
+      2. Le revenu annuel brut approximatif
+      
+      Si tu as une de ces informations, remercie-le brièvement et demande la seconde.
+      Dès que tu as les 2 informations, remercie le client et dis-lui que Rebecca va prendre le relais.
+      
+      RÈGLES DE FORMATAGE JSON OBLIGATOIRES (Ne renvoie QUE du JSON, aucun texte avant ou après) :
+      {
+        "reply": "Ta réponse texte (courte et amicale)...",
+        "captured_data": { "revenu": "...", "mise_de_fonds": "..." },
+        "is_complete": false,
+        "ai_summary": "Si is_complete est true, rédige un bref résumé pour le courtier QUI MENTIONNE OBLIGATOIREMENT la cible (${adresse}), le revenu et la mise de fonds. Sinon, met null."
+      }
+    `;
+
+    const anthropicResponse = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: claudeHistory,
+      temperature: 0.2,
+    });
+
+    // Remplace par ta méthode exacte si elle est différente
+    const parseClaudeJSON = (text) => { const match = text.match(/\{[\s\S]*\}/); return match ? JSON.parse(match[0]) : null; };
+    const parsedData = parseClaudeJSON(anthropicResponse.content[0].text);
+
+    if (parsedData && parsedData.is_complete === true) {
+      // 1. Sauvegarde dans Firestore
+      try {
+        const db = admin.firestore();
+        await db.collection('leads_hypothecaires').add({
+          clientEmail: userEmail || 'anonyme@client.com',
+          userId: userId || null, 
+          evaluationId: idPropriete,
+          evaluationData: evaluationData || {}, 
+          adressePropriete: adresse,
+          prixPropriete: prix,
+          financialData: parsedData.captured_data,
+          aiSummary: parsedData.ai_summary || "Dossier pré-qualifié (2 étapes).",
+          status: 'nouveau', 
+          assignedTo: null,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (dbError) {
+        console.error('❌ Erreur Firestore:', dbError);
+      }
+
+      // 2. Notification Courriel mise à jour
+      const msg = {
+        to: 'xavier.lavoie@optimiplex.com', 
+        from: 'info@optimiplex.com', 
+        subject: `🚨 NOUVEAU LEAD HYPOTHÉCAIRE : ${adresse} (${userEmail})`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px;">
+            <h2>Nouveau Lead Hypothécaire - Étape 1</h2>
+            
+            <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #4f46e5; margin-bottom: 20px;">
+              <strong>📍 Propriété ciblée :</strong><br/>
+              Adresse / Cible : <b>${adresse}</b><br/>
+              Prix ciblé : <b>${prix} $</b><br/>
+              <i>ID: ${idPropriete}</i>
+            </div>
+
+            <div style="background: #f9fafb; padding: 15px; border-left: 4px solid #10b981; margin-bottom: 20px;">
+              <strong>🧠 Note de l'IA :</strong><br/>
+              ${parsedData.ai_summary}
+            </div>
+
+            <h3>Données Financières Capturées :</h3>
+            <ul>
+              <li><strong>Revenu estimé :</strong> ${parsedData.captured_data.revenu || 'Non précisé'}</li>
+              <li><strong>Mise de fonds :</strong> ${parsedData.captured_data.mise_de_fonds || 'Non précisé'}</li>
+              <li><em>Cote de crédit : À demander en personne par le courtier.</em></li>
+            </ul>
+          </div>
+        `
+      };
+      sgMail.send(msg).catch(err => console.error(err));
+    }
+
+    res.json(parsedData);
+  } catch (error) {
+    res.status(500).json({ reply: "Désolé, une erreur est survenue.", is_complete: false });
+  }
+});
+
+app.post('/api/broker/assign', async (req, res) => {
+  try {
+    const { leadId, brokerEmail, brokerName, clientEmail, aiSummary } = req.body;
+    const db = admin.firestore();
+
+    // 1. Mettre à jour Firestore
+    await db.collection('leads_hypothecaires').doc(leadId).update({
+      assignedTo: brokerEmail,
+      assignedBrokerName: brokerName,
+      status: 'assigne',
+      assignedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 2. Courriel au CLIENT
+    const clientMsg = {
+      to: clientEmail,
+      from: 'info@optimiplex.com', // Doit être l'adresse vérifiée SendGrid
+      subject: `Votre dossier Optimiplex a été confié à ${brokerName}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Excellente nouvelle !</h2>
+          <p>Votre dossier de financement a été confié à notre expert(e) <strong>${brokerName}</strong>.</p>
+          <p>Pour que ${brokerName} puisse commencer à travailler sur votre pré-approbation, merci de remplir ce formulaire sécurisé :</p>
+          <div style="margin-top: 20px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/${leadId}" style="background: #4f46e5; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px;">
+               Accéder à mon portail sécurisé
+            </a>
+          </div>
+          <p style="margin-top: 20px;">Vous serez contacté(e) très bientôt.</p>
+        </div>
+      `
+    };
+
+    // 3. Courriel au COURTIER ASSIGNÉ
+    const brokerMsg = {
+      to: brokerEmail,
+      from: 'info@optimiplex.com',
+      subject: `🎯 Nouveau dossier assigné: ${clientEmail}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Un nouveau dossier t'a été assigné</h2>
+          <p>Le client <strong>${clientEmail}</strong> t'a été attribué.</p>
+          <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #4f46e5; margin-bottom: 20px;">
+            <strong>🧠 Analyse IA :</strong><br/>${aiSummary}
+          </div>
+          <p>Connecte-toi au CRM Optimiplex pour voir les détails et changer le statut une fois le financement complété.</p>
+        </div>
+      `
+    };
+
+    await sgMail.send(clientMsg);
+    await sgMail.send(brokerMsg);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur assignation:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'assignation' });
+  }
+});
+
+app.post('/api/client/submit', async (req, res) => {
+  const { leadId, formData, brokerEmail } = req.body;
+
+  try {
+    // 1. MISE À JOUR IMMÉDIATE DU DOSSIER DANS FIRESTORE
+    // On enregistre les données et on change le statut tout de suite
+    await db.collection('leads_hypothecaires').doc(leadId).update({
+      clientDetails: formData,
+      status: 'en_cours',
+      clientFormCompleted: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 2. RÉPONSE INSTANTANÉE AU CLIENT
+    // Le client voit l'écran de succès immédiatement, sans attendre l'IA
+    res.json({ success: true });
+
+    // 3. TRAITEMENT DE L'ANALYSE IA EN ARRIÈRE-PLAN
+    // On lance une fonction asynchrone qui ne bloque pas la réponse HTTP
+    (async () => {
+      try {
+        console.log(`🤖 Lancement de l'analyse IA en arrière-plan pour: ${leadId}`);
+
+        const systemPrompt = `Tu es un expert analyste hypothécaire senior pour Optimiplex. 
+        Analyse le bilan patrimonial du client et fournis une réponse structurée UNIQUEMENT en HTML propre.
+        
+        IMPORTANT : 
+        - N'utilise JAMAIS de Markdown (interdiction de : #, ##, ###, **, __, - pour les listes).
+        - Utilise exclusivement les balises HTML : <p>, <b>, <ul>, <li>.
+        - Ne mets aucun titre global, commence directement par les sections ci-dessous.
+        
+        Structure de la réponse :
+        <p><b>🎯 Forces du dossier</b></p>
+        <ul><li>Point fort 1</li><li>Point fort 2</li></ul>
+        <p><b>⚠️ Points de vigilance</b></p>
+        <ul><li>Point de vigilance 1</li><li>Point de vigilance 2</li></ul>
+        <p><b>💡 Stratégie suggérée</b></p>
+        <ul><li>Conseil stratégique 1</li><li>Conseil stratégique 2</li></ul>`;
+
+        const userPrompt = `
+          CLIENT : ${formData.prenom} ${formData.nom} (${formData.statutEmploi})
+          ACTIFS : Épargne: ${formData.liquidites}$, REER: ${formData.reer}$, CELI: ${formData.celi}$, Immo: ${formData.immobilier_valeur}$
+          DETTES : Cartes: ${formData.solde_cartes}$, Auto: ${formData.pret_auto}$, Étudiant: ${formData.pret_etudiant}$
+        `;
+
+        const anthropicResponse = await claude.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1200,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
+
+        const aiAnalysis = anthropicResponse.content[0].text;
+
+        // Mise à jour du dossier avec l'analyse IA une fois terminée
+        await db.collection('leads_hypothecaires').doc(leadId).update({
+          aiAnalysis: aiAnalysis
+        });
+
+        // 4. Email de notification au courtier avec l'analyse
+        const brokerMsg = {
+          to: brokerEmail,
+          from: 'info@optimiplex.com', 
+          subject: `📈 Dossier Complété & Analysé : ${formData.prenom} ${formData.nom}`,
+          html: `
+            <div style="font-family: sans-serif; padding: 25px; color: #333; max-width: 650px; border: 1px solid #eee; border-radius: 12px;">
+              <h2 style="color: #4f46e5;">Le client a soumis son bilan financier !</h2>
+              <p>Le dossier de <b>${formData.prenom} ${formData.nom}</b> est prêt pour révision dans le CRM.</p>
+              
+              <div style="background-color: #f5f3ff; border-left: 5px solid #4f46e5; padding: 20px; margin: 25px 0;">
+                <h3 style="margin-top: 0; color: #4f46e5;">🤖 Analyse IA Stratégique :</h3>
+                ${aiAnalysis}
+              </div>
+              
+              <p>Consultez les chiffres complets et contactez le client via le CRM.</p>
+              <a href="https://optimiplex.com/crm" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">Ouvrir le CRM Courtier</a>
+            </div>
+          `
+        };
+
+        await sgMail.send(brokerMsg);
+        console.log(`✅ Analyse IA et notification terminées pour: ${leadId}`);
+
+      } catch (bgError) {
+        console.error('❌ Erreur dans le traitement IA en arrière-plan:', bgError);
+      }
+    })();
+
+  } catch (error) {
+    console.error('❌ Erreur soumission client:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erreur lors du traitement du dossier' });
+    }
+  }
+});
 
 
 // ====================================================================
