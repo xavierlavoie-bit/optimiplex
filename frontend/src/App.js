@@ -6,8 +6,11 @@
 import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
+import BrokerChat from './BrokerChat';
+import BrokerCRM, { isUserBroker } from './BrokerCRM';
+import ClientPortal from './ClientPortal';
 import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
-  Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2
+  Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2, Briefcase
   } from 'lucide-react';
 import { 
   getAuth, 
@@ -156,8 +159,9 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
 // ============================================
 // 3️⃣ SIDEBAR RESPONSIVE - DESKTOP + MOBILE
 // ============================================
-function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits }) {
-  const windowSize = useWindowSize();
+function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits, isUserBroker }) {
+  // Remplacer par ton hook useWindowSize existant
+  const windowSize = { width: window.innerWidth }; 
   const isMobile = windowSize.width < 768;
 
   const navItems = [
@@ -214,6 +218,32 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
               )}
             </button>
           ))}
+
+          {/* 👇 AJOUTE CE BOUTON POUR LE DESKTOP 👇 */}
+          {user && isUserBroker && isUserBroker(user.email) && (
+            <div className="pt-4 mt-4 border-t border-gray-100">
+               {/* ⚠️ On utilise target="_blank" pour ouvrir un nouvel onglet */}
+               <a 
+                 href="/crm" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
+                 className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 bg-indigo-900 text-white shadow-md hover:bg-indigo-800 ${
+                   !sidebarOpen ? 'justify-center' : ''
+                 }`}
+                 title={!sidebarOpen ? 'CRM Courtier' : ''}
+               >
+                 {sidebarOpen ? (
+                   <>
+                     <Briefcase className="mr-3 h-5 w-5 text-indigo-300" />
+                     <span className="font-bold whitespace-nowrap text-sm">CRM Courtier</span>
+                   </>
+                 ) : (
+                   <Briefcase className="h-5 w-5 text-indigo-300" />
+                 )}
+               </a>
+            </div>
+          )}
         </nav>
 
         {/* ✅ Affichage crédits Sidebar Desktop */}
@@ -279,6 +309,22 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
               {label}
             </button>
           ))}
+
+          {/* 👇 AJOUTE CE BOUTON POUR LE MOBILE 👇 */}
+          {user && isUserBroker && isUserBroker(user.email) && (
+             <div className="pt-4 mt-4 border-t border-gray-100">
+               <a 
+                 href="/crm" 
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
+                 className="w-full flex items-center gap-3 px-4 py-3.5 bg-indigo-900 text-white text-left rounded-xl shadow-sm font-bold text-sm"
+               >
+                 <Briefcase className="h-5 w-5 text-indigo-300" />
+                 CRM Courtier
+               </a>
+             </div>
+          )}
         </div>
 
         {/* Logout Mobile */}
@@ -422,6 +468,7 @@ function DashboardLayout() {
       planInfo={planInfo}
       onLogout={handleLogout}
       credits={userProfile?.creditsBalance || 0} // ✅ Passer les crédits
+      isUserBroker={isUserBroker}
     />
 
     <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300`}>
@@ -2502,7 +2549,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         {renderValuationHero()}
         {renderChatHeader()}
         {isAcheteur && opti && renderProspectionDeal()}
-
+          {/* <BrokerChat evaluationData={selectedAnalysis} user={user}/> */}
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
           <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
              <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📈</span> Performance de l'Actif
@@ -5622,14 +5669,16 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
-      <div>
+      
+      {/*<div>
+        BrokerChat
         <h2 className="text-2xl font-black flex items-center gap-2">
           🤖 Discuter de cette évaluation avec l'IA
         </h2>
         <p className="text-indigo-200 mt-1 text-sm md:text-base">
           Posez des questions sur le financement, la stratégie de flip, ou comment maximiser le prix de vente.
         </p>
-      </div>
+      </div>8*/}
       
       {hasPremiumAccess ? (
         <button 
@@ -8377,7 +8426,9 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/dashboard/*" element={<DashboardLayout />} />
+          <Route path="/portal/:leadId" element={<ClientPortal />} />
+          <Route path="/dashboard/*" element={<DashboardLayout />} />   
+          <Route path="/crm" element={<BrokerCRM />} /> 
         </Routes>
       </BrowserRouter>
   );
