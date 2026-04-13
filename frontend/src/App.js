@@ -6314,7 +6314,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     setIsChatLoading(true);
 
     try {
-      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-chat-commercial`;
+      // CORRECTION: Changement vers '/api/property/valuation-chat' pour correspondre au backend
+      const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-chat`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -6960,7 +6961,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
              </h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {comparables.map((comp, idx) => (
-                   <div key={idx} className="border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50">
+                   <div key={idx} className="border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50 flex flex-col">
                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-slate-400' : 'bg-green-500'}`}></div>
                       
                       <div className="flex justify-between items-start mb-4 pl-2">
@@ -6977,12 +6978,20 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                          {typeof comp.prix === 'number' && comp.prix > 0 ? `$${comp.prix.toLocaleString('fr-CA')}` : 'Non affiché'}
                       </p>
                       
-                      <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-5 ml-2 border border-gray-100 shadow-inner font-medium">
+                      <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-5 ml-2 border border-gray-100 shadow-inner font-medium flex-grow">
                          {comp.caracteristiques}
                       </div>
 
+                      {/* --- NOUVEAU: SYSTÈME DE PARITÉ AJOUTÉ ICI --- */}
+                      {comp.ajustementParite && (
+                        <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-900 mb-4 ml-2 border border-indigo-100 flex items-start gap-2 shadow-sm">
+                          <span className="mt-0.5 text-lg">⚖️</span>
+                          <p className="font-medium leading-relaxed">{comp.ajustementParite}</p>
+                        </div>
+                      )}
+
                       {comp.url && comp.url !== "null" && (
-                         <div className="pl-2">
+                         <div className="pl-2 mt-auto">
                            <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm shadow-indigo-200">
                               Consulter l'annonce
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -7259,8 +7268,8 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-     <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" /> 
-      
+     {/* Assurez-vous que LoadingSpinner est bien importé ou défini */}
+     {/* <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" /> */}
 
       {/* FORM MODAL */}
       {showForm && (
