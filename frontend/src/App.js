@@ -5906,7 +5906,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   );
 }
 
-function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
+ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
   const [loading, setLoading] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -5918,7 +5918,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   const isSubmittingRef = useRef(false);
   const resultRef = useRef(null);
 
-  // --- NOUVEAUX STATES POUR LE CHATBOT ---
+  // --- STATES POUR LE CHATBOT ---
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -5930,19 +5930,19 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   const hasPremiumAccess = ['pro', 'growth', 'premium', 'illimite'].includes(userPlan) || quotaInfo?.isUnlimited;
 
   const [formData, setFormData] = useState({
-    userType: 'acheteur', // 'acheteur' ou 'vendeur'
+    userType: 'acheteur', 
     titre: '',
     proprietyType: 'immeuble_revenus',
     ville: '',
     quartier: '',
     codePostal: '',
     addresseComplete: '',
-    prixAffichage: '', // Pour acheteur
-    urlAnnonce: '', // Pour acheteur
-    prixAchat: '', // Pour vendeur
-    anneeAchat: '', // Pour vendeur
+    prixAffichage: '', 
+    urlAnnonce: '', 
+    prixAchat: '', 
+    anneeAchat: '', 
     anneeConstruction: 1990,
-    surfaceUnit: 'pi2', // <-- NOUVEAU: Unité de surface par défaut
+    surfaceUnit: 'pi2', 
     surfaceTotale: '',
     surfaceLocable: '',
     etatGeneral: 'bon',
@@ -5961,7 +5961,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     tariffMoyenParNuit: 150,
     clienteleActive: 'stable',
     
-    // NOUVEAUX CHAMPS D'OPTIMISATION (VALUE-ADD) POUR PLEX
+    // CHAMPS D'OPTIMISATION (VALUE-ADD) POUR PLEX
     chauffage_proprio: false,
     electricite_proprio: false,
     unites_non_renovees: false,
@@ -6009,7 +6009,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   ];
 
   // ============================================
-  // GÉNÉRATION DYNAMIQUE DES SLIDES SELON LE TYPE
+  // GÉNÉRATION DYNAMIQUE DES SLIDES
   // ============================================
   const getActiveSlides = () => {
     const type = formData.proprietyType;
@@ -6111,14 +6111,12 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     });
   };
 
-  // --- NOUVELLE FONCTION: Changement d'unité avec conversion UX ---
   const handleUnitChange = (newUnit) => {
     if (newUnit === formData.surfaceUnit) return;
     
     let newTotale = formData.surfaceTotale;
     let newLocable = formData.surfaceLocable;
 
-    // Facteur de conversion: 1 m² = 10.7639 pi²
     const factor = 10.7639;
 
     const convertValue = (val, toM2) => {
@@ -6167,9 +6165,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     if (currentSlide > 0) setCurrentSlide((s) => s - 1);
   };
 
-  // ============================================
-  // LOGIQUE DE PARTAGE (SHARE)
-  // ============================================
   const handleShare = async () => {
     const est = selectedProperty?.estimationActuelle?.valeurMoyenne;
     if (!est) return;
@@ -6220,11 +6215,9 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-estimator-commercial`;
       
-      // --- COMPATIBILITÉ BACKEND GARANTIE ---
       let finalSurfaceTotale = Number(formData.surfaceTotale) || 0;
       let finalSurfaceLocable = Number(formData.surfaceLocable) || 0;
       
-      // On convertit en pi2 avant d'envoyer au backend
       if (formData.surfaceUnit === 'm2') {
         const factor = 10.7639;
         finalSurfaceTotale = Math.round(finalSurfaceTotale * factor);
@@ -6234,7 +6227,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       const payload = {
         userId: user?.uid,
         ...formData,
-        surfaceUnit: 'pi2', // On envoie 'pi2' au backend par défaut pour assurer la compatibilité
+        surfaceUnit: 'pi2',
         typeCom: formData.proprietyType,
         surfaceTotale: finalSurfaceTotale,
         surfaceLocable: finalSurfaceLocable,
@@ -6285,7 +6278,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       setShowForm(false);
       setCurrentSlide(0);
       
-      // Réinitialiser le chatbot
       setChatMessages([]);
       setIsChatOpen(false);
 
@@ -6301,7 +6293,9 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     }
   };
 
-  // --- NOUVELLE FONCTION CHATBOT AVEC SAUVEGARDE FIRESTORE ---
+  // ============================================
+  // LOGIQUE DU CHATBOT (CORRIGÉE)
+  // ============================================
   const sendChatMessage = async (e) => {
     e.preventDefault();
     if (!chatInput.trim() || isChatLoading) return;
@@ -6314,19 +6308,26 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     setIsChatLoading(true);
 
     try {
-      // CORRECTION: Changement vers '/api/property/valuation-chat' pour correspondre au backend
       const endpoint = `${typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : ''}/api/property/valuation-chat`;
+      
+      // --- CORRECTION MAJEURE: EXCLURE L'HISTORIQUE DE LA PROPRIÉTÉ ---
+      // Cela évite l'erreur "Payload too large" ou le crash du backend
+      const propertyDataToSend = { ...selectedProperty };
+      delete propertyDataToSend.chatHistory;
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid,
           messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
-          propertyData: selectedProperty 
+          propertyData: propertyDataToSend 
         }),
       });
 
-      if (!response.ok) throw new Error('Erreur de communication avec le Stratège IA');
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status} - Communication avec le Stratège IA échouée`);
+      }
       
       const data = await response.json();
       const assistantMessage = { role: 'assistant', content: data.reply };
@@ -6334,25 +6335,18 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
       
       setChatMessages(finalMessages);
 
-      // --- SAUVEGARDE DANS FIRESTORE ---
       if (selectedProperty?.id && user?.uid) {
         try {
-          // Nécessite import { getFirestore, doc, updateDoc } from 'firebase/firestore'; 
-          // const db = getFirestore();
-          // const collectionName = selectedProperty.collection || 'evaluations_commerciales';
-          // const docRef = doc(db, 'users', user.uid, collectionName, selectedProperty.id);
-          // await updateDoc(docRef, { chatHistory: finalMessages });
-          
-          // Mettre à jour la propriété locale pour garder la synchro
+          // Si vous sauvegardez dans Firestore, faire la mise à jour ici
           setSelectedProperty(prev => ({ ...prev, chatHistory: finalMessages }));
         } catch (dbErr) {
-          console.error("Erreur lors de la sauvegarde Firestore de l'historique:", dbErr);
+          console.error("Erreur de synchro locale:", dbErr);
         }
       }
       
     } catch (err) {
-      console.error(err);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion à mes systèmes. Veuillez réessayer." }]);
+      console.error("Erreur Chatbot:", err);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite lors de la connexion à mes systèmes. Veuillez vérifier votre connexion ou réessayer." }]);
     } finally {
       setIsChatLoading(false);
     }
@@ -6501,8 +6495,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
     return (
       <div className="space-y-4">
-        
-        {/* NOUVEAU : Sélecteur d'unité pour Commercial */}
         {!isImmeuble && (
           <div className="mb-4">
             <label className="block text-sm font-bold text-gray-700 mb-2">Unité de mesure (Surfaces)</label>
@@ -6525,7 +6517,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           </div>
         )}
 
-        {/* SECTION DYNAMIQUE POUR LES PLEX */}
         {isImmeuble ? (
           <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-4">
             <p className="font-black text-indigo-900 mb-4 flex items-center gap-2">🚪 Configuration des logements</p>
@@ -6543,7 +6534,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                       newLogements[index].quantite = parseInt(e.target.value, 10) || 1;
                       handleChange('logementsDetail', newLogements);
                       
-                      // Met à jour automatiquement le nombre d'unités total
                       const totalUnites = newLogements.reduce((sum, log) => sum + Number(log.quantite), 0);
                       handleChange('nombreUnites', totalUnites);
                     }} 
@@ -6799,7 +6789,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
   );
 
   // ============================================
-  // RENDERERS DE RESULTATS (STYLE VIBRANT & SAAS)
+  // RENDERERS DE RESULTATS
   // ============================================
 
   const renderHeroValuation = () => {
@@ -6960,46 +6950,52 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                 <span className="bg-indigo-50 p-2 rounded-xl text-2xl shadow-sm">🏢</span> Propriétés Comparables
              </h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {comparables.map((comp, idx) => (
-                   <div key={idx} className="border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50 flex flex-col">
-                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-slate-400' : 'bg-green-500'}`}></div>
-                      
-                      <div className="flex justify-between items-start mb-4 pl-2">
-                         <div className="pr-4">
-                            <p className="font-bold text-gray-900 text-sm md:text-base leading-snug">{comp.adresse}</p>
-                            <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">{comp.date}</p>
-                         </div>
-                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0 border shadow-sm ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-white text-slate-600 border-slate-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
-                           {comp.statut}
-                         </span>
-                      </div>
-                      
-                      <p className="text-3xl font-black text-indigo-900 mb-4 pl-2 tracking-tight">
-                         {typeof comp.prix === 'number' && comp.prix > 0 ? `$${comp.prix.toLocaleString('fr-CA')}` : 'Non affiché'}
-                      </p>
-                      
-                      <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-5 ml-2 border border-gray-100 shadow-inner font-medium flex-grow">
-                         {comp.caracteristiques}
-                      </div>
-
-                      {/* --- NOUVEAU: SYSTÈME DE PARITÉ AJOUTÉ ICI --- */}
-                      {comp.ajustementParite && (
-                        <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-900 mb-4 ml-2 border border-indigo-100 flex items-start gap-2 shadow-sm">
-                          <span className="mt-0.5 text-lg">⚖️</span>
-                          <p className="font-medium leading-relaxed">{comp.ajustementParite}</p>
+                {comparables.map((comp, idx) => {
+                   // --- CORRECTION MAJEURE: SUPPORT MULTI-CLÉS POUR LA PARITÉ ---
+                   // L'IA peut parfois renvoyer la parité sous différents noms en JSON.
+                   const pariteText = comp.ajustementParite || comp.ajustement_parite || comp.parite || comp.detailsParite;
+                   
+                   return (
+                     <div key={idx} className="border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden bg-gray-50/50 flex flex-col">
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-slate-400' : 'bg-green-500'}`}></div>
+                        
+                        <div className="flex justify-between items-start mb-4 pl-2">
+                           <div className="pr-4">
+                              <p className="font-bold text-gray-900 text-sm md:text-base leading-snug">{comp.adresse}</p>
+                              <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-wider">{comp.date}</p>
+                           </div>
+                           <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0 border shadow-sm ${comp.statut?.toLowerCase() === 'vendu' ? 'bg-white text-slate-600 border-slate-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                             {comp.statut}
+                           </span>
                         </div>
-                      )}
+                        
+                        <p className="text-3xl font-black text-indigo-900 mb-4 pl-2 tracking-tight">
+                           {typeof comp.prix === 'number' && comp.prix > 0 ? `$${comp.prix.toLocaleString('fr-CA')}` : 'Non affiché'}
+                        </p>
+                        
+                        <div className="bg-white rounded-xl p-4 text-sm text-gray-600 mb-5 ml-2 border border-gray-100 shadow-inner font-medium flex-grow">
+                           {comp.caracteristiques}
+                        </div>
 
-                      {comp.url && comp.url !== "null" && (
-                         <div className="pl-2 mt-auto">
-                           <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm shadow-indigo-200">
-                              Consulter l'annonce
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                           </a>
-                         </div>
-                      )}
-                   </div>
-                ))}
+                        {/* --- BLOC D'AJUSTEMENT DE PARITÉ SÉCURISÉ --- */}
+                        {pariteText && (
+                          <div className="bg-indigo-50 rounded-xl p-4 text-sm text-indigo-900 mb-4 ml-2 border border-indigo-100 flex items-start gap-2 shadow-sm">
+                            <span className="mt-0.5 text-lg">⚖️</span>
+                            <p className="font-medium leading-relaxed">{pariteText}</p>
+                          </div>
+                        )}
+
+                        {comp.url && comp.url !== "null" && (
+                           <div className="pl-2 mt-auto">
+                             <a href={comp.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-sm shadow-indigo-200">
+                                Consulter l'annonce
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                             </a>
+                           </div>
+                        )}
+                     </div>
+                   );
+                })}
              </div>
           </div>
         )}
@@ -7159,7 +7155,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     );
   };
 
-  // --- RENDU DU CHATBOT CORRIGÉ ---
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-3xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
       <div>
@@ -7180,7 +7175,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         </button>
       ) : (
         <button 
-          onClick={() => alert("Redirection vers la page d'upgrade (À implémenter !)")}
+          onClick={() => alert("Débloquez la fonctionnalité (Intégration requise)")}
           className="bg-slate-800 border border-slate-600 hover:bg-slate-700 text-slate-300 font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center gap-2 whitespace-nowrap"
         >
           🔒 Débloquer avec Pro/Growth
@@ -7195,7 +7190,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
     return (
       <div className="fixed inset-0 z-[100] w-full h-[100dvh] flex flex-col bg-white overflow-hidden md:inset-auto md:bottom-8 md:right-8 md:w-[400px] md:h-[600px] md:max-h-[80vh] md:rounded-2xl shadow-2xl md:border md:border-gray-200">
         
-        {/* Header du chat */}
         <div className="bg-indigo-900 text-white p-4 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-2xl md:text-3xl">🤖</span>
@@ -7207,7 +7201,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           <button onClick={() => setIsChatOpen(false)} className="text-indigo-200 hover:text-white p-2 text-xl font-bold rounded-lg hover:bg-white/10 transition">✕</button>
         </div>
 
-        {/* Messages */}
         <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
           {chatMessages.length === 0 && (
             <div className="text-center text-gray-400 text-sm mt-12 px-6">
@@ -7222,10 +7215,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                   ? 'bg-indigo-600 text-white rounded-br-none' 
                   : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none shadow-sm'
               }`}
-              style={{ 
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {msg.content}
               </div>
             </div>
@@ -7242,7 +7232,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
           )}
         </div>
 
-        {/* Formulaire & Input */}
         <form onSubmit={sendChatMessage} className="p-3 md:p-4 bg-white border-t border-gray-100 shrink-0 pb-safe">
           <div className="relative">
             <input 
@@ -7268,9 +7257,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
 
   return (
     <>
-     {/* Assurez-vous que LoadingSpinner est bien importé ou défini */}
-     {/* <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={130} type="commercial" /> */}
-
       {/* FORM MODAL */}
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
@@ -7351,7 +7337,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         </div>
       )}
 
-      {/* CTA NO FORM */}
       {!showForm && !selectedProperty && !loading && (
         <div className="text-center mt-4">
           <button
@@ -7371,11 +7356,9 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         </div>
       )}
 
-      {/* RESULTS */}
       {selectedProperty && (
         <div ref={resultRef} className="space-y-8 mt-8 pb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
           
-          {/* NOUVEAU: Encadré Chatbot en haut des résultats */}
           {renderChatHeader()}
           
           {renderHeroValuation()}
@@ -7393,7 +7376,7 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
                 setSelectedProperty(null); 
                 setShowForm(false); 
                 setCurrentSlide(0); 
-                setIsChatOpen(false); // Reset du chatbot au redémarrage
+                setIsChatOpen(false);
               }} className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-800 font-bold rounded-xl transition-colors shadow-sm">
               ← Nouvelle évaluation
             </button>
@@ -7401,7 +7384,6 @@ function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }
         </div>
       )}
 
-      {/* Fenêtre de Chat flottante */}
       {renderChatWindow()}
     </>
   );
