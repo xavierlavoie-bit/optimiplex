@@ -5906,7 +5906,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   );
 }
 
- function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
+function CommercialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled }) {
   const [loading, setLoading] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -7257,6 +7257,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
 
   return (
     <>
+    <LoadingSpinner isLoading={loading} messages={loadingMessages} estimatedTime={100} type="commercial" /> 
       {/* FORM MODAL */}
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
