@@ -1794,7 +1794,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
     console.log("🤖 [IA] Appel initial commercial envoyé...");
     
     let response = await callClaudeWithRetry(() => claude.messages.create({
-      model: 'claude-3-5-sonnet-20241022', // Assurez-vous du nom exact du modèle utilisé
+      model: 'claude-sonnet-4-6', // Assurez-vous du nom exact du modèle utilisé
       max_tokens: 4000,
       temperature: 0,
       system: systemPrompt,
@@ -1880,7 +1880,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
       messages.push({ role: 'user', content: toolResults });
 
       response = await callClaudeWithRetry(() => claude.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4000, 
         temperature: 0,
         system: systemPrompt,
