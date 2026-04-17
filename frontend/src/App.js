@@ -71,7 +71,8 @@ axios.interceptors.response.use(
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: "plexoptimizer.firebasestorage.app"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -2549,7 +2550,7 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         {renderValuationHero()}
         {renderChatHeader()}
         {isAcheteur && opti && renderProspectionDeal()}
-          {/* <BrokerChat evaluationData={selectedAnalysis} user={user}/> */}
+          {/* */}<BrokerChat evaluationData={selectedAnalysis} user={user}/> 
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
           <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
              <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📈</span> Performance de l'Actif
@@ -5670,7 +5671,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
       
-      {/*<div>
+      {/**/}<div>
         BrokerChat
         <h2 className="text-2xl font-black flex items-center gap-2">
           🤖 Discuter de cette évaluation avec l'IA
@@ -5678,7 +5679,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
         <p className="text-indigo-200 mt-1 text-sm md:text-base">
           Posez des questions sur le financement, la stratégie de flip, ou comment maximiser le prix de vente.
         </p>
-      </div>8*/}
+      </div>8
       
       {hasPremiumAccess ? (
         <button 

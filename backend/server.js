@@ -7,6 +7,8 @@ const requiredEnvVars = [
   'FIREBASE_CLIENT_EMAIL',
   'FIREBASE_PRIVATE_KEY'
 ];
+const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
@@ -83,6 +85,9 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+
+const AGENT_ID = "agent_011Ca2d3uqW4zba9WzXBCRkA";
+const ENVIRONMENT_ID = "env_01UiWPrYorVekqe94veDT5Dd";
 
 // ====================================================================
 // 🧠 MIDDLEWARE : VÉRIFICATION QUOTA OU CRÉDITS
@@ -2004,132 +2009,65 @@ Réponds directement en texte clair (Plain Text).`;
 // 🏢 ROUTE : IA COURTIER HYPOTHÉCAIRE (AVEC SENDGRID)
 // ====================================================================
 
-app.post('/api/broker/chat', async (req, res) => {
+app.post('/api/broker/quick-lead', async (req, res) => {
   try {
-    const { message, history, evaluationId, userId, evaluationData, brokerId, userEmail } = req.body;
+    const { formData, evaluationData, adresse, prix, brokerId } = req.body;
+    const db = admin.firestore();
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const claudeHistory = history.map(msg => ({
-      role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: msg.content
-    }));
-    claudeHistory.push({ role: 'user', content: message });
-
-    // ⚠️ RÉCUPÉRATION ROBUSTE AMÉLIORÉE (Fouille dans result)
-    const prix = evaluationData?.result?.estimationActuelle?.valeurMoyenne || 
-                 evaluationData?.estimationActuelle?.valeurMoyenne || 
-                 evaluationData?.prixAffichage || 
-                 evaluationData?.prixDemande || 'Non spécifié';
-    
-    // ⚠️ EXTRACTION ADRESSE OU VILLE DE SECOURS
-    let adresse = evaluationData?.addresseComplete || evaluationData?.adresse || evaluationData?.address || evaluationData?.titre || '';
-    if (!adresse || adresse.trim() === '') {
-      if (evaluationData?.ville) {
-        adresse = `la propriété à ${evaluationData.ville}`;
-        if (evaluationData?.quartier) adresse += ` (${evaluationData.quartier})`;
-      } else {
-        adresse = 'la propriété sélectionnée';
-      }
-    }
-    
-    const idPropriete = evaluationData?.id || evaluationId || 'ID non disponible';
-
-    const systemPrompt = `
-      Tu es l'assistant de qualification hypothécaire chez Optimiplex.
-      
-      CONTEXTE DU PROJET SÉLECTIONNÉ : 
-      - Cible: ${adresse}
-      - Prix: ${prix}
-      
-      RÈGLE D'OR : Le client veut aller vite. Ton ton doit être amical, humain et concis.
-      NE DEMANDE JAMAIS LA COTE DE CRÉDIT.
-      
-      OBJECTIF : Obtenir EXACTEMENT ces 2 informations (UNE À LA FOIS) :
-      1. La mise de fonds disponible (cash)
-      2. Le revenu annuel brut approximatif
-      
-      Si tu as une de ces informations, remercie-le brièvement et demande la seconde.
-      Dès que tu as les 2 informations, remercie le client et dis-lui que Rebecca va prendre le relais.
-      
-      RÈGLES DE FORMATAGE JSON OBLIGATOIRES (Ne renvoie QUE du JSON, aucun texte avant ou après) :
-      {
-        "reply": "Ta réponse texte (courte et amicale)...",
-        "captured_data": { "revenu": "...", "mise_de_fonds": "..." },
-        "is_complete": false,
-        "ai_summary": "Si is_complete est true, rédige un bref résumé pour le courtier QUI MENTIONNE OBLIGATOIREMENT la cible (${adresse}), le revenu et la mise de fonds. Sinon, met null."
-      }
-    `;
-
-    const anthropicResponse = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: claudeHistory,
-      temperature: 0.2,
+    // 1. Sauvegarde dans Firestore
+    const leadRef = await db.collection('leads_hypothecaires').add({
+      clientEmail: formData.email,
+      clientDetails: {
+        prenom: formData.prenom,
+        nom: formData.nom,
+        telephone: formData.telephone,
+      },
+      evaluationData: evaluationData || {},
+      adressePropriete: adresse,
+      prixPropriete: prix,
+      status: 'nouveau',
+      clientFormCompleted: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      source: 'bouton_propriete_direct'
     });
 
-    // Remplace par ta méthode exacte si elle est différente
-    const parseClaudeJSON = (text) => { const match = text.match(/\{[\s\S]*\}/); return match ? JSON.parse(match[0]) : null; };
-    const parsedData = parseClaudeJSON(anthropicResponse.content[0].text);
-
-    if (parsedData && parsedData.is_complete === true) {
-      // 1. Sauvegarde dans Firestore
-      try {
-        const db = admin.firestore();
-        await db.collection('leads_hypothecaires').add({
-          clientEmail: userEmail || 'anonyme@client.com',
-          userId: userId || null, 
-          evaluationId: idPropriete,
-          evaluationData: evaluationData || {}, 
-          adressePropriete: adresse,
-          prixPropriete: prix,
-          financialData: parsedData.captured_data,
-          aiSummary: parsedData.ai_summary || "Dossier pré-qualifié (2 étapes).",
-          status: 'nouveau', 
-          assignedTo: null,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (dbError) {
-        console.error('❌ Erreur Firestore:', dbError);
-      }
-
-      // 2. Notification Courriel mise à jour
-      const msg = {
-        to: 'xavier.lavoie@optimiplex.com', 
-        from: 'info@optimiplex.com', 
-        subject: `🚨 NOUVEAU LEAD HYPOTHÉCAIRE : ${adresse} (${userEmail})`,
-        html: `
-          <div style="font-family: sans-serif; padding: 20px;">
-            <h2>Nouveau Lead Hypothécaire - Étape 1</h2>
-            
-            <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #4f46e5; margin-bottom: 20px;">
-              <strong>📍 Propriété ciblée :</strong><br/>
-              Adresse / Cible : <b>${adresse}</b><br/>
-              Prix ciblé : <b>${prix} $</b><br/>
-              <i>ID: ${idPropriete}</i>
-            </div>
-
-            <div style="background: #f9fafb; padding: 15px; border-left: 4px solid #10b981; margin-bottom: 20px;">
-              <strong>🧠 Note de l'IA :</strong><br/>
-              ${parsedData.ai_summary}
-            </div>
-
-            <h3>Données Financières Capturées :</h3>
-            <ul>
-              <li><strong>Revenu estimé :</strong> ${parsedData.captured_data.revenu || 'Non précisé'}</li>
-              <li><strong>Mise de fonds :</strong> ${parsedData.captured_data.mise_de_fonds || 'Non précisé'}</li>
-              <li><em>Cote de crédit : À demander en personne par le courtier.</em></li>
-            </ul>
+    // 2. Notification Courriel à vous / l'équipe
+    const msg = {
+      to: 'xavier.lavoie@optimiplex.com', // Modifiez avec votre courriel si besoin
+      from: 'info@optimiplex.com', 
+      subject: `🚨 NOUVELLE DEMANDE RAPIDE : ${adresse}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2 style="color: #4f46e5;">Nouveau Lead Hypothécaire</h2>
+          <p>Un client vient de demander une pré-qualification rapide depuis une page de propriété.</p>
+          
+          <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #4f46e5; margin-bottom: 20px;">
+            <strong>📍 Propriété ciblée :</strong><br/>
+            Adresse : <b>${adresse}</b><br/>
+            Prix ciblé : <b>${prix}</b><br/>
           </div>
-        `
-      };
-      sgMail.send(msg).catch(err => console.error(err));
-    }
 
-    res.json(parsedData);
+          <h3>Coordonnées du client :</h3>
+          <ul>
+            <li><strong>Prénom et Nom :</strong> ${formData.prenom} ${formData.nom}</li>
+            <li><strong>Courriel :</strong> ${formData.email}</li>
+            <li><strong>Téléphone :</strong> ${formData.telephone}</li>
+          </ul>
+          
+          <p style="margin-top: 20px;">
+            <a href="https://optimiplex.com/crm" style="background: #4f46e5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              Ouvrir le CRM
+            </a>
+          </p>
+        </div>
+      `
+    };
+    await sgMail.send(msg);
+
+    res.json({ success: true, id: leadRef.id });
   } catch (error) {
-    res.status(500).json({ reply: "Désolé, une erreur est survenue.", is_complete: false });
+    console.error('Erreur quick-lead:', error);
+    res.status(500).json({ error: "Erreur lors de la création du dossier" });
   }
 });
 
@@ -2194,97 +2132,365 @@ app.post('/api/broker/assign', async (req, res) => {
 });
 
 app.post('/api/client/submit', async (req, res) => {
-  const { leadId, formData, brokerEmail } = req.body;
+  const { leadId, formData, clientFiles, brokerEmail } = req.body; // <-- Réception de clientFiles
 
   try {
-    // 1. MISE À JOUR IMMÉDIATE DU DOSSIER DANS FIRESTORE
-    // On enregistre les données et on change le statut tout de suite
+    // 1. MISE À JOUR IMMÉDIATE : Changement de statut initial
     await db.collection('leads_hypothecaires').doc(leadId).update({
-      clientDetails: formData,
+      clientDetails: formData, // Sauvegarde toutes les nouvelles infos du formulaire
+      clientFiles: clientFiles || [], // <-- Sauvegarde des fichiers dans la BDD
       status: 'en_cours',
       clientFormCompleted: true,
+      documentStatus: 'generation_en_cours',
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     // 2. RÉPONSE INSTANTANÉE AU CLIENT
-    // Le client voit l'écran de succès immédiatement, sans attendre l'IA
-    res.json({ success: true });
+    res.json({ success: true, message: "Dossier reçu. Vos documents et ratios sont en cours de génération." });
 
-    // 3. TRAITEMENT DE L'ANALYSE IA EN ARRIÈRE-PLAN
-    // On lance une fonction asynchrone qui ne bloque pas la réponse HTTP
+    // 3. GÉNÉRATION DES DOCUMENTS EN ARRIÈRE-PLAN
     (async () => {
       try {
-        console.log(`🤖 Lancement de l'analyse IA en arrière-plan pour: ${leadId}`);
+        console.log(`⚙️ Début de la génération des documents pour: ${leadId}`);
 
-        const systemPrompt = `Tu es un expert analyste hypothécaire senior pour Optimiplex. 
-        Analyse le bilan patrimonial du client et fournis une réponse structurée UNIQUEMENT en HTML propre.
-        
-        IMPORTANT : 
-        - N'utilise JAMAIS de Markdown (interdiction de : #, ##, ###, **, __, - pour les listes).
-        - Utilise exclusivement les balises HTML : <p>, <b>, <ul>, <li>.
-        - Ne mets aucun titre global, commence directement par les sections ci-dessous.
-        
-        Structure de la réponse :
-        <p><b>🎯 Forces du dossier</b></p>
-        <ul><li>Point fort 1</li><li>Point fort 2</li></ul>
-        <p><b>⚠️ Points de vigilance</b></p>
-        <ul><li>Point de vigilance 1</li><li>Point de vigilance 2</li></ul>
-        <p><b>💡 Stratégie suggérée</b></p>
-        <ul><li>Conseil stratégique 1</li><li>Conseil stratégique 2</li></ul>`;
+        // 👉 NOUVEAU : Récupérer le dossier complet pour avoir le prix et l'adresse de départ
+        const leadDoc = await db.collection('leads_hypothecaires').doc(leadId).get();
+        const leadData = leadDoc.exists ? leadDoc.data() : {};
 
-        const userPrompt = `
-          CLIENT : ${formData.prenom} ${formData.nom} (${formData.statutEmploi})
-          ACTIFS : Épargne: ${formData.liquidites}$, REER: ${formData.reer}$, CELI: ${formData.celi}$, Immo: ${formData.immobilier_valeur}$
-          DETTES : Cartes: ${formData.solde_cartes}$, Auto: ${formData.pret_auto}$, Étudiant: ${formData.pret_etudiant}$
-        `;
-
-        const anthropicResponse = await claude.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1200,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }],
-        });
-
-        const aiAnalysis = anthropicResponse.content[0].text;
-
-        // Mise à jour du dossier avec l'analyse IA une fois terminée
-        await db.collection('leads_hypothecaires').doc(leadId).update({
-          aiAnalysis: aiAnalysis
-        });
-
-        // 4. Email de notification au courtier avec l'analyse
-        const brokerMsg = {
-          to: brokerEmail,
-          from: 'info@optimiplex.com', 
-          subject: `📈 Dossier Complété & Analysé : ${formData.prenom} ${formData.nom}`,
-          html: `
-            <div style="font-family: sans-serif; padding: 25px; color: #333; max-width: 650px; border: 1px solid #eee; border-radius: 12px;">
-              <h2 style="color: #4f46e5;">Le client a soumis son bilan financier !</h2>
-              <p>Le dossier de <b>${formData.prenom} ${formData.nom}</b> est prêt pour révision dans le CRM.</p>
-              
-              <div style="background-color: #f5f3ff; border-left: 5px solid #4f46e5; padding: 20px; margin: 25px 0;">
-                <h3 style="margin-top: 0; color: #4f46e5;">🤖 Analyse IA Stratégique :</h3>
-                ${aiAnalysis}
-              </div>
-              
-              <p>Consultez les chiffres complets et contactez le client via le CRM.</p>
-              <a href="https://optimiplex.com/crm" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">Ouvrir le CRM Courtier</a>
-            </div>
-          `
+        // ⚠️ HELPER ROBUSTE : Nettoie n'importe quelle chaîne (ex: "430 000 $" devient 430000)
+        const parseNum = (val) => {
+          if (!val) return 0;
+          const cleaned = String(val).replace(/[^0-9.]/g, ''); // Ne garde que les chiffres et le point
+          return Number(cleaned) || 0;
         };
 
-        await sgMail.send(brokerMsg);
-        console.log(`✅ Analyse IA et notification terminées pour: ${leadId}`);
+        // --- Préparation des données numériques fusionnées ---
+        const prenom = formData.prenom || 'Client';
+        const nom = formData.nom || '';
+        const email = formData.email || leadData.clientEmail || 'Non spécifié';
+        const telephone = formData.telephone || 'Non spécifié';
+        
+        // Emploi
+        const statutEmploi = formData.statutEmploi || 'Non spécifié';
+        const employeur = formData.employeur || 'Non spécifié';
+        const anneesService = formData.anneesService || '0';
+
+        // Finances 
+        const revenu = parseNum(formData.revenuAnnuel);
+        const epargne = parseNum(formData.liquidites);
+        const reer = parseNum(formData.reer);
+        const celi = parseNum(formData.celi);
+        const reerCeli = reer + celi;
+        
+        // Dettes 
+        const dettesCartes = parseNum(formData.solde_cartes);
+        const mensualiteAuto = parseNum(formData.pret_auto); // <-- TRAITÉ DIRECTEMENT COMME MENSUALITÉ
+        const dettesEtudiant = parseNum(formData.pret_etudiant);
+        const autresDettes = parseNum(formData.autres_dettes);
+        
+        // Le total des dettes n'inclut plus l'auto puisque le client entre une mensualité
+        const totalDettesBalances = dettesCartes + dettesEtudiant + autresDettes;
+
+        // Propriété Ciblée
+        const adresseCible = leadData.adressePropriete || 'Non spécifiée';
+        const rawEvaluationPrix = leadData.evaluationData?.result?.estimationActuelle?.valeurMoyenne 
+                               || leadData.evaluationData?.estimationActuelle?.valeurMoyenne;
+        const stringPrix = leadData.prixPropriete || '0'; 
+        const valeurProprieteCible = rawEvaluationPrix ? Number(rawEvaluationPrix) : parseNum(stringPrix);
+
+        // 👉 DÉTECTION DU MODE : Pré-qualif Générale (Manuel) vs Faisabilité (Bouton Propriété)
+        const isGeneralPrequal = valeurProprieteCible === 0;
+
+        // Pour les autres prêts (Étudiant), on garde une sécurité si le client met le solde total (ex: >2500$)
+        const getMonthlyPayment = (val, monthsAmortization) => {
+          if (!val) return 0;
+          if (val < 2500) return val; 
+          return val / monthsAmortization; 
+        };
+
+        // --- Calculs de ratios basiques ---
+        const mensualiteCartes = dettesCartes * 0.03; // 3% du solde des cartes
+        const mensualiteEtudiant = getMonthlyPayment(dettesEtudiant, 120); // Étudiant amorti sur ~10 ans
+        const mensualiteAutres = autresDettes * 0.03;
+
+        const dettesMensuelles = mensualiteCartes + mensualiteAuto + mensualiteEtudiant + mensualiteAutres;
+        const revenuMensuel = revenu / 12;
+        const ratioDettesRevenu = revenuMensuel > 0 ? ((dettesMensuelles / revenuMensuel) * 100).toFixed(2) : 0;
+
+        // --- Calcul RÉALISTE de capacité d'emprunt (Stress test canadien ~7% sur 25 ans) ---
+        // ABD max = 39%, ATD max = 44%
+        const maxHousingABD = revenuMensuel * 0.39;
+        const maxHousingATD = (revenuMensuel * 0.44) - dettesMensuelles;
+        const maxHousingMensuel = Math.max(0, Math.min(maxHousingABD, maxHousingATD));
+        
+        // Calcul mathématique inversé du prix maximal (P)
+        // P = (MaxHousingMensuel + (Epargne * FacteurHypothèque) - Chauffage) / (FacteurHypothèque + FacteurTaxesMunicipales)
+        // Facteur hypothèque à 7% = ~0.007. Taxes = ~1%/an (0.00083/mois). Chauffage estimé = 150$/mois.
+        let capaciteAchatMax = 0;
+        if (maxHousingMensuel > 150) {
+            capaciteAchatMax = (maxHousingMensuel + (epargne * 0.007) - 150) / 0.00783;
+        }
+        
+        // Sécurité : La capacité ne peut pas être inférieure à l'argent comptant (épargne)
+        capaciteAchatMax = Math.max(capaciteAchatMax, epargne);
+
+        // 👉 Génération automatique de l'analyse IA (Claude)
+        let aiAnalysisText = null;
+        try {
+          console.log(`🤖 Démarrage de l'analyse IA pour: ${leadId}`);
+          const { Anthropic } = require('@anthropic-ai/sdk');
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          
+          // Ajustement du prompt selon le mode (Général vs Propriété spécifique)
+          const cibleInfo = isGeneralPrequal 
+            ? `- Cible : Pré-qualification générale (pas de propriété spécifique)\n- Capacité d'achat théorique estimée (mathématique) : ~ ${Math.round(capaciteAchatMax)} $`
+            : `- Cible : Propriété à ${valeurProprieteCible} $`;
+            
+          const tacheConclusion = isGeneralPrequal
+            ? `3. Donne une estimation réaliste du prix d'achat maximal qu'ils peuvent viser (capacité d'emprunt + mise de fonds).`
+            : `3. Une courte conclusion sur la faisabilité globale pour la propriété ciblée à ${valeurProprieteCible} $.`;
+
+          const prompt = `
+            Agis comme un sous-scripteur hypothécaire sénior.
+            Analyse brièvement ce profil financier. Sois très concis, direct et utilise des puces (-).
+            Ne fais pas d'introduction ni de conclusion polie. Va droit au but.
+            TRÈS IMPORTANT : N'utilise AUCUN formatage Markdown (pas d'astérisques pour le gras, pas de symboles #). Écris uniquement en texte brut standard.
+
+            DONNÉES DU CLIENT :
+            - Revenu brut : ${revenu} $
+            - Liquidités (Cash disponible pour mise de fonds) : ${epargne} $
+            - REER/CELI : ${reerCeli} $
+            - Dettes (Soldes totaux hors auto) : ${totalDettesBalances} $
+            - Paiements mensuels estimés (incluant prêt auto de ${mensualiteAuto} $) : ${Math.round(dettesMensuelles)} $
+            ${cibleInfo}
+
+            TA TÂCHE :
+            1. Donne 1 ou 2 "Points forts" (ex: Bonne liquidité, faible dette).
+            2. Donne 1 ou 2 "Points d'attention" ou risques.
+            ${tacheConclusion}
+          `;
+
+          const aiResponse = await anthropic.messages.create({
+            model: "claude-3-haiku-20240307",
+            max_tokens: 350,
+            temperature: 0.3,
+            messages: [{ role: "user", content: prompt }]
+          });
+          
+          aiAnalysisText = aiResponse.content[0].text.replace(/[*#_]/g, '');
+          console.log(`✅ Analyse IA générée avec succès.`);
+        } catch (aiError) {
+          console.error("❌ Erreur lors de l'analyse IA:", aiError);
+          aiAnalysisText = "L'analyse IA n'a pas pu être générée.";
+        }
+
+        const files = [];
+        const bucket = admin.storage().bucket('plexoptimizer.firebasestorage.app');
+
+        // ─── A. GÉNÉRATION DU PDF PRO (BRANDING OPTIMIPLEX) ────────────────────────
+        const generatePDF = () => new Promise((resolve, reject) => {
+          const doc = new PDFDocument({ margin: 0, size: 'A4' }); 
+          const buffers = [];
+          
+          doc.on('data', buffers.push.bind(buffers));
+          doc.on('end', () => resolve(Buffer.concat(buffers)));
+          doc.on('error', reject);
+
+          // --- HEADER OPTIMIPLEX ---
+          doc.rect(0, 0, doc.page.width, 120).fill('#0f172a'); // Background header
+          doc.fillColor('#ffffff').fontSize(32).font('Helvetica-Bold').text('OPTIMIPLEX', 50, 45, { characterSpacing: 2 });
+          doc.fontSize(10).font('Helvetica').fillColor('#818cf8').text('ANALYSE ET PRÉQUALIFICATION FINANCIÈRE', 50, 80, { characterSpacing: 1 });
+          
+          // Date et Réf en haut à droite
+          doc.y = 45;
+          doc.font('Helvetica').fontSize(10).fillColor('#cbd5e1').text(`Date : ${new Date().toLocaleDateString('fr-CA')}`, 50, doc.y, { align: 'right', width: doc.page.width - 100 });
+          doc.text(`Réf : ${leadId.substring(0, 8).toUpperCase()}`, 50, doc.y + 15, { align: 'right', width: doc.page.width - 100 });
+
+          doc.y = 150; // Reset position sous le header
+
+          // Helpers de dessin
+          const drawSectionHeader = (title) => {
+            doc.y += 15;
+            doc.rect(50, doc.y, doc.page.width - 100, 26).fill('#e0e7ff');
+            doc.fillColor('#4338ca').font('Helvetica-Bold').fontSize(11).text(title.toUpperCase(), 65, doc.y + 8, { characterSpacing: 1 });
+            doc.y += 35;
+          };
+
+          const drawKeyValueLine = (key, value, isBoldValue = false, valueColor = '#0f172a') => {
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#64748b').text(key, 65, doc.y);
+            doc.font(isBoldValue ? 'Helvetica-Bold' : 'Helvetica').fontSize(11).fillColor(valueColor).text(value, 260, doc.y);
+            doc.y += 22;
+          };
+
+          // --- SECTION: CLIENT ---
+          drawSectionHeader('Profil de l\'Emprunteur');
+          drawKeyValueLine('Nom complet', `${prenom} ${nom}`, true);
+          drawKeyValueLine('Courriel', email);
+          drawKeyValueLine('Téléphone', telephone);
+
+          // --- SECTION: EMPLOI ---
+          drawSectionHeader('Situation Professionnelle');
+          drawKeyValueLine('Statut d\'emploi', statutEmploi);
+          drawKeyValueLine('Employeur', employeur);
+          drawKeyValueLine('Années de service', `${anneesService} an(s)`);
+
+          // --- SECTION: FINANCES ---
+          drawSectionHeader('Bilan Financier (Déclaré)');
+          drawKeyValueLine('Revenu Annuel Brut', `${revenu.toLocaleString('fr-CA')} $`, true, '#0f172a');
+          drawKeyValueLine('Épargne / Liquidités (Cash)', `${epargne.toLocaleString('fr-CA')} $`, true, '#059669');
+          drawKeyValueLine('Placements REER / CELI', `${reerCeli.toLocaleString('fr-CA')} $`);
+          drawKeyValueLine('Dettes Soldes (Cartes/Autres)', `${totalDettesBalances.toLocaleString('fr-CA')} $`);
+          drawKeyValueLine('Paiement Auto (Mensuel)', `${mensualiteAuto.toLocaleString('fr-CA')} $`, false, '#e11d48');
+          drawKeyValueLine('Paiements mensuels totaux estimés', `${Math.round(dettesMensuelles).toLocaleString('fr-CA')} $`, true, '#e11d48');
+          drawKeyValueLine('Ratio Dettes / Revenu', `${ratioDettesRevenu} % (Hors habitation)`);
+
+          // --- SECTION: PROJET ---
+          drawSectionHeader('Analyse du Projet');
+          if (isGeneralPrequal) {
+            drawKeyValueLine('Type de demande', 'Pré-qualification générale');
+            doc.y += 15;
+            // Boîte de résultat mise en évidence
+            doc.rect(50, doc.y, doc.page.width - 100, 50).fill('#ecfdf5');
+            doc.font('Helvetica-Bold').fontSize(12).fillColor('#059669').text('CAPACITÉ D\'ACHAT MAXIMALE ESTIMÉE :', 70, doc.y + 18);
+            doc.fontSize(18).text(`~ ${Math.round(capaciteAchatMax).toLocaleString('fr-CA')} $`, 340, doc.y + 16);
+            doc.y += 60;
+          } else {
+            drawKeyValueLine('Adresse ciblée', adresseCible, true);
+            drawKeyValueLine('Prix estimé / ciblé', `${valeurProprieteCible.toLocaleString('fr-CA')} $`, true, '#4f46e5');
+            
+            const miseDeFondsRequise = valeurProprieteCible * 0.05;
+            drawKeyValueLine('Mise de fonds min. estimée (5%)', `${miseDeFondsRequise.toLocaleString('fr-CA')} $`);
+          }
+
+          // --- FOOTER ---
+          const pageHeight = doc.page.height;
+          doc.rect(0, pageHeight - 60, doc.page.width, 60).fill('#f8fafc');
+          doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94a3b8').text(
+            'Ce document a été généré de manière automatisée par le système Optimiplex. Il est basé sur les données déclaratives du client et sert uniquement à des fins d\'évaluation préliminaire. Il ne constitue pas un engagement ou une offre de financement formelle.',
+            50, pageHeight - 40, { align: 'center', width: doc.page.width - 100, lineGap: 2 }
+          );
+
+          doc.end();
+        });
+
+        const pdfBuffer = await generatePDF();
+        const pdfFileName = `rapport_${prenom}_${nom}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+        
+        console.log(`☁️ Envoi du PDF vers Firebase Storage...`);
+        const pdfFileRef = bucket.file(`dossiers/${leadId}/${pdfFileName}`);
+        await pdfFileRef.save(pdfBuffer, { metadata: { contentType: 'application/pdf' } });
+        const [pdfUrl] = await pdfFileRef.getSignedUrl({ action: 'read', expires: '2026-12-31' });
+        files.push({ name: pdfFileName, url: pdfUrl, size: pdfBuffer.length });
+        console.log(`📄 PDF généré et sauvegardé avec succès`);
+
+        // ─── B. GÉNÉRATION DE L'EXCEL (AVEC RATIOS) ─────────────────────
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Système CRM';
+        
+        const sheet = workbook.addWorksheet('Données et Ratios');
+        
+        sheet.columns = [
+          { header: 'Catégorie', key: 'category', width: 25 },
+          { header: 'Détail', key: 'detail', width: 35 },
+          { header: 'Valeur', key: 'value', width: 20 }
+        ];
+
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+
+        sheet.addRows([
+          ['Client', 'Prénom', prenom],
+          ['Client', 'Nom', nom],
+          ['Client', 'Email', email],
+          ['Client', 'Téléphone', telephone],
+          ['Emploi', 'Statut', statutEmploi],
+          ['Emploi', 'Employeur', employeur],
+          ['Emploi', 'Années de service', anneesService],
+          ['Finances', 'Revenu Brut Annuel ($)', revenu],
+          ['Finances', 'Revenu Mensuel Estimé ($)', revenuMensuel],
+          ['Finances', 'Épargne / Liquidités ($)', epargne],
+          ['Finances', 'REER ($)', reer],
+          ['Finances', 'CELI ($)', celi],
+          ['Dettes', 'Cartes de crédit (Solde $)', dettesCartes],
+          ['Dettes', 'Paiement Auto Mensuel ($)', mensualiteAuto],
+          ['Dettes', 'Prêt Étudiant (Solde $)', dettesEtudiant],
+          ['Dettes', 'Autres Dettes (Solde $)', autresDettes],
+          ['Dettes', 'Total Dettes Soldes ($)', totalDettesBalances],
+          ['Dettes', 'Paiements Mensuels Estimés totaux ($)', dettesMensuelles],
+          ['Projet Cible', 'Adresse', isGeneralPrequal ? 'Générale (Aucune)' : adresseCible],
+          ['Projet Cible', isGeneralPrequal ? "Capacité d'achat estimée ($)" : "Prix ciblé ($)", isGeneralPrequal ? Math.round(capaciteAchatMax) : valeurProprieteCible],
+          ['Ratios', "Ratio Dettes / Revenu mensuel (%)", parseFloat(ratioDettesRevenu)]
+        ]);
+
+        sheet.getRow(22).font = { bold: true };
+        sheet.getRow(22).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE047' } };
+
+        const excelBuffer = await workbook.xlsx.writeBuffer();
+        const excelFileName = `ratios_${prenom}_${nom}.xlsx`.replace(/[^a-zA-Z0-9._-]/g, '_');
+        
+        console.log(`☁️ Envoi de l'Excel vers Firebase Storage...`);
+        const excelFileRef = bucket.file(`dossiers/${leadId}/${excelFileName}`);
+        await excelFileRef.save(excelBuffer, { metadata: { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+        const [excelUrl] = await excelFileRef.getSignedUrl({ action: 'read', expires: '2026-12-31' });
+        files.push({ name: excelFileName, url: excelUrl, size: excelBuffer.length });
+        console.log(`📊 Excel généré et sauvegardé avec succès`);
+
+        // ─── SAUVEGARDE FINALE FIRESTORE ────────────────────────────────
+        await db.collection('leads_hypothecaires').doc(leadId).update({
+          documentStatus: 'completed',
+          generatedFiles: files, 
+          aiAnalysis: aiAnalysisText 
+        });
+
+        console.log(`📂 ${files.length} fichier(s) sauvegardé(s) dans Firebase et Firestore mis à jour pour: ${leadId}`);
+
+        // ─── EMAIL AU COURTIER ──────────────────────────────────────────
+        if (brokerEmail) {
+          try {
+            const filesCount = clientFiles ? clientFiles.length : 0;
+            const fileNotice = filesCount > 0 
+                ? `<p style="color: #10b981; font-weight: bold;">Le client a également joint ${filesCount} document(s) justificatif(s) (talons de paie, etc.).</p>` 
+                : `<p>Le client n'a joint aucun document supplémentaire.</p>`;
+
+            const brokerMsg = {
+              to: brokerEmail,
+              from: 'info@optimiplex.com', 
+              subject: `✅ Bilan reçu et Documents prêts : Dossier ${prenom} ${nom}`,
+              html: `
+                <div style="font-family: sans-serif; padding: 25px; color: #333; max-width: 650px; border: 1px solid #eee; border-radius: 12px;">
+                  <h2 style="color: #4f46e5;">Le bilan financier est complété !</h2>
+                  <p>Le client <b>${prenom} ${nom}</b> a rempli son formulaire de pré-qualification.</p>
+                  ${isGeneralPrequal ? '<p style="font-weight: bold;">Ceci est une pré-qualification générale (sans propriété spécifique).</p>' : `<p>Propriété ciblée : <b>${adresseCible}</b></p>`}
+                  <p>Le rapport PDF détaillé et la grille Excel des ratios ont été générés avec succès à partir de ses données.</p>
+                  
+                  <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #10b981; margin: 20px 0;">
+                    ${fileNotice}
+                  </div>
+
+                  <p>Rendez-vous dans le CRM pour télécharger les documents et valider les informations.</p>
+                  <a href="https://optimiplex.com/crm" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 15px;">Ouvrir le CRM Courtier</a>
+                </div>
+              `
+            };
+            await sgMail.send(brokerMsg);
+          } catch (emailError) {
+            console.error(`⚠️ Échec d'envoi de l'email via SendGrid. Erreur:`, emailError.message);
+          }
+        }
 
       } catch (bgError) {
-        console.error('❌ Erreur dans le traitement IA en arrière-plan:', bgError);
+        console.error('❌ Erreur lors de la génération des documents:', bgError);
+        await db.collection('leads_hypothecaires').doc(leadId).update({
+          documentStatus: 'error',
+          documentError: bgError.message || "Erreur inconnue lors de la génération"
+        }).catch(err => console.error("Erreur lors de la sauvegarde de l'erreur:", err));
       }
     })();
 
   } catch (error) {
-    console.error('❌ Erreur soumission client:', error);
+    console.error('❌ Erreur générale de la route submit:', error);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Erreur lors du traitement du dossier' });
+      res.status(500).json({ error: 'Erreur lors de l\'initialisation du dossier' });
     }
   }
 });

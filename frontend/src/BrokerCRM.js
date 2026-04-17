@@ -1,14 +1,13 @@
 /* global __firebase_config, __app_id, __initial_auth_token */
-import React, { useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, deleteDoc 
-} from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import axios from 'axios';
 import { 
   Users, Mail, Briefcase, Clock, ArrowLeft, Trash2, Search, AlertCircle, 
-  X as CloseIcon, TrendingUp, Sparkles, Phone, CreditCard, ChevronRight,
-  DollarSign, PieChart, Home, UserCheck, MapPin, FileText, Printer, Send,
-  BrainCircuit, CheckCircle, Download
+  TrendingUp, Phone, ChevronRight, DollarSign, PieChart, MapPin, FileText, 
+  Printer, Send, BrainCircuit, CheckCircle, Download, Loader2, Bot, FileDown, X as CloseIcon, Plus, UploadCloud, Paperclip
 } from 'lucide-react';
 
 /**
@@ -26,20 +25,6 @@ const getBrokerTheme = (email) => {
   return BROKERS.find(b => b.email === email) || { name: 'Non assigné', color: 'bg-slate-300', border: 'border-slate-300', bgLight: 'bg-slate-50', text: 'text-slate-500' };
 };
 
-// --- NOUVEAU : Nettoyeur d'IA (Enlève les emojis et les balises Markdown parasites) ---
-const cleanAIContent = (text) => {
-  if (!text) return "";
-  
-  // 1. Enlever les blocs markdown (```html et ```)
-  let cleaned = text.replace(/```html/gi, '').replace(/```/g, '');
-  
-  // 2. Enlever les emojis (Cible large pour nettoyer tout symbole non-professionnel)
-  cleaned = cleaned.replace(/[\u{1F300}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{2300}-\u{23FF}\u{2B50}🎯⚠️💡🤖📈]/gu, '');
-  
-  return cleaned.trim();
-};
-
-// Extraction intelligente de l'adresse et du prix
 const getLeadPropertyInfo = (lead) => {
   let address = lead.evaluationData?.addresseComplete || lead.adressePropriete || lead.evaluationData?.adresse || '';
   if (address === 'la propriété sélectionnée') address = '';
@@ -62,6 +47,7 @@ export default function BrokerCRM() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLead, setSelectedLead] = useState(null); 
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isAddingLead, setIsAddingLead] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -76,20 +62,24 @@ export default function BrokerCRM() {
     if (!authResolved || !currentUser) return; 
     const db = getFirestore();
     
-    // RETOUR EXACT À LA REQUÊTE DE TON ANCIENNE VERSION QUI FONCTIONNAIT BIEN
     const q = query(collection(db, 'leads_hypothecaires'), orderBy('createdAt', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = [];
       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
       
-      // Sécurité anti-bug : forcer un statut 'nouveau' si absent
       const safeData = data.map(lead => ({
         ...lead,
         status: lead.status || 'nouveau'
       }));
 
       setLeads(safeData);
+      
+      if (selectedLead) {
+        const updatedSelectedLead = safeData.find(l => l.id === selectedLead.id);
+        if (updatedSelectedLead) setSelectedLead(updatedSelectedLead);
+      }
+      
       setLoading(false);
     }, (error) => {
       console.error("Erreur Firestore:", error);
@@ -97,7 +87,7 @@ export default function BrokerCRM() {
     });
 
     return () => unsubscribe();
-  }, [authResolved, currentUser]);
+  }, [authResolved, currentUser, selectedLead]);
 
   const handleAssignLead = async (lead, brokerEmail) => {
     if (!brokerEmail) return;
@@ -111,18 +101,17 @@ export default function BrokerCRM() {
         brokerEmail: assignedBroker.email,
         brokerName: assignedBroker.name,
         clientEmail: lead.clientEmail,
-        aiSummary: lead.aiSummary
+        aiSummary: lead.aiSummary || "Dossier ajouté manuellement - en attente du bilan client."
       });
       
       alert(`✅ Dossier assigné avec succès à ${assignedBroker.name}. Les courriels ont été envoyés !`);
       
-      // On ferme la modale comme dans ton ancienne version
       if (selectedLead && selectedLead.id === lead.id) {
         setSelectedLead(null); 
       }
     } catch (err) {
       console.error("Erreur d'assignation:", err);
-      alert("❌ Erreur lors de l'assignation. Vérifie que ton serveur backend (Express) est démarré.");
+      alert("❌ Erreur lors de l'assignation. Vérifie ton serveur backend.");
     }
   };
 
@@ -130,10 +119,6 @@ export default function BrokerCRM() {
     try {
       const db = getFirestore();
       await updateDoc(doc(db, 'leads_hypothecaires', id), { status });
-      
-      if (selectedLead?.id === id) {
-        setSelectedLead({ ...selectedLead, status });
-      }
     } catch (err) {
       console.error("Erreur de statut:", err);
     }
@@ -154,7 +139,33 @@ export default function BrokerCRM() {
     }
   };
 
-  // CORRECTION MAJEURE ICI : Sécurisation de la recherche
+  const handleAddLeadSubmit = async (e, formData) => {
+    e.preventDefault();
+    try {
+      const db = getFirestore();
+      await addDoc(collection(db, 'leads_hypothecaires'), {
+        clientEmail: formData.email,
+        clientDetails: {
+          prenom: formData.prenom,
+          nom: formData.nom,
+          telephone: formData.telephone,
+        },
+        evaluationData: {
+          ville: formData.ville
+        },
+        status: 'nouveau',
+        clientFormCompleted: false,
+        createdAt: serverTimestamp(),
+        source: 'ajout_manuel_crm'
+      });
+      setIsAddingLead(false);
+      alert("✅ Dossier créé avec succès ! Vous pouvez maintenant l'assigner.");
+    } catch (err) {
+      console.error("Erreur ajout manuel:", err);
+      alert("❌ Erreur lors de l'ajout du dossier.");
+    }
+  };
+
   const filteredLeads = leads.filter(l => {
     const term = searchTerm.toLowerCase();
     const email = l.clientEmail || '';
@@ -169,7 +180,7 @@ export default function BrokerCRM() {
   if (!authResolved || loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+        <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
         <p className="font-black text-indigo-600 uppercase tracking-widest text-sm">Chargement du CRM...</p>
       </div>
     );
@@ -185,8 +196,6 @@ export default function BrokerCRM() {
     );
   }
 
-  // --- VUE D'IMPRESSION (RAPPORT BANCAIRE) ---
-  // Ne s'affiche que lorsque isPrinting = true
   if (isPrinting && selectedLead) {
     return <BankReportPrintView lead={selectedLead} onBack={() => setIsPrinting(false)} />;
   }
@@ -197,7 +206,7 @@ export default function BrokerCRM() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-900 p-2.5 rounded-xl text-white shadow-lg">
-              <BrainCircuitIcon size={24} className="text-indigo-400" />
+              <BrainCircuit size={24} className="text-indigo-400" />
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none">
@@ -218,40 +227,39 @@ export default function BrokerCRM() {
               onChange={e => setSearchTerm(e.target.value)} 
             />
           </div>
+          <button 
+            onClick={() => setIsAddingLead(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
+          >
+            <Plus size={18} /> Ajouter client
+          </button>
         </div>
       </header>
 
-      {/* BOARD KANBAN */}
       <div className="flex-1 p-8 overflow-x-auto flex gap-6 max-w-[1800px] mx-auto w-full">
-        
-        {/* COLONNE 1: NOUVEAUX */}
         <BoardColumn title="📥 À Assigner" count={filteredLeads.filter(l => l.status === 'nouveau').length}>
           {filteredLeads.filter(l => l.status === 'nouveau').map(lead => (
              <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} onAssign={handleAssignLead} onDelete={handleDeleteLead} />
           ))}
         </BoardColumn>
 
-        {/* COLONNE 2: EN ATTENTE DU BILAN (Le gros ajout pour le suivi) */}
         <BoardColumn title="⏳ Attente Bilan" count={filteredLeads.filter(l => (l.status === 'assigne' || l.status === 'en_cours') && !l.clientFormCompleted).length} highlight>
           {filteredLeads.filter(l => (l.status === 'assigne' || l.status === 'en_cours') && !l.clientFormCompleted).map(lead => (
              <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} onStatusChange={handleChangeStatus} onDelete={handleDeleteLead} />
           ))}
         </BoardColumn>
 
-        {/* COLONNE 3: PRÊT POUR LA BANQUE (Formulaire rempli + IA analysé) */}
         <BoardColumn title="🧠 Prêt pour Banque" count={filteredLeads.filter(l => (l.status === 'assigne' || l.status === 'en_cours') && l.clientFormCompleted).length}>
           {filteredLeads.filter(l => (l.status === 'assigne' || l.status === 'en_cours') && l.clientFormCompleted).map(lead => (
              <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} onStatusChange={handleChangeStatus} onDelete={handleDeleteLead} />
           ))}
         </BoardColumn>
 
-        {/* COLONNE 4: FINANCÉS */}
         <BoardColumn title="🎉 Financés" count={filteredLeads.filter(l => l.status === 'complete').length}>
           {filteredLeads.filter(l => l.status === 'complete').map(lead => (
              <LeadCard key={lead.id} lead={lead} onClick={() => setSelectedLead(lead)} onStatusChange={handleChangeStatus} onDelete={handleDeleteLead} />
           ))}
         </BoardColumn>
-
       </div>
 
       {selectedLead && (
@@ -263,6 +271,68 @@ export default function BrokerCRM() {
           onGenerateReport={() => setIsPrinting(true)}
         />
       )}
+
+      {isAddingLead && (
+        <AddLeadModal onClose={() => setIsAddingLead(false)} onSubmit={handleAddLeadSubmit} />
+      )}
+    </div>
+  );
+}
+
+function AddLeadModal({ onClose, onSubmit }) {
+  const [formData, setFormData] = useState({ prenom: '', nom: '', email: '', telephone: '', ville: '' });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden flex flex-col">
+        <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Ajouter un dossier</h2>
+            <p className="text-xs font-bold text-slate-500 mt-1">Saisie manuelle d'un nouveau client</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+            <CloseIcon size={24}/>
+          </button>
+        </div>
+        
+        <form onSubmit={(e) => onSubmit(e, formData)} className="p-8 space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Prénom</label>
+              <input required type="text" className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Jean" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Nom</label>
+              <input required type="text" className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Tremblay" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-black uppercase text-slate-500 mb-1">Adresse Courriel *</label>
+            <input required type="email" className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="jean.tremblay@email.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Téléphone</label>
+              <input type="tel" className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="(555) 555-5555" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-slate-500 mb-1">Ville (Optionnel)</label>
+              <input type="text" className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="Saguenay" value={formData.ville} onChange={e => setFormData({...formData, ville: e.target.value})} />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 mt-6 flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+              Annuler
+            </button>
+            <button type="submit" className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2">
+              <Plus size={18}/> Créer le dossier
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -287,6 +357,7 @@ function LeadCard({ lead, onClick, onAssign, onStatusChange, onDelete }) {
   const { address, price } = getLeadPropertyInfo(lead);
   const broker = getBrokerTheme(lead.assignedTo);
   const isWaiting = (lead.status === 'assigne' || lead.status === 'en_cours') && !lead.clientFormCompleted;
+  const isGenerating = lead.documentStatus === 'generation_en_cours';
 
   return (
     <div 
@@ -301,7 +372,6 @@ function LeadCard({ lead, onClick, onAssign, onStatusChange, onDelete }) {
         <Trash2 size={16}/>
       </button>
 
-      {/* Code Couleur Courtier via la bordure gauche */}
       {lead.assignedTo && (
         <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${broker.color}`}></div>
       )}
@@ -322,16 +392,24 @@ function LeadCard({ lead, onClick, onAssign, onStatusChange, onDelete }) {
           {lead.clientDetails?.prenom ? `${lead.clientDetails.prenom} ${lead.clientDetails.nom}` : lead.clientEmail}
         </h3>
 
-        {/* Status Badge Rapide */}
-        {isWaiting ? (
-          <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-amber-200 mb-2">
-            <Clock size={12} className="animate-pulse" /> Bilan manquant
-          </div>
-        ) : lead.clientFormCompleted ? (
-          <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-200 mb-2">
-            <CheckCircleIcon size={12} /> Prêt pour analyse
-          </div>
-        ) : null}
+        {/* Status Badges */}
+        <div className="flex flex-wrap gap-2 mb-2">
+            {isWaiting ? (
+              <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-amber-200">
+                <Clock size={12} className="animate-pulse" /> Bilan manquant
+              </div>
+            ) : lead.clientFormCompleted ? (
+              <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-200">
+                <CheckCircle size={12} /> Bilan complété
+              </div>
+            ) : null}
+
+            {isGenerating && (
+                <div className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-200">
+                    <Loader2 size={12} className="animate-spin" /> Génération docs...
+                </div>
+            )}
+        </div>
 
         {address !== 'Adresse non fournie' && (
           <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
@@ -339,10 +417,6 @@ function LeadCard({ lead, onClick, onAssign, onStatusChange, onDelete }) {
             <span className="truncate">{address}</span>
           </div>
         )}
-      </div>
-
-      <div className="mt-4 bg-slate-50 p-4 rounded-2xl text-[11px] font-bold text-slate-500 italic border border-slate-100 line-clamp-2 shadow-inner">
-        "{cleanAIContent(lead.aiSummary) || 'Aucun résumé'}"
       </div>
 
       <div className="mt-auto pt-3 border-t border-slate-100 pl-2">
@@ -390,10 +464,80 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
   const { address, price } = getLeadPropertyInfo(lead);
   const broker = getBrokerTheme(lead.assignedTo);
   const isReadyForBank = lead.clientFormCompleted;
+  const isGenerating = lead.documentStatus === 'generation_en_cours';
+
+  // --- NOUVEAUX ÉTATS POUR L'UPLOAD MANUEL ---
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // --- GESTION DU DRAG & DROP ---
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    uploadFiles(files);
+  };
+
+  const handleFileInput = (e) => {
+    const files = Array.from(e.target.files);
+    uploadFiles(files);
+  };
+
+  // --- FONCTION D'UPLOAD VERS FIREBASE STORAGE ---
+  const uploadFiles = async (files) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    
+    const storage = getStorage();
+    const db = getFirestore();
+    const uploadedFilesData = [];
+
+    try {
+      for (const file of files) {
+        // Nom sécurisé pour le fichier
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = storageRef(storage, `dossiers/${lead.id}/manuels/${Date.now()}_${safeName}`);
+        
+        // Upload du fichier
+        await uploadBytes(fileRef, file);
+        
+        // Récupération de l'URL
+        const downloadUrl = await getDownloadURL(fileRef);
+        
+        uploadedFilesData.push({
+          name: file.name,
+          url: downloadUrl,
+          size: file.size,
+          uploadedAt: new Date().toISOString()
+        });
+      }
+
+      // Mise à jour de Firestore avec arrayUnion pour ajouter à la liste existante
+      await updateDoc(doc(db, 'leads_hypothecaires', lead.id), {
+        manualFiles: arrayUnion(...uploadedFilesData)
+      });
+
+    } catch (error) {
+      console.error("Erreur lors de l'upload manuel:", error);
+      alert("Une erreur est survenue lors du téléchargement du fichier.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-white w-full max-w-6xl max-h-[94vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-slate-50 w-full max-w-6xl max-h-[94vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
         
         {/* HEADER MODAL */}
         <div className={`p-8 text-white flex justify-between items-start shrink-0 relative overflow-hidden transition-colors ${lead.assignedTo ? broker.color : 'bg-slate-800'}`}>
@@ -410,7 +554,6 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                 </div>
               </div>
               
-              {/* ASSIGNATION / COURTIIER */}
               <div className="bg-white/10 p-3 rounded-2xl border border-white/20 backdrop-blur-sm text-right">
                 <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">Dossier géré par</p>
                 {lead.assignedTo ? (
@@ -434,11 +577,11 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
         </div>
 
         {/* CONTENU */}
-        <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* COLONNE GAUCHE: Données brutes */}
-          <div className="lg:col-span-5 space-y-8">
-            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📍 Propriété Ciblée</p>
                <p className="text-slate-900 font-bold flex items-center gap-2 text-lg mb-2">
                  <MapPin size={18} className="text-indigo-500"/> {address}
@@ -450,39 +593,192 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                )}
             </div>
 
-            <section>
+            <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
               <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <TrendingUp size={16} className="text-emerald-500" /> Bilan Actifs / Passifs
               </h3>
               {!isReadyForBank && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-center mb-4">
                   <Clock size={24} className="mx-auto mb-2 opacity-50" />
-                  <p className="font-bold text-xs">Bilan complet manquant. Voici les données préliminaires de l'IA :</p>
+                  <p className="font-bold text-xs">Bilan complet manquant. Voici les données préliminaires :</p>
                 </div>
               )}
               
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <StatBox label="Salaire/Revenu" val={lead.clientDetails?.salaire || lead.financialData?.revenu} color="slate" />
-                  <StatBox label="Épargne/Cash" val={lead.clientDetails?.liquidites || lead.financialData?.mise_de_fonds} color="emerald" />
-                  <StatBox label="REER/CELI" val={(Number(lead.clientDetails?.reer||0) + Number(lead.clientDetails?.celi||0))} color="emerald" />
-                  <StatBox label="Dettes (Auto/Cartes)" val={(Number(lead.clientDetails?.pret_auto||0) + Number(lead.clientDetails?.solde_cartes||0))} color="rose" />
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <StatBox label="Salaire/Revenu" val={lead.clientDetails?.salaire || lead.financialData?.revenu || lead.clientDetails?.revenuAnnuel} color="slate" />
+                <StatBox label="Épargne/Cash" val={lead.clientDetails?.liquidites || lead.financialData?.mise_de_fonds} color="emerald" />
+                <StatBox label="REER/CELI" val={(Number(lead.clientDetails?.reer||0) + Number(lead.clientDetails?.celi||0))} color="emerald" />
+                <StatBox label="Dettes (Auto/Cartes)" val={(Number(lead.clientDetails?.pret_auto||0) + Number(lead.clientDetails?.solde_cartes||0))} color="rose" />
               </div>
+            </section>
+
+            {/* NOUVELLE SECTION ANALYSE IA AUTOMATIQUE */}
+            <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <BrainCircuit size={16} className="text-indigo-500" /> Analyse IA du dossier
+              </h3>
+              
+              {lead.aiAnalysis ? (
+                <div className="text-sm text-slate-700 leading-relaxed bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 whitespace-pre-wrap">
+                  {lead.aiAnalysis}
+                </div>
+              ) : isReadyForBank ? (
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center">
+                  <Loader2 size={32} className="text-indigo-400 animate-spin mx-auto mb-3" />
+                  <p className="text-xs font-bold text-indigo-900">Génération de l'analyse en cours...</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Claude AI évalue le dossier.</p>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center">
+                  <Bot size={32} className="text-slate-300 mx-auto mb-3" />
+                  <p className="text-xs text-slate-500 font-medium">L'analyse s'enclenchera automatiquement lorsque le client aura complété son bilan.</p>
+                </div>
+              )}
             </section>
           </div>
 
-          {/* COLONNE DROITE: IA & RAPPORT BANCAIRE */}
+          {/* COLONNE DROITE: Fichiers & Agent */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             
-            {/* LA MAGIE: Bouton Générer Rapport */}
+            {/* DOCUMENTS SYSTÈME (PDF / EXCEL) */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+                <h3 className="text-slate-800 font-black text-lg mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                    <FileText size={24} className="text-indigo-500" /> Documents Client (PDF & Excel)
+                </h3>
+                
+                {isGenerating ? (
+                    <div className="flex flex-col items-center justify-center py-8 gap-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                        <div className="relative">
+                            <Loader2 size={48} className="animate-spin text-indigo-500" />
+                        </div>
+                        <p className="text-sm font-bold text-indigo-900 animate-pulse text-center max-w-sm">
+                            Le système génère actuellement le PDF et l'Excel pour ce client...
+                        </p>
+                    </div>
+                ) : lead.documentStatus === 'completed' && lead.generatedFiles?.length > 0 ? (
+                    <div className="space-y-3">
+                        {lead.generatedFiles.map((file, i) => (
+                            <a 
+                                key={i} 
+                                href={file.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                download 
+                                className="flex items-center justify-between p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 hover:shadow-md transition-all group border border-indigo-100"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg group-hover:scale-110 transition-transform shadow-sm">
+                                        <FileDown className="text-indigo-600" size={20} />
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-sm text-indigo-950 block">{file.name}</span>
+                                    </div>
+                                </div>
+                                <div className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 group-hover:bg-indigo-700 transition-colors">
+                                    <Download size={14} /> Télécharger
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-6 text-slate-400 text-center bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
+                        <FileText size={32} className="mb-2 opacity-20" />
+                        <p className="font-bold text-sm">Les documents apparaîtront ici après la soumission du client.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* ZONE DE DÉPÔT / UPLOAD MANUEL */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+                <h3 className="text-slate-800 font-black text-lg mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                    <Paperclip size={24} className="text-slate-500" /> Fichiers additionnels
+                </h3>
+
+                {/* Liste combinée des fichiers ajoutés manuellement ET fournis par le client */}
+                {(lead.clientFiles?.length > 0 || lead.manualFiles?.length > 0) && (
+                  <div className="mb-8 space-y-4">
+                    
+                    {/* Fichiers Client */}
+                    {lead.clientFiles && lead.clientFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Fournis par le client</p>
+                        {lead.clientFiles.map((file, i) => (
+                           <a 
+                              key={`client-${i}`} 
+                              href={file.url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 truncate">
+                                <Paperclip size={16} className="text-emerald-500 shrink-0" />
+                                <span className="text-sm font-bold text-emerald-900 truncate">{file.name}</span>
+                              </div>
+                              <Download size={16} className="text-emerald-600 hover:text-emerald-800 shrink-0" />
+                            </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Fichiers Courtier */}
+                    {lead.manualFiles && lead.manualFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Ajoutés par le courtier</p>
+                        {lead.manualFiles.map((file, i) => (
+                           <a 
+                              key={`manual-${i}`} 
+                              href={file.url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 truncate">
+                                <Paperclip size={16} className="text-slate-400 shrink-0" />
+                                <span className="text-sm font-bold text-slate-700 truncate">{file.name}</span>
+                              </div>
+                              <Download size={16} className="text-slate-400 hover:text-indigo-600 shrink-0" />
+                            </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Dropzone Courtier */}
+                <div 
+                  className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all ${isDragging ? 'border-indigo-500 bg-indigo-50 scale-[1.02]' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'} ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {isUploading ? (
+                    <div className="flex flex-col items-center">
+                      <Loader2 size={32} className="text-indigo-500 animate-spin mb-3" />
+                      <p className="text-sm font-bold text-slate-600">Envoi en cours...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud size={40} className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-indigo-500' : 'text-slate-400'}`} />
+                      <p className="text-sm font-bold text-slate-700 mb-1">Glissez-déposez vos fichiers ici</p>
+                      <p className="text-xs text-slate-500 mb-4">ou</p>
+                      
+                      <label className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-50 hover:shadow-sm transition-all shadow-sm">
+                        Parcourir les fichiers
+                        <input type="file" multiple className="hidden" onChange={handleFileInput} />
+                      </label>
+                    </>
+                  )}
+                </div>
+            </div>
+
+            {/* RAPPORT BANCAIRE */}
             <div className="bg-indigo-950 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden flex items-center justify-between">
               <div className="relative z-10">
                 <h3 className="text-xl font-black mb-2 flex items-center gap-2">
-                  <Printer className="text-indigo-400" /> Mode Présentation Banque
+                  <Printer className="text-indigo-400" /> Rapport Interne Banque
                 </h3>
                 <p className="text-indigo-200 text-sm max-w-md font-medium leading-relaxed">
-                  L'IA a structuré les données. Générez un rapport PDF propre et professionnel prêt à être envoyé au souscripteur.
+                  Générez un rapport PDF ou Word propre basé sur l'analyse préliminaire.
                 </p>
               </div>
               <button 
@@ -490,26 +786,11 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                 disabled={!isReadyForBank}
                 className={`relative z-10 px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg flex items-center gap-3 shrink-0 ${isReadyForBank ? 'bg-indigo-500 hover:bg-indigo-400 text-white hover:scale-105' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
               >
-                <FileText size={20} /> Exporter PDF
+                <FileText size={20} /> Exporter Document
               </button>
-              {/* Deco */}
               <div className="absolute -right-10 -top-10 text-indigo-800/30 rotate-12"><FileText size={150}/></div>
             </div>
-
-            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 flex-1 relative">
-              <div className="absolute top-6 right-6 text-indigo-300"><BrainCircuitIcon size={32} /></div>
-              <h3 className="text-slate-800 font-black text-lg mb-6 flex items-center gap-2">
-                Analyse Stratégique Interne <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md uppercase tracking-widest ml-2">Par l'IA</span>
-              </h3>
-              
-              {lead.aiAnalysis ? (
-                <div className="prose prose-sm prose-indigo text-slate-700 font-medium" dangerouslySetInnerHTML={{ __html: cleanAIContent(lead.aiAnalysis) }} />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-center">
-                  <p className="font-bold text-sm">Analyse IA en attente de la soumission du client.</p>
-                </div>
-              )}
-            </div>
+            
           </div>
         </div>
       </div>
@@ -521,7 +802,7 @@ function StatBox({ label, val, color }) {
   const colors = {
     emerald: 'bg-emerald-50 border-emerald-100 text-emerald-900',
     rose: 'bg-rose-50 border-rose-100 text-rose-900',
-    slate: 'bg-white border-slate-200 text-slate-900'
+    slate: 'bg-slate-50 border-slate-200 text-slate-900'
   };
   return (
     <div className={`p-4 rounded-2xl border ${colors[color]}`}>
@@ -533,35 +814,30 @@ function StatBox({ label, val, color }) {
 
 /**
  * ============================================================================
- * VUE D'IMPRESSION : LE FAMEUX RAPPORT BANCAIRE
- * Cette vue remplace tout l'écran au moment d'imprimer pour un rendu parfait.
+ * VUE D'IMPRESSION : RAPPORT BANCAIRE
  * ============================================================================
  */
 function BankReportPrintView({ lead, onBack }) {
   const { address, price } = getLeadPropertyInfo(lead);
   const client = lead.clientDetails || {};
   
-  // Calcul approximatif des ratios (Adapté pour lire aussi les données du Chatbot)
-  const revenuBrut = Number(client.salaire || lead.financialData?.revenu || 0);
-  const dettesMensuelles = (Number(client.pret_auto || 0) * 0.03) + (Number(client.solde_cartes || 0) * 0.05); // Approche générique
+  const revenuBrut = Number(client.salaire || lead.financialData?.revenu || client.revenuAnnuel || 0);
+  const dettesMensuelles = (Number(client.pret_auto || 0)) + (Number(client.solde_cartes || 0) * 0.03);
   const valeurProp = Number(price || 0);
   const miseFonds = Number(client.liquidites || lead.financialData?.mise_de_fonds || 0);
   const hypothequeEstimee = valeurProp - miseFonds;
   
-  const paiementMensuelEstime = hypothequeEstimee > 0 ? (hypothequeEstimee * 0.0055) : 0; // Taux fictif approx
+  const paiementMensuelEstime = hypothequeEstimee > 0 ? (hypothequeEstimee * 0.0055) : 0; 
   
   const abd = revenuBrut > 0 ? ((paiementMensuelEstime * 12) / revenuBrut * 100).toFixed(1) : 'N/A';
   const atd = revenuBrut > 0 ? (((paiementMensuelEstime + dettesMensuelles) * 12) / revenuBrut * 100).toFixed(1) : 'N/A';
 
-  // --- NOUVEAU: Générateur de Document Word ---
   const exportToWord = () => {
     const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Rapport Optimiplex</title></head><body>";
     const footer = "</body></html>";
-    // On récupère le contenu visuel du rapport
     const content = document.getElementById('report-content').innerHTML;
     const sourceHTML = header + content + footer;
 
-    // Encodage pour le téléchargement
     const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
     const fileDownload = document.createElement("a");
     document.body.appendChild(fileDownload);
@@ -573,13 +849,11 @@ function BankReportPrintView({ lead, onBack }) {
 
   return (
     <div className="bg-slate-100 min-h-screen font-sans pb-10 print:bg-white print:pb-0">
-      {/* BARRE D'OUTILS - INVISIBLE À L'IMPRESSION */}
       <div className="print:hidden bg-slate-900 text-white px-8 py-4 sticky top-0 z-50 flex justify-between items-center shadow-xl">
          <button onClick={onBack} className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-xl transition-all font-bold text-sm">
             <ArrowLeft size={18} /> Retour au dossier
          </button>
          <div className="flex items-center gap-4">
-           {/* Bouton Word ajouté ici */}
            <button onClick={exportToWord} className="flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl transition-all font-black uppercase tracking-widest text-xs shadow-lg active:scale-95">
               <Download size={16} /> Exporter en Word
            </button>
@@ -589,9 +863,7 @@ function BankReportPrintView({ lead, onBack }) {
          </div>
       </div>
 
-      {/* DOCUMENT A4 - On ajoute l'ID report-content pour l'export Word */}
       <div id="report-content" className="bg-white text-black p-12 max-w-[21cm] mx-auto mt-8 shadow-2xl print:shadow-none print:max-w-full print:w-full print:mt-0 print:p-0">
-        {/* HEADER PROFESSIONNEL */}
         <div className="border-b-2 border-slate-900 pb-6 mb-8 flex justify-between items-end">
           <div>
             <h1 className="text-3xl font-black uppercase tracking-tight">Optimiplex</h1>
@@ -605,7 +877,6 @@ function BankReportPrintView({ lead, onBack }) {
         </div>
 
         <div className="grid grid-cols-2 gap-10 mb-10">
-          {/* INFO EMPRUNTEUR */}
           <div>
             <h2 className="text-lg font-black uppercase border-b border-slate-300 pb-2 mb-4">Profil Emprunteur</h2>
             <table className="w-full text-sm table-fixed">
@@ -618,7 +889,6 @@ function BankReportPrintView({ lead, onBack }) {
             </table>
           </div>
 
-          {/* PROJET IMMOBILIER */}
           <div>
             <h2 className="text-lg font-black uppercase border-b border-slate-300 pb-2 mb-4">Projet Cible</h2>
             <table className="w-full text-sm table-fixed">
@@ -632,7 +902,6 @@ function BankReportPrintView({ lead, onBack }) {
           </div>
         </div>
 
-        {/* RATIOS & SYNTHÈSE */}
         <div className="bg-slate-50 p-6 rounded-lg mb-10 border border-slate-200">
           <h2 className="text-lg font-black uppercase mb-4 text-center">Indicateurs de Performance (Estimés)</h2>
           <div className="grid grid-cols-2 gap-8 text-center">
@@ -646,27 +915,7 @@ function BankReportPrintView({ lead, onBack }) {
             </div>
           </div>
         </div>
-
-        {/* NOTES DU COURTIER / ANALYSE IA */}
-        {/* CORRECTION: Ajout de break-words pour empêcher le texte de déborder de la page */}
-        <div>
-          <h2 className="text-lg font-black uppercase border-b border-slate-300 pb-2 mb-4">Résumé Exécutif</h2>
-          <div className="prose prose-sm max-w-none text-justify break-words" dangerouslySetInnerHTML={{ __html: lead.aiAnalysis ? cleanAIContent(lead.aiAnalysis) : "Aucune analyse disponible pour ce dossier." }} />
-        </div>
-
-        {/* PIED DE PAGE */}
-        <div className="mt-16 pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
-          Document généré automatiquement par Optimiplex AI. Les ratios sont présentés à titre indicatif et doivent être validés.
-        </div>
       </div>
     </div>
   );
-}
-
-// Icon Helpers
-function BrainCircuitIcon(props) {
-  return <BrainCircuit {...props} />;
-}
-function CheckCircleIcon(props) {
-  return <CheckCircle {...props} />;
 }
