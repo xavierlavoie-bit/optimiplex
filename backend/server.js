@@ -19,6 +19,7 @@ for (const envVar of requiredEnvVars) {
 
 console.log('✅ Variables d\'environnement validées');
 
+
 const express = require('express');
 const cors = require('cors');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -2495,6 +2496,242 @@ app.post('/api/client/submit', async (req, res) => {
   }
 });
 
+async function runAgentAnalysis(leadId, leadData, manualFiles = []) {
+  const AGENT_ID = process.env.ANTHROPIC_AGENT_ID || "agent_011CaDrEPbC4dArRJNX6zTH4";
+  const ENV_ID = process.env.ANTHROPIC_ENVIRONMENT_ID; 
+
+  console.log(`🤖 Démarrage de la Session IA (Agent: ${AGENT_ID}) pour le dossier: ${leadId}`);
+
+  const sessionOptions = {
+    agent: AGENT_ID,
+    title: `Dossier ${leadData.prenom || ''} ${leadData.nom || leadId}`,
+  };
+  if (ENV_ID) sessionOptions.environment_id = ENV_ID;
+
+  const session = await claude.beta.sessions.create(sessionOptions);
+
+  // Fusion des noms de fichiers (Client + Courtier) pour que l'IA voie TOUT
+  const allAttachedFiles = [
+    ...(leadData.attachments || []),
+    ...manualFiles.map(f => f.name)
+  ];
+
+  const dataForAI = {
+    ...leadData,
+    attachments: allAttachedFiles // L'IA verra les fichiers déposés par Rebecca !
+  };
+
+  await claude.beta.sessions.events.send(session.id, {
+    events: [{
+      type: "user.message",
+      content: [{ type: "text", text: `Voici les données du dossier client et les documents au dossier :\n\n${JSON.stringify(dataForAI, null, 2)}` }],
+    }],
+  });
+
+  const stream = await claude.beta.sessions.events.stream(session.id);
+  
+  let agentAnalysis = null;
+  let fallbackText = "";
+
+  for await (const event of stream) {
+    if (event.type === "agent.custom_tool_use" || event.type === "agent.tool_use") {
+      if (event.name === "submit_mortgage_analysis") {
+        agentAnalysis = event.input;
+      }
+    } else if (event.type === "agent.message") {
+      for (const block of event.content) {
+        if (block.type === "text") {
+          fallbackText += block.text + "\n";
+        }
+      }
+    } else if (event.type === "session.status_idle") {
+      break;
+    }
+  }
+
+  if (!agentAnalysis) {
+    try {
+      agentAnalysis = parseClaudeJSON(fallbackText);
+    } catch (err) {
+      agentAnalysis = {
+        confidence_score: "Moyenne",
+        missing_documents: ["⚠️ Impossible de structurer les documents manquants."],
+        narrative: fallbackText 
+      };
+    }
+  }
+
+  const db = admin.firestore(); 
+  await db.collection('leads_hypothecaires').doc(leadId).update({
+    agentAnalysis: agentAnalysis,
+    agentStatus: 'completed'
+  });
+
+  return agentAnalysis;
+}
+
+// 1. Analyse initiale (via ClientPortal)
+app.post('/api/agent/analyze-lead', async (req, res) => {
+  try {
+    const { leadId, leadData } = req.body;
+    if (!leadId || !leadData) return res.status(400).json({ error: "Données manquantes." });
+    
+    await runAgentAnalysis(leadId, leadData, []);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur lors de l'analyse IA:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Ré-analyse dynamique (Déclenchée par le CRM quand Rebecca ajoute un fichier)
+app.post('/api/agent/reanalyze-lead', async (req, res) => {
+  try {
+    const { leadId } = req.body;
+    if (!leadId) return res.status(400).json({ error: "Lead ID manquant." });
+
+    const db = admin.firestore();
+    const docSnap = await db.collection('leads_hypothecaires').doc(leadId).get();
+    
+    if (!docSnap.exists) throw new Error("Dossier introuvable");
+    
+    const data = docSnap.data();
+    // On reconstruit le payload avec les données du CRM + les fichiers
+    const leadDataPayload = {
+      ...data.clientDetails,
+      ...data.financialData,
+      attachments: data.clientFiles ? data.clientFiles.map(f => f.name) : []
+    };
+
+    const manualFiles = data.manualFiles || [];
+
+    await runAgentAnalysis(leadId, leadDataPayload, manualFiles);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur lors de la ré-analyse IA:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ====================================================================
+// 📧 ASSISTANT COURRIEL : RÉDACTION ET ENVOI
+// ====================================================================
+
+// Générer le brouillon avec Claude
+app.post('/api/agent/draft-email', async (req, res) => {
+  try {
+    const { leadId, instruction, missingDocs, brokerName } = req.body;
+
+    const prompt = `
+      Tu es l'assistant personnel de ${brokerName || 'un courtier hypothécaire'}. 
+      Rédige le contenu HTML d'un courriel que le courtier envoie personnellement à son client.
+      Documents manquants au dossier : ${missingDocs ? missingDocs.join(', ') : 'Aucun'}.
+      Instruction supplémentaire du courtier : "${instruction}".
+      
+      Directives de formatage :
+      - Utilise des balises HTML simples (<p>, <ul>, <li>, <strong>, <br>).
+      - Ne mets PAS de bloc de code \`\`\`html. Renvoie uniquement le texte HTML brut.
+      - Ton professionnel, rassurant et proactif.
+      - Signature : Termine par "Chaleureusement," suivi de "${brokerName || 'Votre courtier Optimiplex'}". Ne mentionne PAS Rebecca si ce n'est pas elle la courtière assignée.
+    `;
+
+    const message = await claude.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    res.json({ draft: message.content[0].text });
+  } catch (error) {
+    console.error("❌ Erreur génération brouillon:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Envoi officiel via SendGrid après confirmation humaine
+app.post('/api/broker/send-followup', async (req, res) => {
+  try {
+    const { leadId, email, subject, htmlContent, brokerName, brokerEmail } = req.body;
+
+    if (!email || !htmlContent) return res.status(400).json({ error: "Données manquantes" });
+
+    const msg = {
+      to: email,
+      from: {
+        email: brokerEmail || 'rebecca@optimiplex.com', // 🚀 UTILISE MAINTENANT LE COURRIEL DU COURTIER ASSIGNÉ
+        name: brokerName || "L'équipe Optimiplex"
+      },
+      replyTo: brokerEmail || 'rebecca@optimiplex.com',
+      subject: subject || "Action requise : Votre dossier de financement Optimiplex",
+      html: htmlContent,
+    };
+
+    await sgMail.send(msg);
+
+    // Historisation dans Firestore
+    const db = admin.firestore();
+    await db.collection('leads_hypothecaires').doc(leadId).collection('history').add({
+      type: 'email_sent',
+      sentAt: FieldValue.serverTimestamp(),
+      subject: subject
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur SendGrid:", error);
+    res.status(500).json({ error: "Erreur lors de l'envoi du courriel" });
+  }
+});
+
+// Envoi d'un document généré au client (Bouton "Envoyer")
+app.post('/api/broker/send-file', async (req, res) => {
+  try {
+    const { leadId, email, fileName, fileUrl, brokerName, brokerEmail } = req.body;
+
+    if (!email || !fileUrl) return res.status(400).json({ error: "Données manquantes" });
+
+    const msg = {
+      to: email,
+      from: {
+        email: brokerEmail || 'rebecca@optimiplex.com', // 🚀 UTILISE MAINTENANT LE COURRIEL DU COURTIER ASSIGNÉ
+        name: brokerName || "L'équipe Optimiplex"
+      },
+      replyTo: brokerEmail || 'rebecca@optimiplex.com',
+      subject: `Votre document de financement : ${fileName}`,
+      html: `
+        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4f46e5;">Bonjour,</h2>
+            <p>Voici le document <strong>${fileName}</strong> préparé par votre courtier hypothécaire.</p>
+            <p style="margin: 30px 0;">
+              <a href="${fileUrl}" style="padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                Télécharger le document
+              </a>
+            </p>
+            <p>Si vous avez des questions, n'hésitez pas à répondre directement à ce courriel.</p>
+            <p style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              Cordialement,<br/>
+              <strong>${brokerName || "L'équipe Optimiplex"}</strong>
+            </p>
+        </div>
+      `,
+    };
+
+    await sgMail.send(msg);
+
+    // Historisation dans Firestore
+    const db = admin.firestore();
+    await db.collection('leads_hypothecaires').doc(leadId).collection('history').add({
+      type: 'file_sent',
+      fileName: fileName,
+      sentAt: FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur SendGrid Document:", error);
+    res.status(500).json({ error: "Erreur lors de l'envoi du document" });
+  }
+});
 
 // ====================================================================
 // ℹ️ GET QUOTA INFO (MIS À JOUR AVEC CRÉDITS)

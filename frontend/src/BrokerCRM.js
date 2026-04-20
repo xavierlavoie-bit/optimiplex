@@ -7,14 +7,14 @@ import axios from 'axios';
 import { 
   Users, Mail, Briefcase, Clock, ArrowLeft, Trash2, Search, AlertCircle, 
   TrendingUp, Phone, ChevronRight, DollarSign, PieChart, MapPin, FileText, 
-  Printer, Send, BrainCircuit, CheckCircle, Download, Loader2, Bot, FileDown, X as CloseIcon, Plus, UploadCloud, Paperclip
+  Printer, Send, BrainCircuit, CheckCircle, Download, Loader2, Bot, FileDown, X as CloseIcon, Plus, UploadCloud, Paperclip, Sparkles, Maximize2, RefreshCw
 } from 'lucide-react';
 
 /**
  * 🎨 CONFIGURATION DES COURTIERS AVEC CODE COULEUR
  */
 export const BROKERS = [
-  { name: 'Xavier Lavoie', email: 'xavlavoie24@gmail.com', color: 'bg-indigo-500', border: 'border-indigo-500', bgLight: 'bg-indigo-50', text: 'text-indigo-700' },
+  { name: 'Xavier Lavoie', email: 'xavier.lavoie@optimiplex.com', color: 'bg-indigo-500', border: 'border-indigo-500', bgLight: 'bg-indigo-50', text: 'text-indigo-700' },
   { name: 'Rebecca (Courtier)', email: 'rebecca@optimiplex.com', color: 'bg-rose-500', border: 'border-rose-500', bgLight: 'bg-rose-50', text: 'text-rose-700' },
   { name: 'Alexandre', email: 'alex@optimiplex.com', color: 'bg-amber-500', border: 'border-amber-500', bgLight: 'bg-amber-50', text: 'text-amber-700' },
 ];
@@ -466,34 +466,16 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
   const isReadyForBank = lead.clientFormCompleted;
   const isGenerating = lead.documentStatus === 'generation_en_cours';
 
-  // --- NOUVEAUX ÉTATS POUR L'UPLOAD MANUEL ---
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
 
-  // --- GESTION DU DRAG & DROP ---
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); uploadFiles(Array.from(e.dataTransfer.files)); };
+  const handleFileInput = (e) => { uploadFiles(Array.from(e.target.files)); };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    uploadFiles(files);
-  };
-
-  const handleFileInput = (e) => {
-    const files = Array.from(e.target.files);
-    uploadFiles(files);
-  };
-
-  // --- FONCTION D'UPLOAD VERS FIREBASE STORAGE ---
+  // 🚀 Upload puis Re-analyse Automatique !
   const uploadFiles = async (files) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
@@ -504,14 +486,9 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
 
     try {
       for (const file of files) {
-        // Nom sécurisé pour le fichier
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileRef = storageRef(storage, `dossiers/${lead.id}/manuels/${Date.now()}_${safeName}`);
-        
-        // Upload du fichier
         await uploadBytes(fileRef, file);
-        
-        // Récupération de l'URL
         const downloadUrl = await getDownloadURL(fileRef);
         
         uploadedFilesData.push({
@@ -522,31 +499,63 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
         });
       }
 
-      // Mise à jour de Firestore avec arrayUnion pour ajouter à la liste existante
       await updateDoc(doc(db, 'leads_hypothecaires', lead.id), {
         manualFiles: arrayUnion(...uploadedFilesData)
       });
+      
+      // 🧠 Le fichier est déposé, on déclenche l'IA pour qu'elle relise tout !
+      setIsReanalyzing(true);
+      const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      await axios.post(`${API_URL}/api/agent/reanalyze-lead`, { leadId: lead.id });
 
     } catch (error) {
-      console.error("Erreur lors de l'upload manuel:", error);
-      alert("Une erreur est survenue lors du téléchargement du fichier.");
+      console.error("Erreur upload ou analyse manuelle:", error);
+      alert("Erreur lors du traitement du fichier.");
     } finally {
       setIsUploading(false);
+      setIsReanalyzing(false);
+    }
+  };
+
+  // Nouvelle fonction pour envoyer un fichier au client
+  const handleSendGeneratedFile = async (file) => {
+    if (!window.confirm(`Envoyer le document "${file.name}" à ${lead.clientEmail} ?`)) return;
+    try {
+      const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      await axios.post(`${API_URL}/api/broker/send-file`, {
+        leadId: lead.id,
+        email: lead.clientEmail,
+        fileName: file.name,
+        fileUrl: file.url,
+        brokerName: broker.name,
+        brokerEmail: broker.email
+      });
+      alert("✅ Document envoyé avec succès !");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Erreur lors de l'envoi du document.");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-slate-50 w-full max-w-6xl max-h-[94vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="bg-slate-50 w-full max-w-6xl max-h-[94vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative z-50">
         
         {/* HEADER MODAL */}
         <div className={`p-8 text-white flex justify-between items-start shrink-0 relative overflow-hidden transition-colors ${lead.assignedTo ? broker.color : 'bg-slate-800'}`}>
           <div className="relative z-10 w-full">
             <div className="flex justify-between items-start">
               <div>
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-4 mb-2">
                   <h2 className="text-4xl font-black tracking-tight">{lead.clientDetails?.prenom || 'Nouveau'} {lead.clientDetails?.nom || 'Lead'}</h2>
                   {isReadyForBank && <span className="bg-white/20 backdrop-blur-md text-white text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest border border-white/30">Dossier Complet</span>}
+                  
+                  {/* Nouveau Bouton PDF Préqualification (Remplaçant l'ancien gros bloc) */}
+                  {isReadyForBank && (
+                    <button onClick={onGenerateReport} className="ml-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
+                      <Printer size={14} /> PDF Préqualification
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-6 text-white/80 text-sm font-bold mt-3">
                   <p className="flex items-center gap-2"><Mail size={16} /> {lead.clientEmail}</p>
@@ -612,29 +621,9 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
               </div>
             </section>
 
-            {/* NOUVELLE SECTION ANALYSE IA AUTOMATIQUE */}
-            <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <BrainCircuit size={16} className="text-indigo-500" /> Analyse IA du dossier
-              </h3>
-              
-              {lead.aiAnalysis ? (
-                <div className="text-sm text-slate-700 leading-relaxed bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 whitespace-pre-wrap">
-                  {lead.aiAnalysis}
-                </div>
-              ) : isReadyForBank ? (
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center">
-                  <Loader2 size={32} className="text-indigo-400 animate-spin mx-auto mb-3" />
-                  <p className="text-xs font-bold text-indigo-900">Génération de l'analyse en cours...</p>
-                  <p className="text-[10px] text-slate-500 mt-1">Claude AI évalue le dossier.</p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center">
-                  <Bot size={32} className="text-slate-300 mx-auto mb-3" />
-                  <p className="text-xs text-slate-500 font-medium">L'analyse s'enclenchera automatiquement lorsque le client aura complété son bilan.</p>
-                </div>
-              )}
-            </section>
+            {/* INTEGRATION DE LA SECTION AGENT IA */}
+            <AgentAnalysisSection lead={lead} isReanalyzing={isReanalyzing} broker={broker} />
+            
           </div>
 
           {/* COLONNE DROITE: Fichiers & Agent */}
@@ -658,26 +647,24 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                 ) : lead.documentStatus === 'completed' && lead.generatedFiles?.length > 0 ? (
                     <div className="space-y-3">
                         {lead.generatedFiles.map((file, i) => (
-                            <a 
-                                key={i} 
-                                href={file.url} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                download 
-                                className="flex items-center justify-between p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 hover:shadow-md transition-all group border border-indigo-100"
-                            >
+                            <div key={i} className="flex items-center justify-between p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 hover:shadow-md transition-all border border-indigo-100">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-white rounded-lg group-hover:scale-110 transition-transform shadow-sm">
+                                    <div className="p-2 bg-white rounded-lg shadow-sm">
                                         <FileDown className="text-indigo-600" size={20} />
                                     </div>
-                                    <div>
-                                        <span className="font-bold text-sm text-indigo-950 block">{file.name}</span>
-                                    </div>
+                                    <span className="font-bold text-sm text-indigo-950 block">{file.name}</span>
                                 </div>
-                                <div className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 group-hover:bg-indigo-700 transition-colors">
-                                    <Download size={14} /> Télécharger
+                                
+                                {/* Nouveaux boutons : Télécharger & Envoyer */}
+                                <div className="flex items-center gap-2">
+                                  <a href={file.url} download target="_blank" rel="noreferrer" className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors">
+                                      <Download size={14} /> <span className="hidden sm:inline">Télécharger</span>
+                                  </a>
+                                  <button onClick={() => handleSendGeneratedFile(file)} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-emerald-700 transition-colors">
+                                      <Send size={14} /> <span className="hidden sm:inline">Envoyer</span>
+                                  </button>
                                 </div>
-                            </a>
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -694,22 +681,14 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                     <Paperclip size={24} className="text-slate-500" /> Fichiers additionnels
                 </h3>
 
-                {/* Liste combinée des fichiers ajoutés manuellement ET fournis par le client */}
                 {(lead.clientFiles?.length > 0 || lead.manualFiles?.length > 0) && (
                   <div className="mb-8 space-y-4">
-                    
                     {/* Fichiers Client */}
                     {lead.clientFiles && lead.clientFiles.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Fournis par le client</p>
                         {lead.clientFiles.map((file, i) => (
-                           <a 
-                              key={`client-${i}`} 
-                              href={file.url} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors"
-                            >
+                           <a key={`client-${i}`} href={file.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors">
                               <div className="flex items-center gap-3 truncate">
                                 <Paperclip size={16} className="text-emerald-500 shrink-0" />
                                 <span className="text-sm font-bold text-emerald-900 truncate">{file.name}</span>
@@ -725,13 +704,7 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Ajoutés par le courtier</p>
                         {lead.manualFiles.map((file, i) => (
-                           <a 
-                              key={`manual-${i}`} 
-                              href={file.url} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
-                            >
+                           <a key={`manual-${i}`} href={file.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
                               <div className="flex items-center gap-3 truncate">
                                 <Paperclip size={16} className="text-slate-400 shrink-0" />
                                 <span className="text-sm font-bold text-slate-700 truncate">{file.name}</span>
@@ -746,7 +719,7 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
 
                 {/* Dropzone Courtier */}
                 <div 
-                  className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all ${isDragging ? 'border-indigo-500 bg-indigo-50 scale-[1.02]' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'} ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all ${isDragging ? 'border-indigo-500 bg-indigo-50 scale-[1.02]' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'} ${isUploading || isReanalyzing ? 'opacity-50 pointer-events-none' : ''}`}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
@@ -754,7 +727,12 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                   {isUploading ? (
                     <div className="flex flex-col items-center">
                       <Loader2 size={32} className="text-indigo-500 animate-spin mb-3" />
-                      <p className="text-sm font-bold text-slate-600">Envoi en cours...</p>
+                      <p className="text-sm font-bold text-slate-600">Envoi du fichier...</p>
+                    </div>
+                  ) : isReanalyzing ? (
+                    <div className="flex flex-col items-center">
+                      <Bot size={32} className="text-indigo-500 animate-bounce mb-3" />
+                      <p className="text-sm font-bold text-slate-600">L'IA re-vérifie le dossier...</p>
                     </div>
                   ) : (
                     <>
@@ -770,31 +748,317 @@ function DetailModal({ lead, onClose, onAssign, onGenerateReport }) {
                   )}
                 </div>
             </div>
-
-            {/* RAPPORT BANCAIRE */}
-            <div className="bg-indigo-950 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden flex items-center justify-between">
-              <div className="relative z-10">
-                <h3 className="text-xl font-black mb-2 flex items-center gap-2">
-                  <Printer className="text-indigo-400" /> Rapport Interne Banque
-                </h3>
-                <p className="text-indigo-200 text-sm max-w-md font-medium leading-relaxed">
-                  Générez un rapport PDF ou Word propre basé sur l'analyse préliminaire.
-                </p>
-              </div>
-              <button 
-                onClick={onGenerateReport}
-                disabled={!isReadyForBank}
-                className={`relative z-10 px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg flex items-center gap-3 shrink-0 ${isReadyForBank ? 'bg-indigo-500 hover:bg-indigo-400 text-white hover:scale-105' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
-              >
-                <FileText size={20} /> Exporter Document
-              </button>
-              <div className="absolute -right-10 -top-10 text-indigo-800/30 rotate-12"><FileText size={150}/></div>
-            </div>
             
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * ============================================================================
+ * COMPOSANT UI : SECTION AGENT IA (COMPACTE + MODAL + CHATBOX)
+ * ============================================================================
+ */
+function AgentAnalysisSection({ lead, isReanalyzing, broker }) {
+  const [editableNarrative, setEditableNarrative] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // États de l'assistant courriel
+  const [chatInput, setChatInput] = useState('');
+  const [isGeneratingMail, setIsGeneratingMail] = useState(false);
+  const [mailPreview, setMailPreview] = useState(null); 
+  
+  const analysis = lead?.agentAnalysis;
+
+  useEffect(() => {
+    if (analysis?.narrative) {
+      setEditableNarrative(analysis.narrative);
+    }
+  }, [analysis]);
+
+  const saveNarrativeToFirestore = async () => {
+    try {
+      const db = getFirestore();
+      await updateDoc(doc(db, 'leads_hypothecaires', lead.id), {
+        'agentAnalysis.narrative': editableNarrative
+      });
+    } catch (e) {
+      console.error("Erreur lors de la sauvegarde du narratif:", e);
+    }
+  };
+
+  // Demander à l'IA de rédiger le courriel
+  const handleAskAI = async () => {
+    if (!chatInput.trim()) return;
+    setIsGeneratingMail(true);
+    
+    try {
+      const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      const response = await axios.post(`${API_URL}/api/agent/draft-email`, {
+        leadId: lead.id,
+        instruction: chatInput,
+        missingDocs: analysis?.missing_documents || []
+      });
+      
+      setMailPreview(response.data.draft);
+      setChatInput('');
+    } catch (err) {
+      alert("Erreur lors de la rédaction du courriel.");
+    } finally {
+      setIsGeneratingMail(false);
+    }
+  };
+
+  // Envoi Officiel (L'Humain a dit OK)
+  const confirmAndSend = async () => {
+    try {
+      const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      await axios.post(`${API_URL}/api/broker/send-followup`, {
+        leadId: lead.id,
+        email: lead.clientEmail,
+        subject: "Action requise : Documents pour votre hypothèque",
+        htmlContent: mailPreview,
+        brokerName: broker.name,   // On transmet les infos du courtier !
+        brokerEmail: broker.email
+      });
+      alert("📧 Courriel envoyé avec succès !");
+      setMailPreview(null);
+    } catch (err) {
+      alert("Erreur lors de l'envoi.");
+    }
+  };
+
+  const getConfidenceBadge = (score) => {
+    switch (score) {
+      case 'Haute': return <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm"><CheckCircle size={14}/> Confiance Haute</span>;
+      case 'Moyenne': return <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm"><AlertCircle size={14}/> Confiance Moyenne</span>;
+      case 'Basse': return <span className="bg-rose-100 text-rose-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm"><AlertCircle size={14}/> Confiance Basse</span>;
+      default: return null;
+    }
+  };
+
+  return (
+    <>
+      {/* VUE COMPACTE DANS LA COLONNE GAUCHE */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm relative overflow-hidden">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+            <BrainCircuit size={16} className="text-indigo-500" /> Analyse IA du dossier
+          </h3>
+          {isReanalyzing && <RefreshCw size={14} className="text-indigo-400 animate-spin" />}
+        </div>
+
+        {isReanalyzing ? (
+           <div className="bg-indigo-50/50 rounded-2xl p-6 text-center border border-indigo-100 border-dashed">
+            <Loader2 className="animate-spin mx-auto mb-3 text-indigo-500" size={28} />
+            <p className="text-sm font-bold text-indigo-900">Re-vérification en cours...</p>
+            <p className="text-xs mt-1 text-indigo-500">L'IA analyse le nouveau document.</p>
+          </div>
+        ) : !analysis ? (
+           <div className="bg-slate-50 rounded-2xl p-6 text-center border border-slate-100 border-dashed">
+            <Loader2 className="animate-spin mx-auto mb-3 text-indigo-400" size={28} />
+            <p className="text-sm font-bold text-indigo-900">En attente d'analyse...</p>
+            <p className="text-xs mt-1 text-slate-500">L'Agent s'activera automatiquement après soumission.</p>
+          </div>
+        ) : (
+          <div 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 rounded-2xl p-5 hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer group relative"
+          >
+            <div className="absolute top-2 right-2 text-indigo-300 group-hover:text-indigo-500 transition-colors">
+              <Maximize2 size={16} />
+            </div>
+            
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles size={18} className="text-indigo-500" />
+                <span className="font-bold text-indigo-950 text-sm">Rapport prêt</span>
+              </div>
+              {getConfidenceBadge(analysis.confidence_score)}
+            </div>
+
+            <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed mb-4">
+              {analysis.narrative}
+            </p>
+
+            {/* NOUVEAU : Badges Documents Reçus */}
+            {analysis.received_documents && analysis.received_documents.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {analysis.received_documents.slice(0, 2).map((doc, i) => (
+                  <div key={i} className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                    <CheckCircle size={12} className="shrink-0" /> <span className="truncate max-w-[120px]">{doc}</span>
+                  </div>
+                ))}
+                {analysis.received_documents.length > 2 && (
+                  <div className="flex items-center text-[10px] font-bold text-emerald-600 px-1">
+                    +{analysis.received_documents.length - 2} autres
+                  </div>
+                )}
+              </div>
+            )}
+
+            {analysis.missing_documents && analysis.missing_documents.length > 0 ? (
+              <div className="flex items-center gap-2 text-xs font-bold text-rose-600 bg-rose-50 px-3 py-2 rounded-lg mb-3 border border-rose-100 w-fit">
+                <AlertCircle size={14} /> {analysis.missing_documents.length} document(s) manquant(s)
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg mb-3 border border-emerald-100 w-fit">
+                <CheckCircle size={14} /> Dossier Complet
+              </div>
+            )}
+
+            <div className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+              Ouvrir le rapport complet & Assistant <ChevronRight size={14} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL COMPLET AVEC ASSISTANT COURRIEL (OVERLAY) */}
+      {isModalOpen && analysis && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Header du Modal IA */}
+            <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 p-6 sm:p-8 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4 text-white">
+                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md">
+                  <Bot size={28} className="text-indigo-100" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight">Audit & Assistant IA</h2>
+                  <p className="text-indigo-200 text-sm font-medium">Analyse automatisée et communication</p>
+                </div>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors shrink-0">
+                <CloseIcon size={24}/>
+              </button>
+            </div>
+
+            {/* Contenu détaillé du Modal IA */}
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 bg-slate-50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                {/* Colonne Gauche : Conformité */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+                  <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                    <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest">Conformité</h4>
+                    {getConfidenceBadge(analysis.confidence_score)}
+                  </div>
+                  
+                  {/* NOUVEAU : Documents Validés par l'IA dans le Modal */}
+                  {analysis.received_documents && analysis.received_documents.length > 0 && (
+                    <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                      <p className="text-sm text-emerald-700 font-black mb-3 flex items-center gap-2">
+                        <CheckCircle size={18} /> Pièces justificatives validées :
+                      </p>
+                      <ul className="space-y-2">
+                        {analysis.received_documents.map((doc, idx) => (
+                          <li key={idx} className="text-xs font-bold text-emerald-800 flex items-start gap-2 bg-white p-2 rounded-lg shadow-sm border border-emerald-100/50">
+                            <CheckCircle size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                            <span>{doc}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.missing_documents && analysis.missing_documents.length > 0 ? (
+                    <div className="flex-1 bg-rose-50/50 p-5 rounded-xl border border-rose-100">
+                      <p className="text-sm text-rose-700 font-black mb-4 flex items-center gap-2">
+                        <AlertCircle size={18} /> Actions requises (Adjointe) :
+                      </p>
+                      <ul className="space-y-3">
+                        {analysis.missing_documents.map((doc, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex items-start gap-3 bg-white p-3 rounded-lg shadow-sm border border-rose-100/50 leading-relaxed">
+                            <span className="text-rose-500 mt-0.5 font-black shrink-0">•</span>
+                            <span>{doc}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="flex-1 bg-emerald-50 text-emerald-800 p-6 rounded-xl border border-emerald-100 flex flex-col items-center justify-center text-center gap-3">
+                      <CheckCircle size={40} className="text-emerald-500 mb-2" />
+                      <p className="font-black text-lg">Dossier complet.</p>
+                      <p className="text-emerald-700 text-sm font-medium">Les pièces justificatives semblent correspondre aux déclarations financières.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Colonne Droite : Narratif */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+                  <div className="mb-4 border-b border-slate-100 pb-4">
+                    <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
+                      <FileText size={18} className="text-indigo-500" />
+                      Narratif de recommandation
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      Ce texte est éditable. Modifiez-le avant la génération du PDF.
+                    </p>
+                  </div>
+                  
+                  <textarea
+                    value={editableNarrative}
+                    onChange={(e) => setEditableNarrative(e.target.value)}
+                    onBlur={saveNarrativeToFirestore} // Sauvegarde auto quand on clique ailleurs
+                    className="w-full flex-1 min-h-[200px] p-4 text-sm text-slate-700 bg-slate-50/80 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none resize-none transition-all leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* SECTION ASSISTANT COMMUNICATION */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-4">
+                <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Send size={18} className="text-indigo-500" /> Assistant Courriel (Suivi Client)
+                </h4>
+                
+                {mailPreview ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 animate-in slide-in-from-bottom-4">
+                    <p className="text-xs font-black text-amber-700 uppercase mb-3 flex items-center gap-2">
+                      <Bot size={14} /> Aperçu du courriel IA (En attente d'approbation)
+                    </p>
+                    <div 
+                      className="bg-white p-5 rounded-xl border border-amber-100 text-sm text-slate-700 mb-5 prose max-h-60 overflow-y-auto shadow-sm"
+                      dangerouslySetInnerHTML={{ __html: mailPreview }}
+                    />
+                    <div className="flex flex-wrap gap-3">
+                      <button onClick={confirmAndSend} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-sm">
+                        <CheckCircle size={18}/> Approuver et Envoyer via SendGrid
+                      </button>
+                      <button onClick={() => setMailPreview(null)} className="text-slate-500 font-bold text-sm px-4 py-2.5 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all">
+                        Annuler / Re-formuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input 
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Ex: Rédige un mail poli pour demander les talons de paie..."
+                      className="w-full bg-slate-50 border border-slate-200 p-4 pr-36 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-medium text-sm text-slate-700"
+                    />
+                    <button 
+                      onClick={handleAskAI}
+                      disabled={isGeneratingMail}
+                      className="absolute right-2 top-2 bottom-2 bg-indigo-600 text-white px-5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                    >
+                      {isGeneratingMail ? <Loader2 className="animate-spin" size={16} /> : <><Sparkles size={16}/> Rédiger</>}
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] font-bold text-slate-400 mt-3 text-center">
+                  L'IA intégrera automatiquement la liste des documents manquants. Un humain doit approuver l'envoi.
+                </p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -903,15 +1167,15 @@ function BankReportPrintView({ lead, onBack }) {
         </div>
 
         <div className="bg-slate-50 p-6 rounded-lg mb-10 border border-slate-200">
-          <h2 className="text-lg font-black uppercase mb-4 text-center">Indicateurs de Performance (Estimés)</h2>
-          <div className="grid grid-cols-2 gap-8 text-center">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">Amortissement Brut (ABD)</p>
-              <p className="text-3xl font-black">{abd}%</p>
+          <h2 className="text-lg font-black uppercase mb-6 text-center">Indicateurs de Performance (Estimés)</h2>
+          <div className="grid grid-cols-2 gap-8">
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col items-center justify-center shadow-sm">
+              <p className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-bold">Amortissement Brut (ABD)</p>
+              <p className="text-4xl font-black text-indigo-950">{abd}%</p>
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">Amortissement Total (ATD)</p>
-              <p className="text-3xl font-black">{atd}%</p>
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col items-center justify-center shadow-sm">
+              <p className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-bold">Amortissement Total (ATD)</p>
+              <p className="text-4xl font-black text-indigo-950">{atd}%</p>
             </div>
           </div>
         </div>

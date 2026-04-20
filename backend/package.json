@@ -16,7 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.89.0",
+    "@anthropic-ai/sdk": "^0.90.0",
     "@google-cloud/storage": "^7.19.0",
     "@sendgrid/mail": "^8.1.6",
     "axios": "^1.13.2",

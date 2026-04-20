@@ -111,6 +111,22 @@ export default function ClientPortal() {
         brokerEmail: leadData.assignedTo
       });
       
+      // 3. DÉCLENCHEMENT DE L'AGENT IA (En arrière-plan)
+      try {
+        // On n'attend pas la réponse (pas de 'await') pour ne pas faire patienter le client
+        axios.post(`${API_URL}/api/agent/analyze-lead`, { 
+          leadId: leadId,
+          leadData: { 
+            ...formData, 
+            attachments: uploadedFiles.map(a => a.name) // L'agent aura besoin des noms de fichiers
+          } 
+        });
+        console.log("Agent IA déclenché en arrière-plan.");
+      } catch (agentError) {
+        console.error("Erreur de lancement de l'Agent:", agentError);
+        // On ne bloque pas la soumission si l'agent échoue
+      }
+
       setSubmitted(true);
     } catch (error) {
       console.error(error);
