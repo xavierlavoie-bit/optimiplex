@@ -2616,7 +2616,90 @@ app.post('/api/agent/reanalyze-lead', async (req, res) => {
 // ====================================================================
 // 📧 ASSISTANT COURRIEL : RÉDACTION ET ENVOI
 // ====================================================================
+// quote
+app.post('/api/contact/quote', async (req, res) => {
+  try {
+    const { userId, productOfInterest, name, email, phone, teamSize, description } = req.body;
 
+    // 1. Validation de base (La description est maintenant optionnelle)
+    if (!email || !name) {
+      return res.status(400).json({ error: "Données obligatoires manquantes" });
+    }
+
+    // 2. Formatage du courriel pour toi (info@optimiplex.com)
+    const msg = {
+      to: 'info@optimiplex.com', // 🚀 Destination finale de la soumission
+      from: {
+        email: 'noreply@optimiplex.com', // Ton courriel vérifié dans SendGrid
+        name: 'Portail B2B Optimiplex'
+      },
+      replyTo: email, // Hyper pratique : tu pourras faire "Répondre" directement au prospect dans ton gestionnaire de courriels
+      subject: `🚨 Nouvelle demande B2B : ${productOfInterest} (${name})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <h2 style="color: #4f46e5; border-bottom: 2px solid #eef2ff; padding-bottom: 10px;">
+            Nouvelle demande de soumission B2B
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><strong>Produit ciblé :</strong></td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9; color: #4f46e5; font-weight: bold;">${productOfInterest}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><strong>Nom complet :</strong></td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><strong>Courriel :</strong></td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><a href="mailto:${email}">${email}</a></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><strong>Téléphone :</strong></td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;">${phone || '<i>Non spécifié</i>'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><strong>Taille de l'équipe :</strong></td>
+              <td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;">${teamSize}</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 30px; background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5;">
+            <h3 style="margin-top: 0; color: #334155; font-size: 14px; text-transform: uppercase;">Description des besoins :</h3>
+            <p style="color: #475569; line-height: 1.6; white-space: pre-wrap;">${description || '<i>Aucune description fournie.</i>'}</p>
+          </div>
+
+          <div style="margin-top: 30px; font-size: 12px; color: #94a3b8; text-align: center;">
+            ID Utilisateur Firestore : ${userId || 'Non connecté'}
+          </div>
+        </div>
+      `,
+    };
+
+    // 3. Envoi via SendGrid
+    await sgMail.send(msg);
+
+    // 4. (Optionnel) Historisation dans Firestore pour garder une trace de tes "Leads Entrants B2B"
+    const db = admin.firestore();
+    await db.collection('quote_requests').add({
+      userId: userId || null,
+      name,
+      email,
+      phone,
+      teamSize,
+      productOfInterest,
+      description: description || '',
+      status: 'nouveau', // Statut pour ton propre suivi interne
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, message: "Demande envoyée avec succès" });
+
+  } catch (error) {
+    console.error("❌ Erreur SendGrid (Quote):", error);
+    res.status(500).json({ error: "Erreur lors de l'envoi de la demande" });
+  }
+});
 // Générer le brouillon avec Claude
 app.post('/api/agent/draft-email', async (req, res) => {
   try {
@@ -2733,6 +2816,324 @@ app.post('/api/broker/send-file', async (req, res) => {
   }
 });
 
+// ============================================================================
+// 🏠 ROUTES CRM IMMOBILIER (Équivalent du CRM Hypothécaire)
+// ============================================================================
+
+app.post('/api/immo/quick-lead', async (req, res) => {
+  try {
+    const { formData, propertyDetails, clientType } = req.body;
+    const db = admin.firestore();
+
+    const leadRef = await db.collection('leads_immobiliers').add({
+      clientEmail: formData.email,
+      clientDetails: {
+        prenom: formData.prenom,
+        nom: formData.nom,
+        telephone: formData.telephone,
+        type: clientType || 'Acheteur'
+      },
+      propertyDetails: propertyDetails || {},
+      status: 'nouveau',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      source: 'bouton_propriete_direct'
+    });
+
+    const msg = {
+      to: 'xavier.lavoie@optimiplex.com', 
+      from: 'info@optimiplex.com', 
+      subject: `🚨 NOUVEAU LEAD IMMOBILIER : ${propertyDetails?.address || 'Recherche de propriété'}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2 style="color: #2563eb;">Nouveau Lead Immobilier (${clientType})</h2>
+          <div style="background: #eff6ff; padding: 15px; border-left: 4px solid #2563eb; margin-bottom: 20px;">
+            <strong>📍 Propriété / Cible :</strong><br/>
+            Adresse : <b>${propertyDetails?.address || 'Non spécifiée'}</b><br/>
+            Budget/Prix : <b>${propertyDetails?.price || 'À déterminer'}</b><br/>
+          </div>
+          <h3>Coordonnées du client :</h3>
+          <ul>
+            <li><strong>Prénom et Nom :</strong> ${formData.prenom} ${formData.nom}</li>
+            <li><strong>Courriel :</strong> ${formData.email}</li>
+            <li><strong>Téléphone :</strong> ${formData.telephone}</li>
+          </ul>
+          <p style="margin-top: 20px;">
+            <a href="https://optimiplex.com/crm-immo" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ouvrir le CRM Immobilier</a>
+          </p>
+        </div>
+      `
+    };
+    await sgMail.send(msg);
+
+    res.json({ success: true, id: leadRef.id });
+  } catch (error) {
+    console.error('Erreur quick-lead immo:', error);
+    res.status(500).json({ error: "Erreur lors de la création du dossier immobilier" });
+  }
+});
+
+app.post('/api/immo/assign', async (req, res) => {
+  try {
+    const { leadId, brokerEmail, brokerName, clientEmail } = req.body;
+    const db = admin.firestore();
+
+    await db.collection('leads_immobiliers').doc(leadId).update({
+      assignedTo: brokerEmail,
+      assignedBrokerName: brokerName,
+      status: 'preparation',
+      assignedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Courriel au Client
+    const clientMsg = {
+      to: clientEmail,
+      from: 'info@optimiplex.com', 
+      subject: `Votre projet immobilier est confié à ${brokerName}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Excellente nouvelle !</h2>
+          <p>Votre projet immobilier a été confié à notre expert(e) <strong>${brokerName}</strong>.</p>
+          <p>${brokerName} vous contactera très prochainement pour discuter des prochaines étapes de votre transaction.</p>
+        </div>
+      `
+    };
+
+    // Courriel au Courtier
+    const brokerMsg = {
+      to: brokerEmail,
+      from: 'info@optimiplex.com',
+      subject: `🎯 Nouveau dossier immobilier assigné: ${clientEmail}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Un nouveau dossier t'a été assigné</h2>
+          <p>Le client <strong>${clientEmail}</strong> t'a été attribué. Connecte-toi au CRM Immobilier pour voir les détails (Acheteur/Vendeur).</p>
+        </div>
+      `
+    };
+
+    await sgMail.send(clientMsg);
+    await sgMail.send(brokerMsg);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur assignation immo:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'assignation' });
+  }
+});
+
+app.post('/api/immo/send-followup', async (req, res) => {
+  try {
+    const { leadId, email, subject, htmlContent, brokerName, brokerEmail } = req.body;
+
+    if (!email || !htmlContent) return res.status(400).json({ error: "Données manquantes" });
+
+    const msg = {
+      to: email,
+      from: { email: brokerEmail || 'info@optimiplex.com', name: brokerName || "Optimiplex Immobilier" },
+      replyTo: brokerEmail || 'info@optimiplex.com',
+      subject: subject || "Mise à jour de votre dossier immobilier",
+      html: htmlContent,
+    };
+
+    await sgMail.send(msg);
+
+    const db = admin.firestore();
+    await db.collection('leads_immobiliers').doc(leadId).collection('history').add({
+      type: 'email_sent',
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      subject: subject
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur SendGrid Immo:", error);
+    res.status(500).json({ error: "Erreur lors de l'envoi du courriel" });
+  }
+});
+
+
+app.post('/api/immo/agent/draft-email', async (req, res) => {
+  try {
+    const { instruction, missingDocs, brokerName } = req.body;
+
+    const prompt = `
+      Tu es l'assistant personnel de ${brokerName || 'un courtier immobilier'}. 
+      Rédige le contenu HTML d'un courriel à envoyer au client (Acheteur ou Vendeur).
+      Documents manquants au dossier (s'il y a lieu) : ${missingDocs && missingDocs.length ? missingDocs.join(', ') : 'Aucun'}.
+      Instruction supplémentaire du courtier : "${instruction}".
+      
+      Directives de formatage :
+      - Utilise des balises HTML simples (<p>, <ul>, <li>, <strong>, <br>).
+      - Ton professionnel, rassurant et axé sur le marché immobilier.
+      - Signature : Termine par "Chaleureusement," suivi de "${brokerName || 'Votre courtier Immobilier'}".
+    `;
+
+    const message = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001', // Utilisation de Haiku pour plus de rapidité
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    res.json({ draft: message.content[0].text });
+  } catch (error) {
+    console.error("❌ Erreur génération brouillon immo:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+// ====================================================================
+// 🧠 AGENT IA IMMOBILIER (CLAUDE SESSIONS)
+// ====================================================================
+async function runImmoAgentAnalysis(leadId, leadData, manualFiles = []) {
+  // 👉 NOUVELLE VARIABLE D'ENVIRONNEMENT POUR L'AGENT IMMO
+  const AGENT_ID = process.env.ANTHROPIC_AGENT_ID_IMMO || "agent_immo_default";
+  const ENV_ID = process.env.ANTHROPIC_ENVIRONMENT_ID; 
+
+  console.log(`🤖 Démarrage de la Session IA Immo (Agent: ${AGENT_ID}) pour le dossier: ${leadId}`);
+
+  const sessionOptions = {
+    agent: AGENT_ID,
+    title: `Dossier Immo ${leadData.clientDetails?.prenom || ''} ${leadData.clientDetails?.nom || leadId}`,
+  };
+  if (ENV_ID) sessionOptions.environment_id = ENV_ID;
+
+  const session = await claude.beta.sessions.create(sessionOptions);
+
+  // Fusion des noms de fichiers pour que l'IA voie TOUT ce qui a été déposé
+  const allAttachedFiles = [
+    ...(leadData.clientFiles ? leadData.clientFiles.map(f => f.name) : []),
+    ...manualFiles.map(f => f.name)
+  ];
+
+  const dataForAI = {
+    ...leadData,
+    attachments: allAttachedFiles 
+  };
+
+  await claude.beta.sessions.events.send(session.id, {
+    events: [{
+      type: "user.message",
+      content: [{ type: "text", text: `Voici les données du dossier immobilier et les documents au dossier :\n\n${JSON.stringify(dataForAI, null, 2)}` }],
+    }],
+  });
+
+  const stream = await claude.beta.sessions.events.stream(session.id);
+  
+  let agentAnalysis = null;
+  let fallbackText = "";
+
+  for await (const event of stream) {
+    if (event.type === "agent.custom_tool_use" || event.type === "agent.tool_use") {
+      // ⚠️ IMPORTANT: Assure-toi de nommer l'outil 'submit_real_estate_analysis' dans la console Claude !
+      if (event.name === "submit_real_estate_analysis") {
+        agentAnalysis = event.input;
+      }
+    } else if (event.type === "agent.message") {
+      for (const block of event.content) {
+        if (block.type === "text") {
+          fallbackText += block.text + "\n";
+        }
+      }
+    } else if (event.type === "session.status_idle") {
+      break;
+    }
+  }
+
+  if (!agentAnalysis) {
+    try {
+      // Tente de parser le texte brut si l'IA n'a pas utilisé l'outil
+      const jsonMatch = fallbackText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+         agentAnalysis = JSON.parse(jsonMatch[0]);
+      } else {
+         throw new Error("No JSON found");
+      }
+    } catch (err) {
+      agentAnalysis = {
+        confidence_score: "Moyenne",
+        missing_documents: ["⚠️ Analyse textuelle générée sans formatage strict."],
+        narrative: fallbackText 
+      };
+    }
+  }
+
+  const db = admin.firestore(); 
+  await db.collection('leads_immobiliers').doc(leadId).update({
+    agentAnalysis: agentAnalysis,
+    agentStatus: 'completed'
+  });
+
+  return agentAnalysis;
+}
+
+app.post('/api/immo/agent/run-task', async (req, res) => {
+  try {
+    const { leadId, leadData, instruction } = req.body;
+    
+    const AGENT_ID = process.env.ANTHROPIC_AGENT_ID_IMMO || "agent_immo_default";
+    const ENV_ID = process.env.ANTHROPIC_ENVIRONMENT_ID; 
+    
+    // 1. Démarrer la session avec Claude
+    const sessionOptions = {
+      agent: AGENT_ID,
+      title: `Tâche IA Immo - ${leadData.clientDetails?.prenom || leadId}`
+    };
+    if (ENV_ID) sessionOptions.environment_id = ENV_ID;
+
+    const session = await claude.beta.sessions.create(sessionOptions);
+
+    // 2. Préparer le contexte
+    const dataForAI = {
+      ...leadData,
+      attachments: leadData.clientFiles ? leadData.clientFiles.map(f => f.name) : []
+    };
+
+    // 3. Envoyer le prompt à la session
+    const prompt = `Voici le dossier immobilier : \n${JSON.stringify(dataForAI, null, 2)}\n\nINSTRUCTION REQUISE : ${instruction}\n\nRéponds uniquement avec le contenu demandé. N'utilise pas d'introduction (comme "Voici la réponse"). Si des documents pertinents ne sont pas présents, utilise ton intelligence pour générer un résultat cohérent ou le signaler.`;
+
+    await claude.beta.sessions.events.send(session.id, {
+      events: [{ type: "user.message", content: [{ type: "text", text: prompt }] }]
+    });
+
+    // 4. Écouter et récupérer la réponse
+    const stream = await claude.beta.sessions.events.stream(session.id);
+    let aiResponse = "";
+    
+    for await (const event of stream) {
+      if (event.type === "agent.message") {
+        for (const block of event.content) {
+          if (block.type === "text") {
+            aiResponse += block.text;
+          }
+        }
+      }
+      
+      // 🚀 LA CORRECTION EST ICI : 
+      // Dès que l'Agent a fini de répondre ("session.status_idle"), on coupe le flux pour renvoyer la réponse au Frontend immédiatement !
+      if (event.type === "session.status_idle" || event.type === "error") {
+        break;
+      }
+    }
+    
+    res.json({ result: aiResponse });
+  } catch (error) {
+    console.error("Erreur Agent Run-Task:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Routes d'appel
+app.post('/api/immo/agent/analyze-lead', async (req, res) => {
+  try {
+    const { leadId, leadData } = req.body;
+    if (!leadId || !leadData) return res.status(400).json({ error: "Données manquantes." });
+    
+    await runImmoAgentAnalysis(leadId, leadData, []);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Erreur lors de l'analyse IA Immo:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // ====================================================================
 // ℹ️ GET QUOTA INFO (MIS À JOUR AVEC CRÉDITS)
 // ====================================================================

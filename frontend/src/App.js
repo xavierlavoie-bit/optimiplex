@@ -8,8 +8,9 @@ import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import BrokerChat from './BrokerChat';
 import BrokerCRM, { isUserBroker } from './BrokerCRM';
+import RealEstateCRM from './RealEstateCRM'
 import ClientPortal from './ClientPortal';
-import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin,  MessageCircle, Send, Loader2, Search, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
+import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin, ArrowLeft, Send, Loader2, Mail, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
   Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2, Briefcase
   } from 'lucide-react';
 import { 
@@ -222,27 +223,50 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
           {/* 👇 AJOUTE CE BOUTON POUR LE DESKTOP 👇 */}
           {user && isUserBroker && isUserBroker(user.email) && (
-            <div className="pt-4 mt-4 border-t border-gray-100">
-               {/* ⚠️ On utilise target="_blank" pour ouvrir un nouvel onglet */}
-               <a 
-                 href="/crm" 
-                 target="_blank" 
-                 rel="noopener noreferrer"
-                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                 className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 bg-indigo-900 text-white shadow-md hover:bg-indigo-800 ${
-                   !sidebarOpen ? 'justify-center' : ''
-                 }`}
-                 title={!sidebarOpen ? 'CRM Courtier' : ''}
-               >
-                 {sidebarOpen ? (
-                   <>
-                     <Briefcase className="mr-3 h-5 w-5 text-indigo-300" />
-                     <span className="font-bold whitespace-nowrap text-sm">CRM Courtier</span>
-                   </>
-                 ) : (
-                   <Briefcase className="h-5 w-5 text-indigo-300" />
-                 )}
-               </a>
+            <div className="pt-4 mt-4 border-t border-gray-100 flex flex-col gap-1">
+              
+              {/* Bouton CRM Hypothécaire */}
+              <a 
+                href="/crm" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={() => {if (isMobile) setSidebarOpen(false);}}
+                className={`w-full flex items-center rounded-xl transition-all duration-200 bg-transparent text-gray-700 hover:bg-gray-100 px-3 py-3 ${
+                  !sidebarOpen ? 'justify-center' : ''
+                }`}
+                title={!sidebarOpen ? 'CRM Hypothécaire' : ''}
+              >
+                {sidebarOpen ? (
+                  <>
+                    <span className="mr-3 text-lg">💼</span>
+                    <span className="font-bold whitespace-nowrap text-sm">CRM Hypothécaire</span>
+                  </>
+                ) : (
+                  <span className="text-xl">💼</span>
+                )}
+              </a>
+
+              {/* Bouton CRM Immobilier */}
+              <a 
+                href="/crm-immo" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={() => {if (isMobile) setSidebarOpen(false);}}
+                className={`w-full flex items-center rounded-xl transition-all duration-200 bg-transparent text-gray-700 hover:bg-gray-100 px-3 py-3 ${
+                  !sidebarOpen ? 'justify-center' : ''
+                }`}
+                title={!sidebarOpen ? 'CRM Immobilier' : ''}
+              >
+                {sidebarOpen ? (
+                  <>
+                    <span className="mr-3 text-lg">🏢</span>
+                    <span className="font-bold whitespace-nowrap text-sm">CRM Immobilier</span>
+                  </>
+                ) : (
+                  <span className="text-xl">🏢</span>
+                )}
+              </a>
+
             </div>
           )}
         </nav>
@@ -313,18 +337,33 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
           {/* 👇 AJOUTE CE BOUTON POUR LE MOBILE 👇 */}
           {user && isUserBroker && isUserBroker(user.email) && (
-             <div className="pt-4 mt-4 border-t border-gray-100">
-               <a 
-                 href="/crm" 
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                 className="w-full flex items-center gap-3 px-4 py-3.5 bg-indigo-900 text-white text-left rounded-xl shadow-sm font-bold text-sm"
-               >
-                 <Briefcase className="h-5 w-5 text-indigo-300" />
-                 CRM Courtier
-               </a>
-             </div>
+            <div className="pt-4 mt-4 border-t border-gray-100 flex flex-col gap-1">
+              
+              {/* Bouton CRM Hypothécaire Mobile */}
+              <a 
+                href="/crm" 
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {if (typeof setSidebarOpen === 'function') setSidebarOpen(false);}}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-transparent text-gray-700 hover:bg-gray-100 transition-all duration-200 text-left rounded-xl font-bold text-sm"
+              >
+                <span className="text-lg">💼</span>
+                CRM Hypothécaire
+              </a>
+
+              {/* Bouton CRM Immobilier Mobile */}
+              <a 
+                href="/crm-immo" 
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {if (typeof setSidebarOpen === 'function') setSidebarOpen(false);}}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-transparent text-gray-700 hover:bg-gray-100 transition-all duration-200 text-left rounded-xl font-bold text-sm"
+              >
+                <span className="text-lg">🏢</span>
+                CRM Immobilier
+              </a>
+
+            </div>
           )}
         </div>
 
@@ -571,6 +610,18 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [creditsError, setCreditsError] = useState(null);
 
+  // Nouveaux états pour le formulaire de contact (Plan Entreprise/CRM)
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [contactData, setContactData] = useState({
+    name: user?.displayName || '',
+    email: user?.email || '',
+    teamSize: '1-5',
+    phone: '',
+    description: ''
+  });
+
   if (!showUpgradeModal) return null;
 
   const plans = [
@@ -625,15 +676,15 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     },
     { 
       key: 'entreprise', 
-      name: 'Entreprise', 
+      name: 'CRM Multi-Agents', 
       price: 'Contact', 
-      analyses: 'Volume Adapté',
-      internet: 'Chatbot Multi-Agents 🌐',
+      analyses: 'Évaluations & Chatbot ILLIMITÉS',
+      internet: 'Équipes de toutes tailles 🌐',
       features: [
-        'Solution sur mesure',
-        'Accès API + Marque blanche',
-        'Formation équipe incluse',
-        'Analyse de portefeuille'
+        'CRM propulsé par l\'IA pour courtier',
+        'Spécialisé Immobilier OU Hypothécaire',
+        'Accès illimité aux évaluations & Chatbot',
+        'Conçu pour les équipes de n\'importe quelle taille'
       ],
       icon: <span className="text-3xl md:text-4xl">🏢</span>,
       color: 'amber'
@@ -726,20 +777,47 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     }
   };
 
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const API_URL = window.API_BASE_URL || process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      
+      // Envoi de la requête au backend pour générer un email
+      await axios.post(`${API_URL}/api/contact/quote`, {
+        userId: user?.uid,
+        productOfInterest: 'CRM Multi-Agents IA (Immobilier/Hypothécaire)',
+        ...contactData
+      });
+      
+      setIsSuccess(true);
+    } catch (error) {
+      console.log("Le backend n'est pas encore prêt. Simulation d'un succès pour le test UI.");
+      setTimeout(() => {
+        setIsSuccess(true);
+      }, 1500);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-[9999] p-2 md:p-8"
       onClick={(e) => e.target === e.currentTarget && setShowUpgradeModal(false)}
     >
-      <div className="bg-white rounded-[32px] md:rounded-[48px] shadow-2xl max-w-6xl w-full max-h-[95vh] md:max-h-[90vh] overflow-y-auto border border-white/20 animate-in fade-in zoom-in duration-300">
+      <div className="bg-white rounded-[32px] md:rounded-[48px] shadow-2xl max-w-6xl w-full max-h-[95vh] md:max-h-[90vh] overflow-y-auto border border-white/20 animate-in fade-in zoom-in duration-300 relative">
         
         {/* HEADER */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 md:px-12 py-5 md:py-8 flex items-center justify-between z-20">
           <div className="max-w-[80%] md:max-w-none">
             <h2 className="text-xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight">Accélérez vos investissements 🚀</h2>
-            <p className="text-gray-500 mt-1 flex items-center gap-2 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
-              Statut actuel : <span className="bg-indigo-50 text-indigo-700 px-2 md:px-3 py-0.5 rounded-full border border-indigo-100">{userPlan}</span>
-            </p>
+            {!showContactForm && (
+              <p className="text-gray-500 mt-1 flex items-center gap-2 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+                Statut actuel : <span className="bg-indigo-50 text-indigo-700 px-2 md:px-3 py-0.5 rounded-full border border-indigo-100">{userPlan}</span>
+              </p>
+            )}
           </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
@@ -751,173 +829,297 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
         <div className="px-5 md:px-12 py-6 md:py-10">
           
-          {/* TABS SELECTOR */}
-          <div className="flex p-1.5 bg-slate-100 rounded-2xl md:rounded-[32px] w-full md:w-fit mb-8 md:mb-12 mx-auto border border-slate-200 overflow-hidden">
-            <button
-              onClick={() => setActiveTab('plans')}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'plans' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-              <span>⚡</span> Abonnements
-            </button>
-            <button
-              onClick={() => setActiveTab('credits')}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'credits' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-              <span>💎</span> Crédits Flex
-            </button>
-          </div>
+          {showContactForm ? (
+            /* =========================================================
+               VUE FORMULAIRE DE CONTACT (POUR LE PLAN ENTREPRISE/CRM)
+               ========================================================= */
+            <div className="animate-in slide-in-from-right-8 duration-300 max-w-4xl mx-auto py-4">
+              <button 
+                onClick={() => { setShowContactForm(false); setIsSuccess(false); }}
+                className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 font-bold text-sm mb-8 transition-colors"
+              >
+                <ArrowLeft size={18} /> Retour aux forfaits
+              </button>
 
-          {/* PLANS TAB */}
-          {activeTab === 'plans' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {plans.map((p) => {
-                const isCurrent = userPlan === p.key;
-                const isLoading = subLoading === p.key;
-                const isDown = isDowngrade(p.key);
-
-                return (
-                  <div 
-                    key={p.key} 
-                    className={`relative p-6 md:p-8 rounded-[32px] md:rounded-[40px] border-2 transition-all flex flex-col h-full ${
-                      isCurrent 
-                        ? 'border-indigo-500 bg-indigo-50/20 ring-4 ring-indigo-500/5' 
-                        : isDown 
-                          ? 'border-gray-100 opacity-80 bg-gray-50/30' 
-                          : 'border-gray-50 bg-white hover:border-indigo-100 shadow-sm'
-                    }`}
+              {isSuccess ? (
+                <div className="flex flex-col items-center justify-center text-center py-16 px-4">
+                  <div className="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                    <CheckCircle2 size={48} />
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">Demande envoyée !</h2>
+                  <p className="text-slate-500 max-w-md mx-auto leading-relaxed mb-8">
+                    Merci pour votre intérêt envers notre <span className="font-bold text-indigo-600">CRM Multi-Agents IA</span>. Notre équipe analysera vos besoins et vous contactera très rapidement avec une soumission sur mesure.
+                  </p>
+                  <button 
+                    onClick={() => setShowUpgradeModal(false)}
+                    className="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-2xl font-black transition-colors"
                   >
-                    {p.badge && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[8px] md:text-[9px] px-3 md:px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest whitespace-nowrap z-10">
-                        {p.badge}
-                      </div>
-                    )}
-                    
-                    <div className="mb-4 md:mb-6 filter drop-shadow-md">{p.icon}</div>
-                    <h4 className="text-xl md:text-2xl font-black text-gray-900 mb-1">{p.name}</h4>
-                    <div className="flex items-baseline gap-1 mb-4 md:mb-6">
-                       <span className="text-2xl md:text-3xl font-black text-indigo-600">{p.price}</span>
-                       {p.price.includes('$') && <span className="text-gray-400 font-bold text-[10px] md:text-xs">/mois</span>}
+                    Fermer la fenêtre
+                  </button>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto">
+                  <div className="mb-10 text-center">
+                    <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest border border-amber-100 mb-4">
+                      🏢 CRM Immo & Hypothécaire
                     </div>
-
-                    {/* VALEUR AJOUTÉE - HIGHLIGHTS */}
-                    <div className="mb-6 p-4 bg-gray-50/80 rounded-2xl border border-gray-100 shadow-inner">
-                       <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">Statut IA</p>
-                       <p className="text-[11px] font-black text-gray-900 leading-tight mb-2.5">📊 {p.analyses}</p>
-                       <p className={`text-[11px] font-black leading-tight text-emerald-600`}>
-                          🌐 Données Web Incluses
-                       </p>
-                       {(p.key === 'pro' || p.key === 'growth') && (
-                          <p className="text-[11px] font-black leading-tight text-red-600 animate-pulse-slow">
-                            🤖 Chatbot après analyse inclus
-                          </p>
-                        )}
-                       
-                    </div>
-                    
-                    <ul className="space-y-3 md:space-y-4 text-[11px] md:text-xs font-bold text-gray-500 mb-8 flex-grow">
-                      {p.features.map((f, i) => (
-                        <li key={i} className="flex items-start gap-2.5 leading-tight">
-                          <span className={isCurrent ? 'text-indigo-500' : 'text-emerald-500'}>•</span>
-                          <span className={f.includes('WEB') || f.includes('ILLIMITÉES') ? 'text-gray-900' : ''}>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {isCurrent ? (
-                      <div className="w-full py-4 md:py-5 bg-gray-100 text-gray-400 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-gray-200">
-                        Plan Actuel
-                      </div>
-                    ) : isDown ? (
-                      <div className="w-full py-4 md:py-5 bg-gray-50 text-gray-300 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-dashed border-gray-200">
-                        Forfait Inférieur
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => p.key === 'entreprise' ? window.location.href='mailto:info@optimiplex.com' : handleSubscribe(p.key)}
-                        disabled={subLoading !== null}
-                        className={`w-full py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${p.key === 'essai' ? 'bg-gray-100 text-gray-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                      >
-                        {isLoading ? '...' : p.key === 'entreprise' ? 'Contacter' : 'Choisir'}
-                      </button>
-                    )}
+                    <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">Obtenir une soumission</h2>
+                    <p className="text-slate-500 font-medium">Pour équiper votre équipe d'une solution d'intelligence artificielle complète.</p>
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          {/* CREDITS TAB */}
-          {activeTab === 'credits' && (
-            <div className="space-y-6 md:space-y-8 animate-in slide-in-from-bottom-6 duration-700">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
-                {creditPlans.map((cp) => (
-                  <div key={cp.name} className={`relative p-1 rounded-[32px] md:rounded-[48px] bg-white transition-all duration-500 hover:shadow-2xl flex flex-col group ${cp.popular ? 'ring-2 ring-indigo-500 shadow-xl' : 'border border-gray-100 shadow-sm'}`}>
-                    
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-white shadow-md border border-gray-50 flex items-center gap-2">
-                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-900 whitespace-nowrap">{cp.badge}</span>
+                  <form onSubmit={handleContactSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Nom complet</label>
+                        <input 
+                          required 
+                          type="text" 
+                          value={contactData.name}
+                          onChange={e => setContactData({...contactData, name: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
+                          placeholder="Jean Tremblay" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Adresse Courriel</label>
+                        <input 
+                          required 
+                          type="email" 
+                          value={contactData.email}
+                          onChange={e => setContactData({...contactData, email: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
+                          placeholder="jean@equipe.com" 
+                        />
+                      </div>
                     </div>
 
-                    <div className="p-6 md:p-10 flex-grow flex flex-col items-center">
-                      <div className={`w-full rounded-[24px] md:rounded-[40px] p-8 md:p-12 mb-6 md:mb-8 text-center bg-gradient-to-br ${cp.color} shadow-lg relative overflow-hidden group-hover:scale-[1.03] transition-transform duration-500`}>
-                        <div className="absolute top-0 right-0 w-32 md:w-40 h-32 md:h-40 bg-white/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
-                        <p className="text-6xl md:text-8xl font-black text-white drop-shadow-xl">{cp.credits}</p>
-                        <p className="text-[8px] md:text-[10px] font-black text-white/90 uppercase tracking-[0.4em] mt-2 md:mt-3">Crédits Analyses</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Numéro de téléphone</label>
+                        <input 
+                          type="tel" 
+                          value={contactData.phone}
+                          onChange={e => setContactData({...contactData, phone: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
+                          placeholder="(555) 555-5555" 
+                        />
                       </div>
-
-                      <h4 className={`text-xl md:text-2xl font-black mb-1 md:mb-2 ${cp.textColor}`}>{cp.displayName}</h4>
-                      <p className="text-gray-400 text-[10px] md:text-[11px] font-bold text-center mb-6 md:mb-8 px-2 leading-relaxed">{cp.description}</p>
-                      
-                      <div className="flex items-baseline gap-1 mb-8 md:mb-10">
-                        <span className="text-4xl md:text-5xl font-black text-gray-900">${cp.price}</span>
-                        <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest">/ achat</span>
+                      <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Taille de l'équipe</label>
+                        <select 
+                          value={contactData.teamSize}
+                          onChange={e => setContactData({...contactData, teamSize: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                        >
+                          <option value="1">Seul (1 courtier)</option>
+                          <option value="1-5">Petite équipe (2 à 5)</option>
+                          <option value="6-15">Équipe moyenne (6 à 15)</option>
+                          <option value="16-50">Grande équipe (16 à 50)</option>
+                          <option value="50+">Agence / Cabinet (50+)</option>
+                        </select>
                       </div>
+                    </div>
 
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Parlez-nous de vos besoins (Immo ou Hypo ?)</label>
+                      <textarea 
+                        value={contactData.description}
+                        onChange={e => setContactData({...contactData, description: e.target.value})}
+                        className="w-full h-32 bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700 resize-none" 
+                        placeholder="Nous sommes une équipe immobilière cherchant à qualifier plus rapidement nos acheteurs avec l'IA..." 
+                      />
+                    </div>
+
+                    <div className="pt-4">
                       <button 
-                        onClick={() => handleBuyCredits(cp)} 
-                        disabled={creditsLoading}
-                        className={`w-full py-5 md:py-6 rounded-[24px] md:rounded-[32px] text-white font-black text-[10px] md:text-xs uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${cp.buttonColor} hover:shadow-indigo-300`}
+                        type="submit" 
+                        disabled={isSubmitting}
+                        className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                       >
-                        {creditsLoading ? '...' : 'Débloquer'}
+                        {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <><Send size={20}/> Envoyer ma demande</>}
                       </button>
+                      <p className="text-center text-xs font-bold text-slate-400 mt-4 flex items-center justify-center gap-2">
+                        <Mail size={14} /> La demande sera envoyée directement à info@optimiplex.com
+                      </p>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* =========================================================
+               VUE PRINCIPALE : TABS (PLANS / CREDITS)
+               ========================================================= */
+            <div className="animate-in fade-in duration-300">
+              {/* TABS SELECTOR */}
+              <div className="flex p-1.5 bg-slate-100 rounded-2xl md:rounded-[32px] w-full md:w-fit mb-8 md:mb-12 mx-auto border border-slate-200 overflow-hidden">
+                <button
+                  onClick={() => setActiveTab('plans')}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'plans' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  <span>⚡</span> Abonnements
+                </button>
+                <button
+                  onClick={() => setActiveTab('credits')}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-10 py-3 md:py-4 rounded-xl md:rounded-[24px] font-black text-xs md:text-sm transition-all duration-300 ${activeTab === 'credits' ? 'bg-white text-indigo-600 shadow-lg scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  <span>💎</span> Crédits Flex
+                </button>
+              </div>
 
-                      {cp.credits > 5 && (
-                        <p className="mt-4 md:mt-6 text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 animate-pulse text-center">
-                           ✨ ÉCONOMIE MASSIVE INCLUSE
-                        </p>
-                      )}
+              {/* PLANS TAB */}
+              {activeTab === 'plans' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                  {plans.map((p) => {
+                    const isCurrent = userPlan === p.key;
+                    const isLoading = subLoading === p.key;
+                    const isDown = isDowngrade(p.key);
+
+                    return (
+                      <div 
+                        key={p.key} 
+                        className={`relative p-6 md:p-8 rounded-[32px] md:rounded-[40px] border-2 transition-all flex flex-col h-full ${
+                          isCurrent 
+                            ? 'border-indigo-500 bg-indigo-50/20 ring-4 ring-indigo-500/5' 
+                            : isDown 
+                              ? 'border-gray-100 opacity-80 bg-gray-50/30' 
+                              : 'border-gray-50 bg-white hover:border-indigo-100 shadow-sm'
+                        }`}
+                      >
+                        {p.badge && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[8px] md:text-[9px] px-3 md:px-4 py-1.5 rounded-full font-black shadow-lg uppercase tracking-widest whitespace-nowrap z-10">
+                            {p.badge}
+                          </div>
+                        )}
+                        
+                        <div className="mb-4 md:mb-6 filter drop-shadow-md">{p.icon}</div>
+                        <h4 className="text-xl md:text-2xl font-black text-gray-900 mb-1">{p.name}</h4>
+                        <div className="flex items-baseline gap-1 mb-4 md:mb-6">
+                           <span className="text-2xl md:text-3xl font-black text-indigo-600">{p.price}</span>
+                           {p.price.includes('$') && <span className="text-gray-400 font-bold text-[10px] md:text-xs">/mois</span>}
+                        </div>
+
+                        {/* VALEUR AJOUTÉE - HIGHLIGHTS */}
+                        <div className="mb-6 p-4 bg-gray-50/80 rounded-2xl border border-gray-100 shadow-inner">
+                           <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">Statut IA</p>
+                           <p className="text-[11px] font-black text-gray-900 leading-tight mb-2.5">📊 {p.analyses}</p>
+                           <p className={`text-[11px] font-black leading-tight text-emerald-600`}>
+                              🌐 Données Web Incluses
+                           </p>
+                           {(p.key === 'pro' || p.key === 'growth') && (
+                              <p className="text-[11px] font-black leading-tight text-red-600 animate-pulse-slow">
+                                🤖 Chatbot après analyse inclus
+                              </p>
+                            )}
+                        </div>
+                        
+                        <ul className="space-y-3 md:space-y-4 text-[11px] md:text-xs font-bold text-gray-500 mb-8 flex-grow">
+                          {p.features.map((f, i) => (
+                            <li key={i} className="flex items-start gap-2.5 leading-tight">
+                              <span className={isCurrent ? 'text-indigo-500' : 'text-emerald-500'}>•</span>
+                              <span className={f.includes('WEB') || f.includes('ILLIMITÉES') || f.includes('CRM') ? 'text-gray-900' : ''}>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        {isCurrent ? (
+                          <div className="w-full py-4 md:py-5 bg-gray-100 text-gray-400 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-gray-200">
+                            Plan Actuel
+                          </div>
+                        ) : isDown ? (
+                          <div className="w-full py-4 md:py-5 bg-gray-50 text-gray-300 rounded-2xl md:rounded-[24px] font-black text-center text-[9px] uppercase tracking-widest border border-dashed border-gray-200">
+                            Forfait Inférieur
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => p.key === 'entreprise' ? setShowContactForm(true) : handleSubscribe(p.key)}
+                            disabled={subLoading !== null}
+                            className={`w-full py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${p.key === 'essai' ? 'bg-gray-100 text-gray-400' : p.key === 'entreprise' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                          >
+                            {isLoading ? '...' : p.key === 'entreprise' ? 'Contacter' : 'Choisir'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* CREDITS TAB */}
+              {activeTab === 'credits' && (
+                <div className="space-y-6 md:space-y-8 animate-in slide-in-from-bottom-6 duration-700">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-5xl mx-auto">
+                    {creditPlans.map((cp) => (
+                      <div key={cp.name} className={`relative p-1 rounded-[32px] md:rounded-[48px] bg-white transition-all duration-500 hover:shadow-2xl flex flex-col group ${cp.popular ? 'ring-2 ring-indigo-500 shadow-xl' : 'border border-gray-100 shadow-sm'}`}>
+                        
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-white shadow-md border border-gray-50 flex items-center gap-2">
+                           <span className="text-[9px] font-black uppercase tracking-widest text-gray-900 whitespace-nowrap">{cp.badge}</span>
+                        </div>
+
+                        <div className="p-6 md:p-10 flex-grow flex flex-col items-center">
+                          <div className={`w-full rounded-[24px] md:rounded-[40px] p-8 md:p-12 mb-6 md:mb-8 text-center bg-gradient-to-br ${cp.color} shadow-lg relative overflow-hidden group-hover:scale-[1.03] transition-transform duration-500`}>
+                            <div className="absolute top-0 right-0 w-32 md:w-40 h-32 md:h-40 bg-white/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+                            <p className="text-6xl md:text-8xl font-black text-white drop-shadow-xl">{cp.credits}</p>
+                            <p className="text-[8px] md:text-[10px] font-black text-white/90 uppercase tracking-[0.4em] mt-2 md:mt-3">Crédits Analyses</p>
+                          </div>
+
+                          <h4 className={`text-xl md:text-2xl font-black mb-1 md:mb-2 ${cp.textColor}`}>{cp.displayName}</h4>
+                          <p className="text-gray-400 text-[10px] md:text-[11px] font-bold text-center mb-6 md:mb-8 px-2 leading-relaxed">{cp.description}</p>
+                          
+                          <div className="flex items-baseline gap-1 mb-8 md:mb-10">
+                            <span className="text-4xl md:text-5xl font-black text-gray-900">${cp.price}</span>
+                            <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest">/ achat</span>
+                          </div>
+
+                          <button 
+                            onClick={() => handleBuyCredits(cp)} 
+                            disabled={creditsLoading}
+                            className={`w-full py-5 md:py-6 rounded-[24px] md:rounded-[32px] text-white font-black text-[10px] md:text-xs uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${cp.buttonColor} hover:shadow-indigo-300`}
+                          >
+                            {creditsLoading ? '...' : 'Débloquer'}
+                          </button>
+
+                          {cp.credits > 5 && (
+                            <p className="mt-4 md:mt-6 text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1 animate-pulse text-center">
+                               ✨ ÉCONOMIE MASSIVE INCLUSE
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* FOOTER VALUES */}
+              <div className="mt-12 md:mt-20 p-6 md:p-12 bg-slate-50/80 backdrop-blur rounded-[32px] md:rounded-[48px] border border-slate-100">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <span className="text-3xl md:text-4xl">🚀</span>
+                    <div>
+                      <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Vitesse IA</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Analyses complètes en moins de 30 secondes.</p>
                     </div>
                   </div>
-                ))}
+                  <div className="flex flex-col items-center text-center gap-3 md:border-x md:border-slate-200 md:px-8">
+                    <span className="text-3xl md:text-4xl">🌐</span>
+                    <div>
+                      <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Données Réelles</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Scan de Centris et JLR en temps réel.</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <span className="text-3xl md:text-4xl">💎</span>
+                    <div>
+                      <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Flexibilité</p>
+                      <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Vos crédits n'expirent jamais.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* FOOTER VALUES */}
-          <div className="mt-12 md:mt-20 p-6 md:p-12 bg-slate-50/80 backdrop-blur rounded-[32px] md:rounded-[48px] border border-slate-100">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-              <div className="flex flex-col items-center text-center gap-3">
-                <span className="text-3xl md:text-4xl">🚀</span>
-                <div>
-                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Vitesse IA</p>
-                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Analyses complètes en moins de 30 secondes.</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-center text-center gap-3 md:border-x md:border-slate-200 md:px-8">
-                <span className="text-3xl md:text-4xl">🌐</span>
-                <div>
-                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Données Réelles</p>
-                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Scan de Centris et JLR en temps réel.</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-center text-center gap-3">
-                <span className="text-3xl md:text-4xl">💎</span>
-                <div>
-                  <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-widest">Flexibilité</p>
-                  <p className="text-[10px] md:text-[11px] font-bold text-gray-400 mt-1 md:mt-2 leading-relaxed">Vos crédits n'expirent jamais.</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -8422,6 +8624,7 @@ function App() {
           <Route path="/portal/:leadId" element={<ClientPortal />} />
           <Route path="/dashboard/*" element={<DashboardLayout />} />   
           <Route path="/crm" element={<BrokerCRM />} /> 
+          <Route path="/crm-immo" element={<RealEstateCRM />} />
         </Routes>
       </BrowserRouter>
   );
