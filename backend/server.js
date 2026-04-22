@@ -19,7 +19,7 @@ for (const envVar of requiredEnvVars) {
 
 console.log('✅ Variables d\'environnement validées');
 
-
+const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -3081,20 +3081,55 @@ app.post('/api/immo/agent/run-task', async (req, res) => {
 
     const session = await claude.beta.sessions.create(sessionOptions);
 
-    // 2. Préparer le contexte
-    const dataForAI = {
-      ...leadData,
-      attachments: leadData.clientFiles ? leadData.clientFiles.map(f => f.name) : []
-    };
+    // 2. Préparation du contenu (Texte + PDF)
+    const contentBlocks = [];
 
-    // 3. Envoyer le prompt à la session
-    const prompt = `Voici le dossier immobilier : \n${JSON.stringify(dataForAI, null, 2)}\n\nINSTRUCTION REQUISE : ${instruction}\n\nRéponds uniquement avec le contenu demandé. N'utilise pas d'introduction (comme "Voici la réponse"). Si des documents pertinents ne sont pas présents, utilise ton intelligence pour générer un résultat cohérent ou le signaler.`;
+    // 🚀 MAGIE ICI : On télécharge les PDF et on les injecte pour Claude
+    if (leadData.clientFiles && leadData.clientFiles.length > 0) {
+      for (const file of leadData.clientFiles) {
+        // On vérifie si c'est un PDF
+        if (file.url && file.name.toLowerCase().endsWith('.pdf')) {
+          try {
+            console.log(`Téléchargement du PDF pour l'IA: ${file.name}`);
+            
+            // Télécharge le PDF en arraybuffer depuis l'URL Firebase
+            const pdfResponse = await axios.get(file.url, { responseType: 'arraybuffer' });
+            
+            // Convertit le buffer en Base64
+            const base64Pdf = Buffer.from(pdfResponse.data, 'binary').toString('base64');
+            
+            // Ajoute le bloc "document" exigé par l'API Anthropic
+            contentBlocks.push({
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: base64Pdf
+              }
+            });
+            console.log(`✅ PDF ${file.name} ajouté au contexte de Claude.`);
+          } catch (err) {
+            console.error(`❌ Impossible de charger le PDF ${file.name}:`, err.message);
+          }
+        }
+      }
+    }
 
+    // 3. Préparer le texte de la consigne (Prompt)
+    const prompt = `Voici les détails du dossier immobilier : \n${JSON.stringify(leadData, null, 2)}\n\nINSTRUCTION REQUISE : ${instruction}\n\nRéponds uniquement avec le contenu demandé, sans introduction.`;
+    
+    // On ajoute le texte à la suite des PDF
+    contentBlocks.push({ type: "text", text: prompt });
+
+    // 4. Envoyer le tout à la session Claude
     await claude.beta.sessions.events.send(session.id, {
-      events: [{ type: "user.message", content: [{ type: "text", text: prompt }] }]
+      events: [{ 
+        type: "user.message", 
+        content: contentBlocks // Contient les PDFs ET le texte !
+      }]
     });
 
-    // 4. Écouter et récupérer la réponse
+    // 5. Écouter et récupérer la réponse
     const stream = await claude.beta.sessions.events.stream(session.id);
     let aiResponse = "";
     
@@ -3107,8 +3142,7 @@ app.post('/api/immo/agent/run-task', async (req, res) => {
         }
       }
       
-      // 🚀 LA CORRECTION EST ICI : 
-      // Dès que l'Agent a fini de répondre ("session.status_idle"), on coupe le flux pour renvoyer la réponse au Frontend immédiatement !
+      // On coupe la communication quand c'est terminé
       if (event.type === "session.status_idle" || event.type === "error") {
         break;
       }

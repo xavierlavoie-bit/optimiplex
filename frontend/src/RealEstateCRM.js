@@ -1189,7 +1189,6 @@ function RealEstateAgentSection({ lead, themeColor, isAnalyzingMain, onAnalyze }
             </div>
             <div>
               <h3 className="font-black text-lg">Agent IA Immobilier</h3>
-              <p className="text-xs text-slate-400">Claude 3.5 Sonnet - Mode Session</p>
             </div>
           </div>
 
