@@ -44,6 +44,7 @@ const allowedOrigins = [
   'https://app.optimiplex.com',
   process.env.FRONTEND_URL,
   'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:5173'
 ].filter(Boolean);
 
@@ -89,6 +90,23 @@ const db = admin.firestore();
 
 const AGENT_ID = "agent_011Ca2d3uqW4zba9WzXBCRkA";
 const ENVIRONMENT_ID = "env_01UiWPrYorVekqe94veDT5Dd";
+
+// ====================================================================
+// 🏆 HELPER : Incrémente le compteur d'évaluations (auto-leaderboard)
+// ====================================================================
+async function bumpEvaluationCount(userId) {
+  if (!userId) return;
+  try {
+    await db.collection('users').doc(userId).update({
+      evaluationCount: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (err) {
+    // Si le doc n'existe pas, on ignore silencieusement (cas edge)
+    console.warn(`⚠️ bumpEvaluationCount(${userId}):`, err.message);
+  }
+}
+
 
 // ====================================================================
 // 🧠 MIDDLEWARE : VÉRIFICATION QUOTA OU CRÉDITS
@@ -703,10 +721,13 @@ const requireAdmin = async (req, res, next) => {
 // ====================================================================
 app.post('/api/admin/send-team-invoice', requireAdmin, async (req, res) => {
   try {
-    const { clientEmail, clientName, companyName, seats, daysUntilDue } = req.body;
+    const { clientEmail, clientName, companyName, seats, daysUntilDue, crmType } = req.body;
 
     if (!clientEmail || !seats || parseInt(seats, 10) < 1) {
       return res.status(400).json({ error: 'clientEmail et seats (>= 1) requis' });
+    }
+    if (!crmType || !['broker', 'immo'].includes(crmType)) {
+      return res.status(400).json({ error: "crmType requis ('broker' ou 'immo')" });
     }
     if (!process.env.STRIPE_TEAM_SEAT_PRICE_ID || process.env.STRIPE_TEAM_SEAT_PRICE_ID === 'price_REPLACE_ME') {
       return res.status(500).json({ error: 'STRIPE_TEAM_SEAT_PRICE_ID non configuré dans .env' });
@@ -741,7 +762,8 @@ app.post('/api/admin/send-team-invoice', requireAdmin, async (req, res) => {
         type: 'team_subscription',
         teamId: teamId,
         seats: String(seatsInt),
-        companyName: companyName || ''
+        companyName: companyName || '',
+        crmType: crmType
       }
     });
 
@@ -779,7 +801,8 @@ app.post('/api/admin/send-team-invoice', requireAdmin, async (req, res) => {
       stripeSubscriptionId: subscription.id,
       seats: seatsInt,
       subscriptionStatus: subscription.status,
-      crmAccess: false,
+      crmAccess: false, // legacy global flag (kept for compatibility)
+      crmType, // 'broker' | 'immo'
       members: [],
       pendingInviteEmails: [],
       latestInvoiceId: invoice ? invoice.id : null,
@@ -832,26 +855,76 @@ async function handleTeamInvoicePaid(invoice) {
     return true;
   }
 
+  // Détermine quel flag d'accès activer selon le type de CRM
+  const crmType = teamDoc.data().crmType || sub.metadata?.crmType || 'broker';
+  const accessField = crmType === 'immo' ? 'crmAccessImmo' : 'crmAccessBroker';
+
   await teamRef.update({
-    crmAccess: true,
+    crmAccess: true, // legacy global
+    [accessField]: true,
+    crmType,
     subscriptionStatus: 'active',
     seats: sub.items.data[0]?.quantity || teamDoc.data().seats,
     lastPaymentDate: new Date(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
-  // Propage l'accès CRM aux membres existants + owner
+  // Propage l'accès aux membres existants + owner — uniquement pour le bon CRM
   const team = (await teamRef.get()).data();
   const allUserIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
   await Promise.all(allUserIds.map(uid =>
     db.collection('users').doc(uid).update({
-      crmAccess: true,
+      [accessField]: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     })
   ));
 
-  console.log(`✅ Team ${teamId} activée — CRM access ON pour ${allUserIds.length} user(s)`);
+  // 🆕 Auto-onboarding : crée uniquement l'équipe interne du bon CRM
+  if (team.ownerId) {
+    await ensureInternalCrmTeam({
+      ownerId: team.ownerId,
+      ownerEmail: team.ownerEmail,
+      ownerName: team.ownerName,
+      companyName: team.companyName,
+      stripeTeamId: teamId,
+      crmType
+    });
+  }
+
+  console.log(`✅ Team ${teamId} activée (${crmType}) — accès ON pour ${allUserIds.length} user(s)`);
   return true;
+}
+
+// Crée l'équipe interne du CRM concerné si elle n'existe pas
+async function ensureInternalCrmTeam({ ownerId, ownerEmail, ownerName, companyName, stripeTeamId, crmType }) {
+  try {
+    const teamName = companyName || ownerName || (ownerEmail ? ownerEmail.split('@')[0] : 'Mon équipe');
+    const ownerBroker = {
+      name: ownerName || (ownerEmail ? ownerEmail.split('@')[0] : 'Admin'),
+      email: ownerEmail || '',
+      role: 'admin'
+    };
+
+    const collectionName = crmType === 'immo' ? 'teams_immo' : 'teams';
+    const themeColor = crmType === 'immo' ? 'blue' : 'indigo';
+
+    const ref = db.collection('users').doc(ownerId).collection(collectionName);
+    const snap = await ref.limit(1).get();
+
+    if (snap.empty) {
+      await ref.add({
+        name: teamName,
+        themeColor,
+        adminUid: ownerId,
+        brokers: [ownerBroker],
+        stripeTeamId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log(`🆕 Équipe interne ${crmType} créée pour owner ${ownerId}`);
+    }
+  } catch (err) {
+    console.error('❌ ensureInternalCrmTeam:', err.message);
+  }
 }
 
 async function handleTeamSubscriptionUpdated(subscription) {
@@ -887,21 +960,25 @@ async function handleTeamSubscriptionDeleted(subscription) {
   const teamDoc = await teamRef.get();
   if (!teamDoc.exists) return true;
 
+  const team = teamDoc.data();
+  const crmType = team.crmType || subscription.metadata?.crmType || 'broker';
+  const accessField = crmType === 'immo' ? 'crmAccessImmo' : 'crmAccessBroker';
+
   await teamRef.update({
     crmAccess: false,
+    [accessField]: false,
     subscriptionStatus: 'deleted',
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
-  const team = teamDoc.data();
   const allUserIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
   await Promise.all(allUserIds.map(uid =>
     db.collection('users').doc(uid).update({
-      crmAccess: false,
+      [accessField]: false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     })
   ));
-  console.log(`🛑 Team ${teamId} subscription supprimée — accès CRM révoqué`);
+  console.log(`🛑 Team ${teamId} (${crmType}) — accès révoqué`);
   return true;
 }
 
@@ -1030,6 +1107,9 @@ app.post('/api/teams/:teamId/add-member', async (req, res) => {
       return res.status(400).json({ error: 'Cet utilisateur est déjà membre' });
     }
 
+    const crmType = team.crmType || 'broker';
+    const accessField = crmType === 'immo' ? 'crmAccessImmo' : 'crmAccessBroker';
+
     await teamRef.update({
       members: admin.firestore.FieldValue.arrayUnion(memberUserId),
       pendingInviteEmails: admin.firestore.FieldValue.arrayRemove(normalizedEmail),
@@ -1038,7 +1118,7 @@ app.post('/api/teams/:teamId/add-member', async (req, res) => {
     await db.collection('users').doc(memberUserId).update({
       teamId,
       teamRole: 'member',
-      crmAccess: true,
+      [accessField]: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -1104,6 +1184,8 @@ app.post('/api/teams/claim-pending', async (req, res) => {
     if (!ownerSnap.empty) {
       const teamDoc = ownerSnap.docs[0];
       const team = teamDoc.data();
+      const crmType = team.crmType || 'broker';
+      const accessField = crmType === 'immo' ? 'crmAccessImmo' : 'crmAccessBroker';
       await teamDoc.ref.update({
         ownerId: userId,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1111,10 +1193,10 @@ app.post('/api/teams/claim-pending', async (req, res) => {
       await db.collection('users').doc(userId).update({
         teamId: teamDoc.id,
         teamRole: 'owner',
-        crmAccess: !!team.crmAccess,
+        [accessField]: !!team.crmAccess,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      return res.json({ claimed: 'owner', teamId: teamDoc.id });
+      return res.json({ claimed: 'owner', teamId: teamDoc.id, crmType });
     }
 
     // 2. Invitation en attente ?
@@ -1124,6 +1206,8 @@ app.post('/api/teams/claim-pending', async (req, res) => {
     if (!inviteSnap.empty) {
       const teamDoc = inviteSnap.docs[0];
       const team = teamDoc.data();
+      const crmType = team.crmType || 'broker';
+      const accessField = crmType === 'immo' ? 'crmAccessImmo' : 'crmAccessBroker';
       await teamDoc.ref.update({
         members: admin.firestore.FieldValue.arrayUnion(userId),
         pendingInviteEmails: admin.firestore.FieldValue.arrayRemove(normalized),
@@ -1132,10 +1216,10 @@ app.post('/api/teams/claim-pending', async (req, res) => {
       await db.collection('users').doc(userId).update({
         teamId: teamDoc.id,
         teamRole: 'member',
-        crmAccess: !!team.crmAccess,
+        [accessField]: !!team.crmAccess,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      return res.json({ claimed: 'member', teamId: teamDoc.id });
+      return res.json({ claimed: 'member', teamId: teamDoc.id, crmType });
     }
 
     res.json({ claimed: null });
@@ -1965,6 +2049,7 @@ app.post('/api/property/valuation-estimator', checkQuotaOrCredits, async (req, r
       paidWith: req.quotaInfo.mode
     });
 
+    await bumpEvaluationCount(userId);
     await deductUsage(userId, req.quotaInfo);
 
     res.json({
@@ -2443,6 +2528,7 @@ DONNÉES SPÉCIFIQUES TERRAIN:
 
     console.log(`💾 Commercial Sauvegardé (ID: ${evaluationRef.id})`);
 
+    await bumpEvaluationCount(userId);
     // DÉDUCTION USAGE
     await deductUsage(userId, req.quotaInfo);
 
@@ -2517,6 +2603,98 @@ Réponds directement en texte clair (Plain Text).`;
 
 
 // ====================================================================
+// ✉️ TEMPLATES EMAIL — DÉFAUTS + HELPERS (éditables par team admin)
+// ====================================================================
+const DEFAULT_EMAIL_TEMPLATES = {
+  // CRM Hypothécaire
+  assignClient: {
+    subject: 'Votre dossier a été confié à {{brokerName}}',
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;">
+  <h2 style="color: #4f46e5; margin-top: 0;">Excellente nouvelle, {{clientName}} !</h2>
+  <p>Votre dossier de financement a été confié à notre expert(e) <strong>{{brokerName}}</strong>.</p>
+  <p>Pour que {{brokerName}} puisse commencer à travailler sur votre pré-approbation, merci de remplir ce formulaire sécurisé :</p>
+  <div style="margin: 28px 0; text-align: center;">
+    <a href="{{portalUrl}}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 700;">Accéder à mon portail sécurisé</a>
+  </div>
+  <p>Vous serez contacté(e) très bientôt.</p>
+  <p style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 13px;">L'équipe {{teamName}}</p>
+</div>`
+  },
+  assignBroker: {
+    subject: '🎯 Nouveau dossier assigné : {{clientEmail}}',
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;">
+  <h2 style="color: #4f46e5; margin-top: 0;">Un nouveau dossier t'a été assigné</h2>
+  <p>Le client <strong>{{clientName}}</strong> ({{clientEmail}}) t'a été attribué.</p>
+  <div style="background: #eef2ff; padding: 16px 20px; border-left: 4px solid #4f46e5; border-radius: 6px; margin: 20px 0;">
+    <strong style="display: block; margin-bottom: 8px;">🧠 Analyse IA</strong>
+    <div style="white-space: pre-wrap;">{{aiSummary}}</div>
+  </div>
+  <p>Connecte-toi au CRM pour voir les détails et faire avancer le dossier.</p>
+</div>`
+  },
+  sendFile: {
+    subject: 'Votre document : {{fileName}}',
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;">
+  <h2 style="color: #4f46e5; margin-top: 0;">Bonjour {{clientName}},</h2>
+  <p>Voici le document <strong>{{fileName}}</strong> préparé par votre courtier hypothécaire.</p>
+  <div style="margin: 28px 0; text-align: center;">
+    <a href="{{fileUrl}}" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 700;">Télécharger le document</a>
+  </div>
+  <p>Pour toute question, répondez simplement à ce courriel.</p>
+  <p style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 13px;">Cordialement,<br/><strong>{{brokerName}}</strong> — {{teamName}}</p>
+</div>`
+  },
+  // CRM Immobilier
+  assignClientImmo: {
+    subject: 'Votre projet immobilier est confié à {{brokerName}}',
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;">
+  <h2 style="color: #2563eb; margin-top: 0;">Bonjour {{clientName}} !</h2>
+  <p>Votre projet immobilier a été confié à notre expert(e) <strong>{{brokerName}}</strong>.</p>
+  <p>{{brokerName}} vous contactera très prochainement pour discuter des prochaines étapes de votre transaction.</p>
+  <p style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 13px;">L'équipe {{teamName}}</p>
+</div>`
+  },
+  assignBrokerImmo: {
+    subject: '🎯 Nouveau dossier immobilier : {{clientEmail}}',
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;">
+  <h2 style="color: #2563eb; margin-top: 0;">Un nouveau dossier t'a été assigné</h2>
+  <p>Le client <strong>{{clientName}}</strong> ({{clientEmail}}) t'a été attribué.</p>
+  <p>Connecte-toi au CRM Immobilier pour voir les détails (Acheteur/Vendeur).</p>
+</div>`
+  }
+};
+
+// Remplace {{var}} par sa valeur (vide si absente). Sécurité : remplace pas si la clé contient autre chose que [a-z0-9_]
+function applyEmailTemplate(str, vars) {
+  if (!str) return '';
+  return String(str).replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
+    const v = vars && vars[key];
+    return v != null ? String(v) : '';
+  });
+}
+
+// Récupère le template custom de la team, fallback sur DEFAULT_EMAIL_TEMPLATES[key]
+async function getTeamEmailTemplate(adminUid, teamCollection, teamId, key) {
+  const fallback = DEFAULT_EMAIL_TEMPLATES[key] || { subject: '', html: '' };
+  if (!adminUid || !teamId) return fallback;
+  try {
+    const teamDoc = await db.collection('users').doc(adminUid).collection(teamCollection).doc(teamId).get();
+    if (!teamDoc.exists) return fallback;
+    const custom = teamDoc.data().emailTemplates?.[key];
+    if (custom && (custom.subject || custom.html)) {
+      return {
+        subject: custom.subject || fallback.subject,
+        html: custom.html || fallback.html
+      };
+    }
+  } catch (err) {
+    console.warn(`⚠️ getTeamEmailTemplate(${key}):`, err.message);
+  }
+  return fallback;
+}
+
+
+// ====================================================================
 // 🏢 ROUTE : IA COURTIER HYPOTHÉCAIRE (AVEC SENDGRID)
 // ====================================================================
 
@@ -2584,7 +2762,7 @@ app.post('/api/broker/quick-lead', async (req, res) => {
 
 app.post('/api/broker/assign', async (req, res) => {
   try {
-    const { leadId, brokerEmail, brokerName, clientEmail, aiSummary } = req.body;
+    const { leadId, brokerEmail, brokerName, clientEmail, clientName, aiSummary, adminUid, teamId, teamName } = req.body;
     const db = admin.firestore();
 
     // 1. Mettre à jour Firestore
@@ -2595,45 +2773,38 @@ app.post('/api/broker/assign', async (req, res) => {
       assignedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 2. Courriel au CLIENT
-    const clientMsg = {
-      to: clientEmail,
-      from: 'info@optimiplex.com', // Doit être l'adresse vérifiée SendGrid
-      subject: `Votre dossier Optimiplex a été confié à ${brokerName}`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px;">
-          <h2>Excellente nouvelle !</h2>
-          <p>Votre dossier de financement a été confié à notre expert(e) <strong>${brokerName}</strong>.</p>
-          <p>Pour que ${brokerName} puisse commencer à travailler sur votre pré-approbation, merci de remplir ce formulaire sécurisé :</p>
-          <div style="margin-top: 20px;">
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/${leadId}" style="background: #4f46e5; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px;">
-               Accéder à mon portail sécurisé
-            </a>
-          </div>
-          <p style="margin-top: 20px;">Vous serez contacté(e) très bientôt.</p>
-        </div>
-      `
+    // 2. Variables pour les templates
+    const portalUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/portal/${leadId}`;
+    const vars = {
+      brokerName: brokerName || '',
+      brokerEmail: brokerEmail || '',
+      clientEmail: clientEmail || '',
+      clientName: clientName || (clientEmail ? clientEmail.split('@')[0] : 'Cher client'),
+      aiSummary: aiSummary || '',
+      portalUrl,
+      teamName: teamName || 'Optimiplex'
     };
 
-    // 3. Courriel au COURTIER ASSIGNÉ
-    const brokerMsg = {
+    // 3. Récupère les templates (custom ou défaut)
+    const [tplClient, tplBroker] = await Promise.all([
+      getTeamEmailTemplate(adminUid, 'teams', teamId, 'assignClient'),
+      getTeamEmailTemplate(adminUid, 'teams', teamId, 'assignBroker')
+    ]);
+
+    // 4. Envoi
+    await sgMail.send({
+      to: clientEmail,
+      from: { email: brokerEmail || 'info@optimiplex.com', name: brokerName || teamName || 'Optimiplex' },
+      replyTo: brokerEmail || 'info@optimiplex.com',
+      subject: applyEmailTemplate(tplClient.subject, vars),
+      html: applyEmailTemplate(tplClient.html, vars)
+    });
+    await sgMail.send({
       to: brokerEmail,
       from: 'info@optimiplex.com',
-      subject: `🎯 Nouveau dossier assigné: ${clientEmail}`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px;">
-          <h2>Un nouveau dossier t'a été assigné</h2>
-          <p>Le client <strong>${clientEmail}</strong> t'a été attribué.</p>
-          <div style="background: #eef2ff; padding: 15px; border-left: 4px solid #4f46e5; margin-bottom: 20px;">
-            <strong>🧠 Analyse IA :</strong><br/>${aiSummary}
-          </div>
-          <p>Connecte-toi au CRM Optimiplex pour voir les détails et changer le statut une fois le financement complété.</p>
-        </div>
-      `
-    };
-
-    await sgMail.send(clientMsg);
-    await sgMail.send(brokerMsg);
+      subject: applyEmailTemplate(tplBroker.subject, vars),
+      html: applyEmailTemplate(tplBroker.html, vars)
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -3279,40 +3450,34 @@ app.post('/api/broker/send-followup', async (req, res) => {
 // Envoi d'un document généré au client (Bouton "Envoyer")
 app.post('/api/broker/send-file', async (req, res) => {
   try {
-    const { leadId, email, fileName, fileUrl, brokerName, brokerEmail } = req.body;
+    const { leadId, email, fileName, fileUrl, brokerName, brokerEmail, clientName, adminUid, teamId, teamName } = req.body;
 
     if (!email || !fileUrl) return res.status(400).json({ error: "Données manquantes" });
 
-    const msg = {
-      to: email,
-      from: {
-        email: brokerEmail || 'rebecca@optimiplex.com', // 🚀 UTILISE MAINTENANT LE COURRIEL DU COURTIER ASSIGNÉ
-        name: brokerName || "L'équipe Optimiplex"
-      },
-      replyTo: brokerEmail || 'rebecca@optimiplex.com',
-      subject: `Votre document de financement : ${fileName}`,
-      html: `
-        <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #4f46e5;">Bonjour,</h2>
-            <p>Voici le document <strong>${fileName}</strong> préparé par votre courtier hypothécaire.</p>
-            <p style="margin: 30px 0;">
-              <a href="${fileUrl}" style="padding: 12px 24px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                Télécharger le document
-              </a>
-            </p>
-            <p>Si vous avez des questions, n'hésitez pas à répondre directement à ce courriel.</p>
-            <p style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-              Cordialement,<br/>
-              <strong>${brokerName || "L'équipe Optimiplex"}</strong>
-            </p>
-        </div>
-      `,
+    const vars = {
+      brokerName: brokerName || "L'équipe Optimiplex",
+      brokerEmail: brokerEmail || '',
+      clientName: clientName || (email ? email.split('@')[0] : 'Cher client'),
+      clientEmail: email,
+      fileName: fileName || 'document',
+      fileUrl,
+      teamName: teamName || 'Optimiplex'
     };
 
-    await sgMail.send(msg);
+    const tpl = await getTeamEmailTemplate(adminUid, 'teams', teamId, 'sendFile');
+
+    await sgMail.send({
+      to: email,
+      from: {
+        email: brokerEmail || 'rebecca@optimiplex.com',
+        name: brokerName || teamName || "L'équipe Optimiplex"
+      },
+      replyTo: brokerEmail || 'rebecca@optimiplex.com',
+      subject: applyEmailTemplate(tpl.subject, vars),
+      html: applyEmailTemplate(tpl.html, vars)
+    });
 
     // Historisation dans Firestore
-    const db = admin.firestore();
     await db.collection('leads_hypothecaires').doc(leadId).collection('history').add({
       type: 'file_sent',
       fileName: fileName,
@@ -3384,7 +3549,7 @@ app.post('/api/immo/quick-lead', async (req, res) => {
 
 app.post('/api/immo/assign', async (req, res) => {
   try {
-    const { leadId, brokerEmail, brokerName, clientEmail } = req.body;
+    const { leadId, brokerEmail, brokerName, clientEmail, clientName, adminUid, teamId, teamName } = req.body;
     const db = admin.firestore();
 
     await db.collection('leads_immobiliers').doc(leadId).update({
@@ -3394,35 +3559,32 @@ app.post('/api/immo/assign', async (req, res) => {
       assignedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Courriel au Client
-    const clientMsg = {
-      to: clientEmail,
-      from: 'info@optimiplex.com', 
-      subject: `Votre projet immobilier est confié à ${brokerName}`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px;">
-          <h2>Excellente nouvelle !</h2>
-          <p>Votre projet immobilier a été confié à notre expert(e) <strong>${brokerName}</strong>.</p>
-          <p>${brokerName} vous contactera très prochainement pour discuter des prochaines étapes de votre transaction.</p>
-        </div>
-      `
+    const vars = {
+      brokerName: brokerName || '',
+      brokerEmail: brokerEmail || '',
+      clientEmail: clientEmail || '',
+      clientName: clientName || (clientEmail ? clientEmail.split('@')[0] : 'Cher client'),
+      teamName: teamName || 'Optimiplex Immobilier'
     };
 
-    // Courriel au Courtier
-    const brokerMsg = {
+    const [tplClient, tplBroker] = await Promise.all([
+      getTeamEmailTemplate(adminUid, 'teams_immo', teamId, 'assignClientImmo'),
+      getTeamEmailTemplate(adminUid, 'teams_immo', teamId, 'assignBrokerImmo')
+    ]);
+
+    await sgMail.send({
+      to: clientEmail,
+      from: { email: brokerEmail || 'info@optimiplex.com', name: brokerName || teamName || 'Optimiplex' },
+      replyTo: brokerEmail || 'info@optimiplex.com',
+      subject: applyEmailTemplate(tplClient.subject, vars),
+      html: applyEmailTemplate(tplClient.html, vars)
+    });
+    await sgMail.send({
       to: brokerEmail,
       from: 'info@optimiplex.com',
-      subject: `🎯 Nouveau dossier immobilier assigné: ${clientEmail}`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px;">
-          <h2>Un nouveau dossier t'a été assigné</h2>
-          <p>Le client <strong>${clientEmail}</strong> t'a été attribué. Connecte-toi au CRM Immobilier pour voir les détails (Acheteur/Vendeur).</p>
-        </div>
-      `
-    };
-
-    await sgMail.send(clientMsg);
-    await sgMail.send(brokerMsg);
+      subject: applyEmailTemplate(tplBroker.subject, vars),
+      html: applyEmailTemplate(tplBroker.html, vars)
+    });
 
     res.json({ success: true });
   } catch (error) {

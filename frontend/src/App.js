@@ -10,6 +10,9 @@ import BrokerChat from './BrokerChat';
 import BrokerCRM, { isUserBroker } from './BrokerCRM';
 import RealEstateCRM from './RealEstateCRM'
 import ClientPortal from './ClientPortal';
+import HomePage from './HomePage';
+import AuthShell from './AuthShell';
+import { motion } from 'framer-motion';
 import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin, ArrowLeft, Send, Loader2, Mail, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
   Settings, ChevronDown, Star, Shield, CheckCircle2, Share2, ArrowRight, ShieldAlert, Building2, Briefcase
   } from 'lucide-react';
@@ -127,31 +130,34 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
   return (
     <>
       {/* Mobile Top Bar - Visible < 768px */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-gray-200 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4 shadow-sm">
-        <h1 className="text-xl font-black text-gray-900 tracking-tight">OptimiPlex</h1>
-        
-        <div className="flex items-center gap-3">
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 transition-all duration-300 z-50 h-16 flex items-center justify-between px-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 shadow-md"></div>
+          <h1 className="text-lg font-black text-slate-900 tracking-tight">OptimiPlex</h1>
+        </div>
+
+        <div className="flex items-center gap-2">
           {/* ✅ Affichage crédits mobile */}
-          <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full text-sm font-black text-indigo-700 border border-indigo-100 shadow-sm">
+          <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full text-sm font-black text-indigo-700 border border-indigo-100">
             <span>💎</span>
             <span>{credits || 0}</span>
           </div>
 
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-xl transition-colors hover:bg-gray-100 active:bg-gray-200 text-gray-800"
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors hover:bg-slate-100 active:bg-slate-200 text-slate-800"
             aria-label="Menu mobile"
           >
-            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay - Flou pour la fluidité/beauté */}
+      {/* Mobile Menu Overlay */}
       {sidebarOpen && isMobile && (
         <div
-          className="md:hidden fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 transition-opacity duration-300"
-          style={{ top: '4rem' }} // Démarre juste sous le header de 16 (4rem)
+          className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-md z-40 transition-opacity duration-300"
+          style={{ top: '4rem' }}
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -196,135 +202,157 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
   return (
     <>
       {/* Desktop Sidebar - Visible >= 768px */}
-      <div className={`hidden md:flex flex-col fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 ease-in-out z-40 shadow-sm`}>
+      <div className={`hidden md:flex flex-col fixed left-0 top-0 h-full ${sidebarOpen ? 'w-64' : 'w-20'} bg-white/95 backdrop-blur-xl border-r border-slate-200/80 transition-all duration-300 ease-in-out z-40 shadow-sm`}>
         {/* Logo */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-center shrink-0 h-20">
-          <h1 className={`font-black text-gray-900 whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarOpen ? 'text-2xl' : 'text-lg'}`}>
-            {sidebarOpen ? 'OptimiPlex' : 'OP'}
-          </h1>
+        <div className="px-5 py-5 border-b border-slate-100 flex items-center shrink-0 h-20">
+          <div className="flex items-center gap-3 w-full">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 bg-indigo-500 blur-md opacity-25 rounded-xl"></div>
+              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-md flex items-center justify-center">
+                <span className="text-white font-black text-sm">OP</span>
+              </div>
+            </div>
+            {sidebarOpen && (
+              <span className="font-black text-slate-900 text-xl tracking-tight whitespace-nowrap">OptimiPlex</span>
+            )}
+          </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-6 space-y-2 px-3 overflow-y-auto">
+        <nav className="flex-1 py-5 space-y-1 px-3 overflow-y-auto">
           {navItems.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => handleTabChange(id)}
               title={!sidebarOpen ? label : ''}
-              className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
                 activeTab === id
-                  ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-transparent'
+                  ? 'bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
+              {activeTab === id && (
+                <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-gradient-to-b from-indigo-500 to-blue-600"></span>
+              )}
               {sidebarOpen ? (
-                <span className="font-bold whitespace-nowrap">{label}</span>
+                <span className="font-bold whitespace-nowrap text-sm">{label}</span>
               ) : (
                 <span className="text-center w-full text-xl group-hover:scale-110 transition-transform">{[...label][0]}</span>
               )}
             </button>
           ))}
 
-          {/* 👇 AJOUTE CE BOUTON POUR LE DESKTOP 👇 */}
+          {/* CRM Buttons */}
           {user && isUserBroker && isUserBroker(user.email) && (
-            <div className="pt-4 mt-4 border-t border-gray-100 flex flex-col gap-1">
-              
-              {/* Bouton CRM Hypothécaire */}
-              <a 
-                href="/crm" 
-                target="_blank" 
+            <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-1">
+              {sidebarOpen && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 mb-1">CRM</p>
+              )}
+
+              <a
+                href="/crm"
+                target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                className={`w-full flex items-center rounded-xl transition-all duration-200 bg-transparent text-gray-700 hover:bg-gray-100 px-3 py-3 ${
+                className={`w-full flex items-center rounded-xl transition-all duration-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 px-3 py-2.5 ${
                   !sidebarOpen ? 'justify-center' : ''
                 }`}
                 title={!sidebarOpen ? 'CRM Hypothécaire' : ''}
               >
                 {sidebarOpen ? (
                   <>
-                    <span className="mr-3 text-lg">💼</span>
+                    <span className="mr-2.5 text-base">💼</span>
                     <span className="font-bold whitespace-nowrap text-sm">CRM Hypothécaire</span>
                   </>
                 ) : (
-                  <span className="text-xl">💼</span>
+                  <span className="text-lg">💼</span>
                 )}
               </a>
 
-              {/* Bouton CRM Immobilier */}
               <a
                 href="/crm-immo"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                className={`w-full flex items-center rounded-xl transition-all duration-200 bg-transparent text-gray-700 hover:bg-gray-100 px-3 py-3 ${
+                className={`w-full flex items-center rounded-xl transition-all duration-200 text-slate-600 hover:bg-blue-50 hover:text-blue-700 px-3 py-2.5 ${
                   !sidebarOpen ? 'justify-center' : ''
                 }`}
                 title={!sidebarOpen ? 'CRM Immobilier' : ''}
               >
                 {sidebarOpen ? (
                   <>
-                    <span className="mr-3 text-lg">🏢</span>
+                    <span className="mr-2.5 text-base">🏢</span>
                     <span className="font-bold whitespace-nowrap text-sm">CRM Immobilier</span>
                   </>
                 ) : (
-                  <span className="text-xl">🏢</span>
+                  <span className="text-lg">🏢</span>
                 )}
               </a>
-
             </div>
           )}
 
-          {/* 👇 BOUTON ADMIN — Facturation (Desktop) — visible uniquement à l'admin */}
+          {/* Admin */}
           {isAdmin && (
-            <div className="pt-4 mt-4 border-t border-gray-100">
+            <div className="pt-4 mt-4 border-t border-slate-100">
+              {sidebarOpen && (
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 mb-1">Admin</p>
+              )}
               <button
                 onClick={() => handleTabChange('admin')}
                 title={!sidebarOpen ? 'Admin · Facturation' : ''}
-                className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                   activeTab === 'admin'
-                    ? 'bg-amber-50 border border-amber-200 text-amber-800 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-transparent'
+                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-800 shadow-sm'
+                    : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
                 }`}
               >
                 {sidebarOpen ? (
                   <>
-                    <span className="mr-3 text-lg">🧾</span>
-                    <span className="font-bold whitespace-nowrap text-sm">Admin · Facturation</span>
+                    <span className="mr-2.5 text-base">🧾</span>
+                    <span className="font-bold whitespace-nowrap text-sm">Facturation</span>
                   </>
                 ) : (
-                  <span className="text-xl">🧾</span>
+                  <span className="text-lg">🧾</span>
                 )}
               </button>
             </div>
           )}
         </nav>
 
-        {/* ✅ Affichage crédits Sidebar Desktop */}
-        <div className={`px-4 py-4 shrink-0 transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-4 border border-indigo-100 shadow-inner">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Crédits</p>
-            <div className="flex items-center gap-3">
+        {/* Crédits Sidebar Desktop */}
+        <div className={`px-3 py-3 shrink-0 transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 hidden'}`}>
+          <div className="relative rounded-2xl p-4 bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 shadow-lg shadow-indigo-200/50 overflow-hidden">
+            <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10 blur-xl"></div>
+            <p className="relative text-[10px] font-black text-white/80 uppercase tracking-widest mb-1">Crédits</p>
+            <div className="relative flex items-end justify-between gap-2">
+              <span className="text-3xl font-black text-white drop-shadow-sm">{credits || 0}</span>
               <span className="text-2xl drop-shadow-sm">💎</span>
-              <span className="text-3xl font-black text-indigo-900">{credits || 0}</span>
             </div>
           </div>
         </div>
 
         {/* Bottom Actions */}
-        <div className="p-4 space-y-2 border-t border-gray-100 shrink-0">
+        <div className="p-3 space-y-1.5 border-t border-slate-100 shrink-0">
+          {sidebarOpen && user?.email && (
+            <div className="px-3 py-2 mb-1 truncate">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Connecté</p>
+              <p className="text-xs font-bold text-slate-700 truncate">{user.email}</p>
+            </div>
+          )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex justify-center items-center p-3 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors text-sm font-bold"
+            className="w-full flex justify-center items-center p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors text-xs font-bold"
             title={sidebarOpen ? 'Réduire le menu' : 'Agrandir le menu'}
           >
             {sidebarOpen ? '← Réduire' : '→'}
           </button>
           <button
             onClick={onLogout}
-            className={`w-full flex justify-center items-center p-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors font-bold text-sm ${!sidebarOpen && 'px-0'}`}
+            className={`w-full flex items-center gap-2 ${sidebarOpen ? 'justify-start px-3' : 'justify-center'} py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors font-bold text-sm`}
             title="Déconnexion"
           >
-            {sidebarOpen ? '🚪 Déconnexion' : '🚪'}
+            <span>🚪</span>
+            {sidebarOpen && <span>Déconnexion</span>}
           </button>
         </div>
       </div>
@@ -438,6 +466,7 @@ function AdminInvoicePage({ user }) {
     companyName: '',
     seats: 1,
     daysUntilDue: 14,
+    crmType: 'broker',
   });
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
@@ -460,6 +489,9 @@ function AdminInvoicePage({ user }) {
       if (!form.clientEmail || !seats || seats < 1) {
         throw new Error('Email client et nombre de seats (≥ 1) requis.');
       }
+      if (!['broker', 'immo'].includes(form.crmType)) {
+        throw new Error('Type de CRM invalide.');
+      }
       const res = await axios.post(
         `${API_BASE_URL}/api/admin/send-team-invoice`,
         {
@@ -468,6 +500,7 @@ function AdminInvoicePage({ user }) {
           companyName: form.companyName.trim(),
           seats,
           daysUntilDue,
+          crmType: form.crmType,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -481,10 +514,12 @@ function AdminInvoicePage({ user }) {
   };
 
   const resetForm = () => {
-    setForm({ clientEmail: '', clientName: '', companyName: '', seats: 1, daysUntilDue: 14 });
+    setForm({ clientEmail: '', clientName: '', companyName: '', seats: 1, daysUntilDue: 14, crmType: 'broker' });
     setResult(null);
     setError(null);
   };
+
+  const setCrmType = (type) => setForm((f) => ({ ...f, crmType: type }));
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -531,6 +566,49 @@ function AdminInvoicePage({ user }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Sélecteur de type de CRM */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Type de CRM *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setCrmType('broker')}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  form.crmType === 'broker'
+                    ? 'border-indigo-500 bg-indigo-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-2xl">💼</span>
+                  <span className={`font-black ${form.crmType === 'broker' ? 'text-indigo-700' : 'text-gray-800'}`}>CRM Hypothécaire</span>
+                  {form.crmType === 'broker' && (
+                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-black">✓</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">Pipeline de courtiers hypothécaires, dossiers de financement, portail client.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCrmType('immo')}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  form.crmType === 'immo'
+                    ? 'border-blue-500 bg-blue-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-2xl">🏢</span>
+                  <span className={`font-black ${form.crmType === 'immo' ? 'text-blue-700' : 'text-gray-800'}`}>CRM Immobilier</span>
+                  {form.crmType === 'immo' && (
+                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-black">✓</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">Pipeline immobilier (acheteurs/vendeurs), évaluations, transactions.</p>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1.5">Courriel du client *</label>
             <input
@@ -743,66 +821,99 @@ function DashboardLayout() {
       isAdmin={isAdminUser(user?.email)}
     />
 
-    <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300`}>
-      <header className="border-b border-gray-200 bg-white80 backdrop-blur-sm sticky top-0 z-30 hidden md:block">
-        <div className="px-8 py-5 flex items-center justify-between">
-          <h1 className="text-2xl font-black text-gray-900">
-            {activeTab === 'profile' ? '👤 Mon Profil' : activeTab === 'optimization' ? '⚡ Optimiseur' : activeTab === 'valuation' ? '📊 Évaluation' :activeTab === '💬 chat'
-    ? 'Optimiplex IA': '📈 Tableau de bord'}
-          </h1>
-          <div className="flex items-center space-x-6">
+    <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300 bg-slate-50/40 min-h-screen`}>
+      <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-xl sticky top-0 z-30 hidden md:block">
+        <div className="px-8 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Tableau de bord</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              {activeTab === 'profile' ? 'Mon profil'
+                : activeTab === 'optimization' ? 'Optimiseur'
+                : activeTab === 'valuation' ? 'Évaluation'
+                : activeTab === 'leaderboard' ? 'Classement'
+                : activeTab === 'admin' ? 'Admin · Facturation'
+                : 'Vue d\'ensemble'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-900">{userProfile?.displayName || user?.email?.split('@')[0]}</p>
-              
-              {/* ✅ Affichage Crédits Header Desktop */}
-              <div className="flex items-center justify-end gap-2 text-indigo-600 text-sm font-bold mt-0.5">
-                💎
+              <p className="text-sm font-bold text-slate-900">{userProfile?.displayName || user?.email?.split('@')[0]}</p>
+              <div className="flex items-center justify-end gap-1.5 text-indigo-600 text-xs font-bold mt-0.5">
+                <span>💎</span>
                 <span>{userProfile?.creditsBalance || 0} crédits</span>
               </div>
             </div>
-            <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 border border-indigo-700 text-white shadow-md">
-              <span className="font-bold text-sm">{planInfo[userPlan]?.name}</span>
+            <div className="px-3.5 py-2 rounded-xl bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-md shadow-indigo-200/50">
+              <span className="font-black text-xs uppercase tracking-widest">{planInfo[userPlan]?.name}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {activeTab !== 'profile' && (
+      {activeTab !== 'profile' && activeTab !== 'admin' && (
         <div className="px-4 sm:px-8 py-6">
-          <div className="relative rounded-2xl overflow-hidden shadow-lg">
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500"></div>
-            <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-48 -mt-48"></div>
-            <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36"></div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="relative rounded-3xl overflow-hidden shadow-xl shadow-indigo-200/40"
+          >
+            {/* Gradient base */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900"></div>
 
-            <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 z-10">
+            {/* Animated gradient orbs */}
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+              transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -top-1/2 -right-1/4 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 opacity-30 blur-3xl"
+            />
+            <motion.div
+              animate={{ scale: [1, 1.15, 1], x: [0, 30, 0] }}
+              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -bottom-1/3 -left-1/4 w-[400px] h-[400px] rounded-full bg-gradient-to-br from-blue-500 to-pink-500 opacity-25 blur-3xl"
+            />
+
+            {/* Grid overlay */}
+            <div
+              className="absolute inset-0 opacity-[0.06]"
+              style={{
+                backgroundImage:
+                  'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+                backgroundSize: '64px 64px',
+              }}
+            />
+
+            <div className="relative p-7 sm:p-9 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 z-10">
               <div className="flex-1">
-                <p className="text-white/70 text-sm font-semibold mb-2 uppercase tracking-wide">Plan actuel</p>
-                <div className="flex items-center gap-4">
-                  <h2 className="text-3xl sm:text-4xl font-black text-white mb-2">
+                <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-indigo-300 mb-3">
+                  Plan actuel
+                </span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                     {planInfo[userPlan]?.name}
                   </h2>
-                  {/* ✅ Badge Crédits Banner */}
                   {(userProfile?.creditsBalance || 0) > 0 && (
-                    <span className="bg-white/20 backdrop-blur px-3 py-1 rounded-full text-white text-sm font-bold flex items-center gap-1 border border-white/30">
-                      💎 {userProfile.creditsBalance} Crédits
+                    <span className="bg-white/15 backdrop-blur-md px-3 py-1 rounded-full text-white text-xs font-bold flex items-center gap-1.5 border border-white/20">
+                      <span>💎</span> {userProfile.creditsBalance} Crédits
                     </span>
                   )}
                 </div>
-                <p className="text-white/90 text-lg font-bold">
+                <p className="text-white/80 text-base font-bold mt-1">
                   {planInfo[userPlan]?.price}
                 </p>
               </div>
 
               {userPlan !== 'premium' && (
-                <button 
-                  onClick={() => setShowUpgradeModal(true)} 
-                  className="w-full sm:w-auto px-8 py-4 bg-white text-indigo-600 font-black rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 transform hover:-translate-y-1"
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="group relative w-full sm:w-auto px-7 py-3.5 bg-white text-slate-900 font-black rounded-xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-0.5 inline-flex items-center justify-center gap-2 overflow-hidden"
                 >
-                  🚀 Upgrader / Crédits
+                  <span className="absolute inset-0 bg-gradient-to-r from-indigo-100 via-blue-100 to-cyan-100 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                  <span className="relative">🚀 Upgrader</span>
+                  <span className="relative text-xs text-slate-500 font-bold border-l border-slate-300 pl-2 ml-1">/ Crédits</span>
                 </button>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -1571,8 +1682,8 @@ function ProfileTab({ user, userProfile, userPlan }) {
         </div>
       )}
 
-      {/* Tabs Principales (Sans le Leaderboard) */}
-      <div className="flex gap-2 mb-8 border-b border-gray-200 overflow-x-auto hide-scrollbar">
+      {/* Tabs Principales */}
+      <div className="inline-flex gap-1 mb-8 p-1.5 bg-slate-100 rounded-2xl">
         {[
           { id: 'info', label: 'Mon Profil', icon: '👤' },
           { id: 'billing', label: 'Abonnement', icon: '💳' }
@@ -1580,10 +1691,10 @@ function ProfileTab({ user, userProfile, userPlan }) {
           <button
             key={tab.id}
             onClick={() => setActiveProfileTab(tab.id)}
-            className={`px-6 py-3 font-semibold transition-all whitespace-nowrap flex items-center gap-2 rounded-t-lg ${
+            className={`px-5 py-2.5 font-black text-sm transition-all whitespace-nowrap flex items-center gap-2 rounded-xl ${
               activeProfileTab === tab.id
-                ? 'border-b-2 border-indigo-600 text-indigo-700 bg-indigo-50/50'
-                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <span>{tab.icon}</span>
@@ -1599,9 +1710,15 @@ function ProfileTab({ user, userProfile, userPlan }) {
           <div className="lg:col-span-4 space-y-6">
             
             {/* CARTE IDENTITÉ */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
-              <div className="h-28 bg-gradient-to-r from-indigo-600 to-blue-500 relative">
-                <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm uppercase tracking-wide border border-white/30">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+              <div className="h-32 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900"></div>
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+                  transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+                  className="absolute -top-1/2 -right-1/4 w-72 h-72 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 opacity-40 blur-3xl"
+                />
+                <div className="absolute top-4 right-4 bg-white/15 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-black shadow-sm uppercase tracking-widest border border-white/20 z-10">
                   Plan {userProfile?.plan || 'Essai'}
                 </div>
               </div>
@@ -1914,34 +2031,33 @@ function LeaderboardTab({ user, userScore }) {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
 
+  // 🔴 LIVE : abonnement onSnapshot — se met à jour automatiquement à chaque évaluation
   useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+    const db = getFirestore();
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, orderBy('evaluationCount', 'desc'), limit(50));
 
-  const fetchLeaderboard = async () => {
-    setLoadingLeaderboard(true);
-    try {
-      const db = getFirestore();
-      // On récupère les 50 meilleurs utilisateurs triés par nombre d'évaluations
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('evaluationCount', 'desc'), limit(50));
-      const querySnapshot = await getDocs(q);
-      
-      const topUsers = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        // On ne garde que ceux qui ont au moins 1 évaluation pour éviter de polluer le classement
-        if (data.evaluationCount && data.evaluationCount > 0) {
-          topUsers.push({ id: doc.id, ...data });
-        }
-      });
-      setLeaderboardData(topUsers);
-    } catch (error) {
-      console.error('Erreur chargement leaderboard:', error);
-    } finally {
-      setLoadingLeaderboard(false);
-    }
-  };
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const topUsers = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.evaluationCount && data.evaluationCount > 0) {
+            topUsers.push({ id: docSnap.id, ...data });
+          }
+        });
+        setLeaderboardData(topUsers);
+        setLoadingLeaderboard(false);
+      },
+      (error) => {
+        console.error('Erreur live leaderboard:', error);
+        setLoadingLeaderboard(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Fonction pour masquer l'email (ex: j***@gmail.com ou anonyme***@gmail.com)
   const maskEmail = (email) => {
@@ -1968,101 +2084,117 @@ function LeaderboardTab({ user, userScore }) {
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 animate-fade-in">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-              🏆 Classement Général
+            <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-amber-600 mb-2">Compétition</span>
+            <h3 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              🏆 Podium Général
             </h3>
-            <p className="text-gray-500 mt-1">Les meilleurs analystes et investisseurs de la plateforme.</p>
+            <p className="text-slate-500 mt-1.5 text-sm">Les meilleurs analystes et investisseurs de la plateforme.</p>
           </div>
-          {/* Affiche le score passé en paramètre depuis le parent s'il existe */}
           {userScore !== undefined && (
-            <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-              Ton score : {userScore} analyses
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 px-5 py-3 rounded-2xl font-black flex flex-col">
+              <span className="text-[10px] uppercase tracking-widest text-indigo-500">Ton score</span>
+              <span className="text-2xl text-indigo-700">{userScore} <span className="text-xs font-bold text-indigo-400">analyses</span></span>
             </div>
           )}
         </div>
 
         {loadingLeaderboard ? (
-          <div className="py-20 flex flex-col items-center justify-center text-gray-400">
-            <span className="text-4xl animate-bounce mb-4">🏆</span>
-            <p className="font-medium text-gray-500">Chargement du podium...</p>
+          <div className="py-20 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="animate-spin mb-4 text-indigo-500" size={36} />
+            <p className="font-bold text-slate-500">Chargement du podium…</p>
           </div>
         ) : leaderboardData.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3">
+          <motion.div
+            initial="hidden" animate="show"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
+            className="grid grid-cols-1 gap-3"
+          >
             {leaderboardData.map((leader, index) => {
               const rankInfo = getLevelInfo(leader.evaluationCount || 0);
               const isCurrentUser = leader.id === user?.uid;
-              
-              // On affiche le nom d'affichage s'il existe, sinon l'email masqué, sinon "Anonyme"
-              const displayNameToUse = leader.displayName && leader.displayName.trim() !== '' 
-                ? leader.displayName 
+              const displayNameToUse = leader.displayName && leader.displayName.trim() !== ''
+                ? leader.displayName
                 : maskEmail(leader.email);
-              
-              // Style spécial pour le Top 3
-              let bgClass = "bg-white border-gray-200 hover:border-gray-300";
-              let rankBadge = <span className="text-gray-400 font-bold text-lg">#{index + 1}</span>;
-              
+
+              let bgClass = "bg-white border-slate-200 hover:border-slate-300";
+              let rankBadge = <span className="text-slate-400 font-black text-lg">#{index + 1}</span>;
+
               if (index === 0) {
-                bgClass = "bg-gradient-to-r from-yellow-50 to-amber-100 border-yellow-300 shadow-md transform hover:-translate-y-1 transition-transform scale-[1.02] z-10";
-                rankBadge = <span className="text-3xl" title="1ère Place">🥇</span>;
+                bgClass = "bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 border-amber-200 shadow-md";
+                rankBadge = <span className="text-3xl drop-shadow-md">🥇</span>;
               } else if (index === 1) {
-                bgClass = "bg-gradient-to-r from-gray-50 to-slate-100 border-gray-300 shadow-sm";
-                rankBadge = <span className="text-3xl" title="2ème Place">🥈</span>;
+                bgClass = "bg-gradient-to-br from-slate-50 to-slate-100 border-slate-300";
+                rankBadge = <span className="text-3xl drop-shadow-md">🥈</span>;
               } else if (index === 2) {
-                bgClass = "bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200 shadow-sm";
-                rankBadge = <span className="text-3xl" title="3ème Place">🥉</span>;
+                bgClass = "bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200";
+                rankBadge = <span className="text-3xl drop-shadow-md">🥉</span>;
               }
 
               if (isCurrentUser) {
-                bgClass += " ring-2 ring-indigo-500"; // Surbrillance de ton propre compte
+                bgClass += " ring-2 ring-indigo-400 ring-offset-2";
               }
 
               return (
-                <div key={leader.id} className={`flex items-center p-4 rounded-xl border ${bgClass}`}>
-                  <div className="w-12 text-center flex-shrink-0">
+                <motion.div
+                  key={leader.id}
+                  variants={{ hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0 } }}
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.3 }}
+                  className={`flex items-center p-4 md:p-5 rounded-2xl border-2 transition-all ${bgClass}`}
+                >
+                  <div className="w-14 text-center flex-shrink-0">
                     {rankBadge}
                   </div>
-                  
-                  <div className="ml-4 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-gray-900 truncate text-lg">
+
+                  <div className="ml-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-black text-slate-900 truncate text-base md:text-lg tracking-tight">
                         {displayNameToUse}
-                        {isCurrentUser && <span className="ml-2 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">MOI</span>}
                       </h4>
+                      {isCurrentUser && (
+                        <span className="text-[10px] bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-sm">
+                          Toi
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 font-semibold flex-wrap">
                       <span className="flex items-center gap-1">
                         {leader.role === 'courtier' ? '👔 Courtier' : leader.role === 'investisseur' ? '📈 Investisseur' : '🏠 Propriétaire'}
                       </span>
-                      <span>•</span>
-                      <span className={`font-semibold ${rankInfo.color} flex items-center gap-1`}>
+                      <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                      <span className={`font-black ${rankInfo.color} flex items-center gap-1`}>
                         {rankInfo.icon} {rankInfo.title}
                       </span>
                     </div>
                   </div>
 
-                  <div className="text-right ml-4">
-                    <div className="text-2xl font-black text-gray-800">
+                  <div className="text-right ml-3 shrink-0">
+                    <div className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
                       {leader.evaluationCount || 0}
                     </div>
-                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+                    <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
                       analyses
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         ) : (
-            <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-              <span className="text-4xl mb-4 block">👻</span>
-              <p>Le classement est vide pour le moment.</p>
-              <p className="text-sm mt-2">Fais ta première analyse pour prendre la première place !</p>
-            </div>
+          <div className="py-16 text-center text-slate-500 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <span className="text-5xl mb-4 block">👻</span>
+            <p className="font-bold text-slate-700">Le classement est vide</p>
+            <p className="text-sm mt-1 text-slate-500">Fais ta première analyse pour prendre la première place !</p>
+          </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -3234,56 +3366,106 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
 
   return (
     <div className="space-y-8 pb-12 relative">
-      {/* HEADER AVEC EMOJI */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      {/* HEADER */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col md:flex-row md:items-end justify-between gap-6"
+      >
         <div>
-          <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight mb-2 flex items-center gap-3">
-            <span className="text-3xl md:text-4xl">🚀</span> Tableau de bord
+          <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600 mb-2">Bienvenue 👋</span>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-1.5">
+            Votre tableau de bord
           </h1>
-          <p className="text-gray-500 text-base md:text-lg">Gérez vos analyses et suivez la performance de votre parc.</p>
+          <p className="text-slate-500 text-sm md:text-base">Gérez vos analyses et suivez la performance de votre parc immobilier.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-           <button onClick={() => setActiveTab('valuation')} className="w-full sm:w-auto justify-center px-5 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
-             <span>📊</span> Nouvelle Évaluation
+           <button onClick={() => setActiveTab('valuation')} className="group w-full sm:w-auto justify-center px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center gap-2 relative overflow-hidden text-sm">
+             <span className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+             <span className="relative flex items-center gap-2"><span>📊</span> Nouvelle Évaluation</span>
            </button>
-           <button onClick={() => setActiveTab('optimization')} className="w-full sm:w-auto justify-center px-5 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+           <button onClick={() => setActiveTab('optimization')} className="w-full sm:w-auto justify-center px-5 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-black rounded-xl hover:bg-slate-50 transition-all hover:-translate-y-0.5 flex items-center gap-2 text-sm">
              <span>💰</span> Nouvelle Optimisation
            </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <motion.div
+        initial="hidden" animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
+      >
         {[
-          { label: 'Propriétés', val: stats.totalProperties, icon: '🏘️', from: 'from-indigo-50', to: 'to-blue-50', border: 'border-indigo-100' },
-          { label: 'Valeur Totale', val: `$${formatCurrency(stats.totalValuation)}`, icon: '💎', from: 'from-blue-50', to: 'to-cyan-50', border: 'border-blue-100' },
-          { label: 'Gain Potentiel', val: `+$${formatCurrency(stats.totalGainsPotential)}`, icon: '📈', from: 'from-emerald-50', to: 'to-teal-50', border: 'border-emerald-100' },
-          { label: 'Analyses', val: stats.evaluations + stats.optimizations, icon: '📋', from: 'from-purple-50', to: 'to-fuchsia-50', border: 'border-purple-100' }
+          { label: 'Propriétés', val: stats.totalProperties, icon: '🏘️', accent: 'indigo' },
+          { label: 'Valeur Totale', val: `$${formatCurrency(stats.totalValuation)}`, icon: '💎', accent: 'blue' },
+          { label: 'Gain Potentiel', val: `+$${formatCurrency(stats.totalGainsPotential)}`, icon: '📈', accent: 'emerald' },
+          { label: 'Analyses', val: stats.evaluations + stats.optimizations, icon: '📋', accent: 'purple' }
         ].map((stat, i) => (
-          <div key={i} className={`bg-gradient-to-br ${stat.from} ${stat.to} p-4 md:p-5 rounded-2xl border ${stat.border} shadow-sm hover:shadow-md transition-all`}>
-            <div className="flex justify-between items-start mb-3 md:mb-4">
-              <span className="text-2xl md:text-4xl filter drop-shadow-sm">{stat.icon}</span>
+          <motion.div
+            key={i}
+            variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+            whileHover={{ y: -4 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="relative bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-shadow overflow-hidden"
+          >
+            <div className={`absolute -top-8 -right-8 w-28 h-28 rounded-full bg-${stat.accent}-100 opacity-50 blur-2xl`}></div>
+            <div className="relative">
+              <div className="flex justify-between items-start mb-3">
+                <span className="text-3xl drop-shadow-sm">{stat.icon}</span>
+                <span className={`text-[9px] font-black uppercase tracking-widest text-${stat.accent}-600 bg-${stat.accent}-50 px-2 py-0.5 rounded-md`}>
+                  {stat.accent}
+                </span>
+              </div>
+              <p className="text-2xl md:text-3xl font-black text-slate-900 truncate tracking-tight">{stat.val}</p>
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wide mt-1 truncate">{stat.label}</p>
             </div>
-            <div>
-              <p className="text-xl md:text-3xl font-black text-gray-900 truncate">{stat.val}</p>
-              <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wide mt-1 truncate">{stat.label}</p>
-            </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* QUICK START SI VIDE */}
       {stats.totalProperties === 0 && (
-        <div className="bg-gradient-to-r from-indigo-50 via-white to-purple-50 rounded-3xl p-6 md:p-10 border border-indigo-100 text-center shadow-sm">
-          <div className="text-5xl md:text-6xl mb-6 animate-bounce">👋</div>
-          <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">Bienvenue sur votre espace !</h2>
-          <p className="text-gray-500 max-w-md mx-auto mb-8 text-sm md:text-lg">
-            Commencez par analyser votre première propriété pour découvrir sa valeur réelle et son potentiel d'optimisation.
-          </p>
-          <button onClick={() => setActiveTab('valuation')} className="px-6 py-3 md:px-8 md:py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 text-base md:text-lg">
-            🚀 Lancer ma première analyse
-          </button>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="relative rounded-3xl p-8 md:p-12 text-center shadow-xl shadow-indigo-200/40 overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900"></div>
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+            transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute -top-1/2 -right-1/4 w-[500px] h-[500px] rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 opacity-30 blur-3xl"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], x: [0, 30, 0] }}
+            transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute -bottom-1/3 -left-1/4 w-[400px] h-[400px] rounded-full bg-gradient-to-br from-blue-500 to-pink-500 opacity-25 blur-3xl"
+          />
+          <div className="relative">
+            <motion.div
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="text-5xl md:text-6xl mb-5"
+            >
+              👋
+            </motion.div>
+            <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-indigo-300 mb-3">Premier pas</span>
+            <h2 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight leading-tight">
+              Commencez votre première analyse
+            </h2>
+            <p className="text-slate-300 max-w-md mx-auto mb-7 text-sm md:text-base leading-relaxed">
+              Découvrez la valeur réelle d'une propriété et son potentiel d'optimisation en quelques secondes grâce à l'IA.
+            </p>
+            <button
+              onClick={() => setActiveTab('valuation')}
+              className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-100 transition-all hover:-translate-y-0.5 shadow-xl text-sm md:text-base"
+            >
+              🚀 Lancer ma première analyse
+              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        </motion.div>
       )}
 
       {/* LISTE DES ANALYSES */}
@@ -3614,15 +3796,20 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
     <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
       
       {/* HEADER SECTION */}
-      <div className="mb-2">
-        <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mb-2"
+      >
+        <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-emerald-600 mb-2">Optimisation IA</span>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
           <span className="text-3xl filter drop-shadow-sm">🎯</span>
-          Optimiseur de Loyer IA
+          Optimiseur de Loyer
         </h2>
-        <p className="text-gray-500 font-medium mt-1 ml-11">
-          Maximisez vos revenus locatifs grâce aux recommandations basées sur les données du marché.
+        <p className="text-slate-500 font-medium mt-2 max-w-2xl">
+          Maximisez vos revenus locatifs grâce aux recommandations basées sur les données du marché en temps réel.
         </p>
-      </div>
+      </motion.div>
 
       {/* WIDGET QUOTA & CRÉDITS (STYLE DASHBOARD) */}
       {quotaInfo && (
@@ -3953,8 +4140,15 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           timestamp: new Date().toISOString(),
           createdAt: serverTimestamp()
         });
+        // 🏆 Auto-incrémente le compteur leaderboard
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            evaluationCount: increment(1),
+            updatedAt: serverTimestamp()
+          });
+        } catch (e) { console.warn('bumpEvaluationCount failed', e); }
       }
-      
+
       setResult(response.data);
 
     } catch (err) {
@@ -4536,6 +4730,13 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
           timestamp: new Date().toISOString(),
           createdAt: serverTimestamp()
         });
+        // 🏆 Auto-incrémente le compteur leaderboard
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            evaluationCount: increment(1),
+            updatedAt: serverTimestamp()
+          });
+        } catch (e) { console.warn('bumpEvaluationCount failed', e); }
       }
 
       setResult(response.data);
@@ -5032,15 +5233,20 @@ function PropertyValuationTab({
     <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto">
       
       {/* HEADER SECTION */}
-      <div className="mb-2">
-        <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mb-2"
+      >
+        <span className="inline-block text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600 mb-2">Évaluation IA</span>
+        <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
           <span className="text-3xl filter drop-shadow-sm">⚡</span>
-          Générateur d'Évaluation IA
+          Évaluateur de Propriété
         </h2>
-        <p className="text-gray-500 font-medium mt-1 ml-11">
-          Obtenez une valeur marchande précise basée sur les données réelles du marché.
+        <p className="text-slate-500 font-medium mt-2 max-w-2xl">
+          Obtenez une valeur marchande précise basée sur les données réelles du marché québécois.
         </p>
-      </div>
+      </motion.div>
 
       {/* WIDGET QUOTA & CRÉDITS (STYLE DASHBOARD) */}
       {quotaInfo && (
@@ -8052,442 +8258,6 @@ function ParticleBackground() {
 }
 
 
-function HomePage() {
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleEmailSubmit = (e) => {
-    e.preventDefault();
-    if (email) {
-      setSubmitted(true);
-      setEmail('');
-      setTimeout(() => setSubmitted(false), 3000);
-    }
-  };
-
-  return (
-    <div className="relative min-h-screen bg-white overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
-      <AnimatedBlob />
-
-      {/* ==================== BACKGROUND DÉCORATIF SUBTIL ==================== */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        {/* Motif radial */}
-        <div className="absolute inset-0 opacity-[0.4] mix-blend-soft-light bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(255,255,255,0.85),_transparent_60%)]" />
-
-        {/* Grille subtile */}
-        <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(to_right,_rgba(148,163,184,0.25)_1px,_transparent_1px),linear-gradient(to_bottom,_rgba(148,163,184,0.25)_1px,_transparent_1px)] bg-[size:80px_80px]" />
-      </div>
-
-      {/* CONTENU */}
-      <div className="relative z-10">
-        {/* ==================== HEADER ==================== */}
-        <header className="border-b border-gray-200 sticky top-0 z-50 bg-white/80 backdrop-blur-xl">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
-            <Link
-              to="/"
-              className="flex items-center gap-3 hover:opacity-80 transition flex-shrink-0"
-            >
-              <img
-                src="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png"
-                alt="OptimiPlex Logo"
-                className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl shadow-lg shadow-indigo-200/40 bg-white/90 p-1 flex-shrink-0"
-              />
-              <span className="font-black text-gray-900 text-2xl sm:text-3xl hidden sm:inline tracking-tight">
-                OptimiPlex
-              </span>
-            </Link>
-
-            <nav className="flex items-center space-x-2 sm:space-x-4">
-              <a
-                href="#features"
-                className="hidden sm:inline px-4 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
-              >
-                Fonctionnalités
-              </a>
-              <a
-                href="#pricing"
-                className="hidden sm:inline px-4 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
-              >
-                Tarification
-              </a>
-              <Link
-                to="/login"
-                className="px-4 sm:px-6 py-2 text-gray-700 hover:text-gray-900 font-semibold transition"
-              >
-                Connexion
-              </Link>
-              <Link
-                to="/register"
-                className="px-4 sm:px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-indigo-300/40 transition-all"
-              >
-                Commencer
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        {/* ==================== HERO SECTION ==================== */}
-        <section className="relative min-h-[800px] sm:min-h-[900px] max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center flex flex-col justify-center">
-          <ParticleBackground />
-
-          {/* Badge Live Global */}
-          <div className="relative z-10 inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-full mb-6 backdrop-blur-md w-fit mx-auto">
-            <span className="animate-pulse">🌐</span>
-            <span className="text-sm font-bold text-indigo-700 uppercase tracking-widest">
-              Nouveau : Recherche Web Illimitée & Stratégies IA Live
-            </span>
-          </div>
-
-          {/* Main Headline */}
-          <h1 className="relative z-10 text-3xl sm:text-5xl lg:text-7xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
-            Évaluez. <span className="text-indigo-600">Planifiez.</span> Optimisez.
-            <br />
-            <span className="bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              L'IA experte du marché Québecois!
-            </span>
-          </h1>
-
-          {/* Subheadline */}
-          <p className="relative z-10 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-4xl mx-auto mb-4 font-light leading-relaxed">
-            Plus qu'un moteur de recherche. OptimiPlex parcourt l'intégralité du Web immobilier pour bâtir vos stratégies d'investissement, recommander des optimisations de baux et prédire les tendances avant tout le monde.
-            <span className="block mt-2 font-bold text-gray-900">
-              Des données en direct, des recommandations intelligentes, un plan d'action concret.
-            </span>
-          </p>
-
-          {/* Trust Badges */}
-          <div className="relative z-10 flex flex-col sm:flex-row justify-center gap-4 sm:gap-6 mt-8 text-sm text-gray-600 mb-12">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">⚡</span>
-              <span>Marché Web Total & Live</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">🧠</span>
-              <span>Stratégies & Recommandations IA</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 border border-gray-200 backdrop-blur card-hover">
-              <span className="text-2xl">📈</span>
-              <span>Optimisation de Cash-flow</span>
-            </div>
-          </div>
-
-          {/* CTA Button */}
-          <div className="relative z-10 mb-12 flex gap-3 sm:gap-4 justify-center flex-wrap">
-            <Link
-              to="/register"
-              className="inline-block px-6 sm:px-8 lg:px-10 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-[0_18px_45px_rgba(79,70,229,0.35)] hover:shadow-[0_20px_60px_rgba(56,189,248,0.5)] transform hover:-translate-y-1 transition-all card-hover"
-            >
-              🚀 Créer ma Stratégie IA
-            </Link>
-            <Link
-              to="/register"
-              className="inline-block px-6 sm:px-8 lg:px-10 py-3 sm:py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-xl font-bold text-base sm:text-lg hover:bg-indigo-50 transform hover:-translate-y-1 transition-all card-hover"
-            >
-              💰 Optimiser mes revenus
-            </Link>
-          </div>
-
-          {/* Hero Visual - Updated for Rent Evaluation, Property Eval & Chatbot */}
-          <div className="relative z-10 mt-10 sm:mt-16">
-            <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-200/50 via-sky-200/40 to-emerald-200/40 rounded-3xl opacity-80 blur-xl" />
-            <div className="relative rounded-3xl overflow-hidden border border-white/60 bg-white/80 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-gray-200/70 card-hover">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                
-                {/* Card 1: Évaluateur & Optimisateur de Loyer */}
-                <div className="p-5 sm:p-6 bg-white/90 rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-200/40 transition card-hover text-left flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="text-3xl sm:text-4xl">📈</div>
-                      <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Évaluation de Loyer</span>
-                    </div>
-                    <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
-                      Optimisation des Revenus
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
-                      L'IA a comparé vos baux aux annonces actives de votre secteur et identifié un important potentiel d'optimisation.
-                    </p>
-                  </div>
-                  <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 mt-2">
-                    <p className="text-xs font-bold text-indigo-700">Manque à gagner récupérable :</p>
-                    <p className="text-sm sm:text-base font-black text-indigo-900 flex items-center gap-1">
-                      <span className="text-lg">💰</span> + 1 450 $ / mois
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card 2: Évaluateur de Propriété (NOUVEAU) */}
-                <div className="p-5 sm:p-6 bg-gradient-to-br from-blue-50/80 via-white to-blue-50/50 rounded-2xl border border-blue-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-200/40 transition card-hover text-left flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="text-3xl sm:text-4xl">🏢</div>
-                      <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Valeur Marchande Live</span>
-                    </div>
-                    <h3 className="font-black text-gray-900 mb-2 text-lg sm:text-xl">
-                      Évaluation de Propriété
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-600 mb-3 leading-relaxed">
-                      L'IA calcule la valeur de votre immeuble en croisant les données du marché en temps réel et l'historique des ventes récentes.
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-600 rounded-xl shadow-inner mt-2">
-                    <p className="text-xs font-bold text-blue-100">Valeur estimée actuelle :</p>
-                    <p className="text-sm sm:text-base font-black text-white flex items-center justify-between">
-                      <span>1 250 000 $</span>
-                      <span className="text-xs bg-blue-500 px-1.5 py-0.5 rounded font-bold text-white">+12%</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card 3: Chatbot IA Stratégique */}
-                <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-100/40 via-emerald-200/30 to-emerald-50/40 rounded-2xl border-2 border-emerald-300 shadow-lg shadow-emerald-200/40 card-hover text-left flex flex-col justify-between md:col-span-2 lg:col-span-1">
-                   <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="text-3xl sm:text-4xl">💬</div>
-                      <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">Assistant IA 24/7</span>
-                    </div>
-                    <h3 className="font-black text-emerald-900 mb-2 text-lg sm:text-xl">
-                      Chatbot Stratégique
-                    </h3>
-                    <p className="text-xs sm:text-sm text-emerald-700 font-semibold mb-3">
-                      Discutez avec votre assistant pour simuler des scénarios ou générer vos avis d'augmentation conformes.
-                    </p>
-                  </div>
-                  <div className="bg-white/90 rounded-xl p-3 border border-emerald-200 shadow-sm relative mt-2">
-                    <div className="absolute -left-2 -top-2 bg-emerald-500 rounded-full w-4 h-4 border-2 border-white animate-pulse"></div>
-                    <p className="text-[11px] sm:text-xs text-gray-700 italic font-medium">
-                      « Comment puis-je maximiser la rentabilité de l'unité #4 cette année en respectant les grilles du TAL ? »
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== FEATURES SECTION ==================== */}
-        <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <div className="fade-in-up mx-auto max-w-3xl text-center mb-12 sm:mb-16">
-            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-4 tracking-tight">
-              Une intelligence qui <span className="text-indigo-600">pense stratégiquement</span>
-            </h2>
-            <p className="text-gray-600 text-base sm:text-lg">
-              OptimiPlex ne se contente pas de trouver des données. Elle les analyse pour vous fournir des conseils d'experts et des plans d'action personnalisés.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {[
-              {
-                icon: '🔍',
-                title: 'Scan du Web Immobilier',
-                description:
-                  'Notre IA explore tout l\'Internet (annonces actives, articles, données publiques) pour capter chaque mouvement du marché en temps réel.',
-              },
-              {
-                icon: '🧠',
-                title: 'Recommandations Stratégiques',
-                description:
-                  'Recevez des conseils sur le refinancement, la rénovation rentable et l\'optimisation fiscale de vos biens.',
-              },
-              {
-                icon: '📈',
-                title: 'Plans d\'Action IA',
-                description:
-                  'Chaque analyse inclut un plan par étapes pour augmenter votre cash-flow et votre valeur immobilière.',
-              },
-              {
-                icon: '📊',
-                title: 'Analyses Multi-Sources',
-                description:
-                  'Fusion des annonces actives, des historiques de transactions et des comparables Web pour une vision à 360 degrés.',
-              },
-              {
-                icon: '⚡',
-                title: 'Intelligence Connectée',
-                description:
-                  "Propulsé par les derniers modèles IA capables de synthétiser des milliers d'informations en quelques secondes.",
-              },
-              {
-                icon: '🏢',
-                title: 'Gestion Commerciale Pro',
-                description:
-                  'Analyse prédictive des baux et des cycles de marché pour sécuriser vos investissements à long terme.',
-              },
-            ].map((feature, i) => (
-              <div
-                key={i}
-                className="fade-in-up p-6 sm:p-8 rounded-2xl border border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40 transition-all group cursor-pointer backdrop-blur-xl glow-on-hover card-hover"
-              >
-                <div className="inline-flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-indigo-100/60 border border-indigo-200 text-2xl mb-4 group-hover:scale-110 transition-transform">
-                  {feature.icon}
-                </div>
-                <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-3">
-                  {feature.title}
-                </h3>
-                <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ==================== PRICING SECTION ==================== */}
-        <section id="pricing" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2 className="fade-in-up text-3xl sm:text-4xl font-black text-gray-900 text-center mb-4 tracking-tighter">
-            Tarification <span className="text-indigo-600 underline decoration-indigo-200">transparente</span>
-          </h2>
-          <p className="fade-in-up text-lg sm:text-xl text-gray-600 text-center max-w-2xl mx-auto mb-12 sm:mb-16">
-            Débloquez la puissance de l'Intelligence Web avec nos plans flexibles.
-          </p>
-
-          {/* Passage de lg:grid-cols-3 à lg:grid-cols-4 pour inclure le plan À la carte */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-6">
-            {[
-              {
-                name: 'Essai',
-                price: 'Gratuit',
-                description: 'Pour découvrir l\'interface',
-                features: [
-                  '1 évaluation offerte',
-                  'Conseils de base',
-                  'Support standard',
-                ],
-                highlighted: false,
-                buttonText: 'Commencer',
-              },
-              {
-                name: 'À la carte',
-                price: '5$',
-                period: '/ analyse',
-                description: 'Pour un besoin ponctuel',
-                features: [
-                  'Achat par crédits',
-                  'Scan Web en direct',
-                  'Sans abonnement',
-                  'Crédits valides à vie',
-                ],
-                highlighted: false,
-                buttonText: 'Acheter des crédits',
-              },
-              {
-                name: 'Pro',
-                price: '29$',
-                period: '/ mois',
-                description: 'Le cerveau de votre parc',
-                features: [
-                  '30 analyses / mois',
-                  'Scan du Web en direct',
-                  'Transactions récentes',
-                  'Recommandations IA',
-                ],
-                highlighted: true,
-                buttonText: 'Activer l\'Intelligence',
-              },
-              {
-                name: 'Growth',
-                price: '69$',
-                period: '/ mois',
-                description: 'Gestionnaires experts',
-                features: [
-                  'Analyses illimitées',
-                  'Scan Temps Réel Global',
-                  'Plans d\'action IA',
-                  'Support prioritaire',
-                ],
-                highlighted: false,
-                buttonText: 'Passer à Growth',
-              },
-            ].map((plan, i) => (
-              <div
-                key={i}
-                className={`fade-in-up rounded-2xl border p-6 sm:p-7 transition-all backdrop-blur-xl card-hover glow-on-hover flex flex-col ${
-                  plan.highlighted
-                    ? 'border-indigo-400 bg-gradient-to-b from-indigo-50/50 via-white/90 to-white shadow-2xl shadow-indigo-200/50 transform md:scale-[1.03] z-10'
-                    : 'border-gray-200 bg-white/80 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-200/40'
-                }`}
-              >
-                {plan.highlighted && (
-                  <div className="mb-4 inline-block px-3 py-1 bg-indigo-600 text-white text-[10px] sm:text-xs font-black rounded-full uppercase tracking-widest animate-pulse w-fit">
-                    🚀 Meilleure Valeur
-                  </div>
-                )}
-                <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">
-                  {plan.name}
-                </h3>
-                <p className="text-[11px] sm:text-xs text-gray-600 mb-6 font-medium uppercase tracking-tight h-8">{plan.description}</p>
-                <div className="mb-6 sm:mb-8">
-                  <span className="text-3xl sm:text-4xl font-black text-gray-900">
-                    {plan.price}
-                  </span>
-                  {plan.period && (
-                    <span className="text-gray-600 text-xs sm:text-sm font-bold ml-1">
-                      {plan.period}
-                    </span>
-                  )}
-                </div>
-                <Link
-                  to="/register"
-                  className={`block w-full py-3 px-4 rounded-xl font-black mb-6 sm:mb-8 text-center transition-all text-sm ${
-                    plan.highlighted
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                  }`}
-                >
-                  {plan.buttonText}
-                </Link>
-                <ul className="space-y-3 mt-auto">
-                  {plan.features.map((feature, j) => (
-                    <li
-                      key={j}
-                      className="flex items-start gap-2 text-gray-700 text-xs sm:text-sm"
-                    >
-                      <CheckCircle2 size={16} className={plan.highlighted ? "text-indigo-600 mt-0.5 shrink-0" : "text-gray-400 mt-0.5 shrink-0"} />
-                      <span className={feature.includes('Pas de') ? "text-gray-400 line-through font-medium" : "font-bold text-gray-800"}>
-                        {feature}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ==================== FOOTER ==================== */}
-        <footer className="border-t border-gray-200 bg-white/90 py-10 sm:py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-8 sm:gap-0">
-              <div className="text-center sm:text-left">
-                <div className="flex items-center gap-3 justify-center sm:justify-start mb-4">
-                  <img src="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" className="w-10 h-10 grayscale opacity-50" alt="" />
-                  <h4 className="font-black text-gray-900 text-xl tracking-tighter">
-                    OptimiPlex
-                  </h4>
-                </div>
-                <p className="text-xs sm:text-sm text-gray-500 max-w-sm leading-relaxed font-medium">
-                  L'intelligence artificielle immobilière qui navigue sur l'intégralité du Web pour bâtir vos stratégies de réussite.
-                </p>
-              </div>
-              <div className="mt-4 sm:mt-0 text-center sm:text-right">
-                <div className="flex gap-4 sm:gap-8 justify-center sm:justify-end mb-6 text-sm font-black text-gray-400 uppercase tracking-widest">
-                  <a href="#" className="hover:text-indigo-600 transition">Contact</a>
-                  <a href="#" className="hover:text-indigo-600 transition">Conditions</a>
-                  <a href="#" className="hover:text-indigo-600 transition">Confidentialité</a>
-                </div>
-                <p className="text-gray-400 text-[11px] sm:text-xs font-bold uppercase tracking-widest">
-                  &copy; 2026 OptimiPlex Intelligence Inc. Tous droits réservés.
-                  <br />
-                </p>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </div>
-    </div>
-  );
-}
 
 // ============================================
 // LOGIN & REGISTER (Kept Simple)
@@ -8554,125 +8324,135 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl font-black text-gray-900 mb-8">Connexion</h1>
+    <AuthShell side="right">
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Bon retour 👋</h1>
+        <p className="text-sm text-slate-600">Connecte-toi à ton compte OptimiPlex</p>
+      </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-300 rounded-lg text-red-700">
-            {error}
-          </div>
-        )}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm font-semibold flex items-start gap-2"
+        >
+          <span className="mt-0.5">⚠️</span><span>{error}</span>
+        </motion.div>
+      )}
 
-        {resetMessage && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-300 rounded-lg text-green-700">
-            {resetMessage}
-          </div>
-        )}
+      {resetMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-semibold"
+        >
+          {resetMessage}
+        </motion.div>
+      )}
 
-        {!showResetForm ? (
-          <>
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
+      {!showResetForm ? (
+        <>
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-1.5">Courriel</label>
               <input
                 type="email"
-                placeholder="Email"
+                placeholder="vous@exemple.com"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full p-3 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
+                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
                 required
               />
-              
-              {/* ✅ Champ Mot de passe avec toggle */}
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-1.5">Mot de passe</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Mot de passe"
+                  placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full p-3 pr-10 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
+                  className="w-full px-4 py-3 pr-12 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={togglePasswordVisibility}
-                  className="absolute right-3 top-3.5 text-gray-600 hover:text-gray-900"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
                 >
-                  {showPassword ? (
-                    <EyeOff size={20} />
-                  ) : (
-                    <Eye size={20} />
-                  )}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {loading ? 'Connexion...' : 'Se connecter'}
-              </button>
-            </form>
-
-            <div className="mt-4">
-              <button
-                onClick={() => setShowResetForm(true)}
-                className="w-full text-center text-indigo-600 hover:text-indigo-700 text-sm font-semibold"
-              >
-                Mot de passe oublié?
-              </button>
             </div>
-          </>
-        ) : (
-          <form onSubmit={handleForgotPassword} className="space-y-4">
-            <p className="text-gray-600 text-sm mb-4">Entrez votre email pour recevoir un lien de réinitialisation.</p>
-            <input
-              type="email"
-              placeholder="Votre email"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-              className="w-full p-3 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
-              required
-            />
+
             <button
               type="submit"
-              className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700"
+              disabled={loading}
+              className="group relative w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl disabled:opacity-50 transition-all hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-0.5 overflow-hidden"
             >
-              Envoyer le lien
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowResetForm(false)}
-              className="w-full py-3 bg-gray-300 text-gray-900 font-bold rounded-lg hover:bg-gray-400"
-            >
-              Retour
+              <span className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+              <span className="relative flex items-center justify-center gap-2">
+                {loading ? (<><Loader2 size={16} className="animate-spin"/> Connexion…</>) : 'Se connecter'}
+              </span>
             </button>
           </form>
-        )}
 
-        <div className="mt-6">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Ou continuer avec</span>
-            </div>
-          </div>
           <button
-            onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            onClick={() => setShowResetForm(true)}
+            className="block w-full text-center mt-4 text-indigo-600 hover:text-indigo-700 text-sm font-bold transition-colors"
           >
-            <img className="h-5 w-5" src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" />
-            Se connecter avec Google
+            Mot de passe oublié ?
           </button>
-        </div>
+        </>
+      ) : (
+        <form onSubmit={handleForgotPassword} className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed mb-2">Entre ton courriel pour recevoir un lien de réinitialisation.</p>
+          <input
+            type="email"
+            placeholder="Ton courriel"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
+            required
+          />
+          <button
+            type="submit"
+            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl transition-all hover:shadow-xl hover:shadow-slate-900/20"
+          >
+            Envoyer le lien
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowResetForm(false)}
+            className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-sm"
+          >
+            ← Retour
+          </button>
+        </form>
+      )}
 
-        <p className="text-center mt-6 text-gray-600">
-          Pas de compte? <Link to="/register" className="text-indigo-600 hover:text-indigo-700 font-semibold">Inscrire</Link>
-        </p>
+      <div className="mt-6 mb-5">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase tracking-widest font-black text-slate-400">
+            <span className="px-3 bg-white">Ou</span>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <button
+        onClick={handleGoogleLogin}
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 rounded-xl shadow-sm text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
+      >
+        <img className="h-5 w-5" src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
+        Continuer avec Google
+      </button>
+
+      <p className="text-center mt-7 text-sm text-slate-600">
+        Pas de compte ? <Link to="/register" className="text-indigo-600 hover:text-indigo-700 font-black transition-colors">S'inscrire</Link>
+      </p>
+    </AuthShell>
   );
 }
 
@@ -8740,106 +8520,113 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl font-black text-gray-900 mb-8">Créer un compte</h1>
+    <AuthShell side="left">
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Créer un compte ✨</h1>
+        <p className="text-sm text-slate-600">Commence gratuitement, aucune carte requise</p>
+      </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-300 rounded-lg text-red-700">
-            {error}
-          </div>
-        )}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm font-semibold flex items-start gap-2"
+        >
+          <span className="mt-0.5">⚠️</span><span>{error}</span>
+        </motion.div>
+      )}
 
-        <form onSubmit={handleEmailSubmit} className="space-y-4">
+      <form onSubmit={handleEmailSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-1.5">Courriel</label>
           <input
             type="email"
-            placeholder="Email"
+            placeholder="vous@exemple.com"
             value={formData.email}
             onChange={(e) => setFormData({...formData, email: e.target.value})}
-            className="w-full p-3 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
+            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
             required
           />
+        </div>
 
-          {/* ✅ Champ Mot de passe avec toggle */}
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-1.5">Mot de passe</label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Mot de passe"
+              placeholder="Min. 8 caractères"
               value={formData.password}
               onChange={(e) => setFormData({...formData, password: e.target.value})}
               minLength="8"
-              className="w-full p-3 pr-10 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
+              className="w-full px-4 py-3 pr-12 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
               required
             />
             <button
               type="button"
               onClick={togglePasswordVisibility}
-              className="absolute right-3 top-3.5 text-gray-600 hover:text-gray-900"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
             >
-              {showPassword ? (
-                <EyeOff size={20} />
-              ) : (
-                <Eye size={20} />
-              )}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+        </div>
 
-          {/* ✅ Champ Confirmer le mot de passe avec toggle */}
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-1.5">Confirmer</label>
           <div className="relative">
             <input
               type={showConfirmPassword ? 'text' : 'password'}
-              placeholder="Confirmer le mot de passe"
+              placeholder="Retape ton mot de passe"
               value={formData.confirmPassword}
               onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
               minLength="8"
-              className="w-full p-3 pr-10 bg-white border border-gray-300 text-gray-900 rounded-lg focus:border-indigo-500 outline-none"
+              className="w-full px-4 py-3 pr-12 bg-slate-50 border-2 border-slate-200 text-slate-900 rounded-xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white outline-none transition-all"
               required
             />
             <button
               type="button"
               onClick={toggleConfirmPasswordVisibility}
-              className="absolute right-3 top-3.5 text-gray-600 hover:text-gray-900"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
             >
-              {showConfirmPassword ? (
-                <EyeOff size={20} />
-              ) : (
-                <Eye size={20} />
-              )}
+              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {loading ? 'Création...' : 'Créer un compte'}
-          </button>
-        </form>
-
-        <div className="mt-6">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Ou continuer avec</span>
-            </div>
-          </div>
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <img className="h-5 w-5" src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" />
-            S'inscrire avec Google
-          </button>
         </div>
 
-        <p className="text-center mt-6 text-gray-600">
-          Déjà inscrit? <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-semibold">Se connecter</Link>
-        </p>
+        <button
+          type="submit"
+          disabled={loading}
+          className="group relative w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl disabled:opacity-50 transition-all hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-0.5 overflow-hidden"
+        >
+          <span className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+          <span className="relative flex items-center justify-center gap-2">
+            {loading ? (<><Loader2 size={16} className="animate-spin"/> Création…</>) : 'Créer mon compte'}
+          </span>
+        </button>
+      </form>
+
+      <div className="mt-6 mb-5">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase tracking-widest font-black text-slate-400">
+            <span className="px-3 bg-white">Ou</span>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <button
+        onClick={handleGoogleLogin}
+        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 rounded-xl shadow-sm text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
+      >
+        <img className="h-5 w-5" src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
+        Continuer avec Google
+      </button>
+
+      <p className="text-center mt-7 text-sm text-slate-600">
+        Déjà inscrit ? <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-black transition-colors">Se connecter</Link>
+      </p>
+    </AuthShell>
   );
 }
 

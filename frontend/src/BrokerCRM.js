@@ -4,13 +4,15 @@ import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, Mail, Briefcase, Clock, ArrowLeft, Trash2, Search, AlertCircle, 
-  TrendingUp, Phone, ChevronRight, DollarSign, PieChart, MapPin, FileText, 
+import {
+  Users, Mail, Briefcase, Clock, ArrowLeft, Trash2, Search, AlertCircle,
+  TrendingUp, Phone, ChevronRight, DollarSign, PieChart, MapPin, FileText,
   Printer, Send, BrainCircuit, CheckCircle, Download, Loader2, Bot, FileDown, X as CloseIcon, Plus, UploadCloud, Paperclip, Sparkles, Maximize2, RefreshCw, LogOut, ShieldAlert
 } from 'lucide-react';
+import CrmPaywall, { hasCrmAccess } from './CrmPaywall';
+import EmailTemplatesEditor from './EmailTemplatesEditor';
 
-// Export manquant pour éviter les erreurs dans App.js
+// Visibilité dans la sidebar du dashboard — toujours true (le gate réel est à l'intérieur du CRM via crmAccess)
 export const isUserBroker = (userEmail) => true;
 
 // Helpers
@@ -45,6 +47,7 @@ export default function BrokerCRM() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isAddingLead, setIsAddingLead] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
 
   // Authentification : on écoute simplement App.js
   useEffect(() => {
@@ -186,12 +189,17 @@ export default function BrokerCRM() {
       });
 
       try {
+        const clientName = `${lead.clientDetails?.prenom || ''} ${lead.clientDetails?.nom || ''}`.trim() || (lead.clientEmail || '').split('@')[0];
         await axios.post(`${API_URL}/api/broker/assign`, {
           leadId: lead.id,
           brokerEmail: assignedBroker.email,
           brokerName: assignedBroker.name,
           clientEmail: lead.clientEmail,
-          aiSummary: lead.aiSummary || "Dossier ajouté manuellement - en attente du bilan client."
+          clientName,
+          aiSummary: lead.aiSummary || "Dossier ajouté manuellement - en attente du bilan client.",
+          adminUid: teamData?.adminUid || currentUser?.uid,
+          teamId: teamData?.id,
+          teamName: teamData?.name
         });
         alert(`✅ Dossier assigné avec succès à ${assignedBroker.name}. Les courriels ont été envoyés !`);
       } catch (e) {
@@ -286,6 +294,11 @@ export default function BrokerCRM() {
       );
   }
 
+  // 🔒 PAYWALL : abonnement requis pour le CRM Hypothécaire
+  if (!hasCrmAccess(currentUser, userProfile, 'broker')) {
+    return <CrmPaywall currentUser={currentUser} userProfile={userProfile} crmName="CRM Hypothécaire" crmType="broker" />;
+  }
+
   // 3. Connecté, profil chargé, MAIS l'équipe n'existe pas / pas d'accès
   if (currentUser && !teamData) {
       return (
@@ -324,54 +337,72 @@ export default function BrokerCRM() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans print:hidden">
-      <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-40 px-8 flex items-center justify-between shadow-sm">
+      <header className="h-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-6 lg:px-8 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className={`bg-${themeColor}-600 p-2.5 rounded-xl text-white shadow-lg flex items-center justify-center font-black`}>
-              {teamData.logoInitials || <BrainCircuit size={24} />}
+            <div className={`relative w-11 h-11 rounded-2xl bg-gradient-to-br from-${themeColor}-500 to-${themeColor}-700 text-white shadow-lg flex items-center justify-center font-black`}>
+              {teamData.logoInitials || <BrainCircuit size={22} />}
+              <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white`} title="En ligne"></div>
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                {teamData.name} <span className={`text-${themeColor}-600`}>CRM</span>
+              <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none flex items-center gap-2">
+                <span>{teamData.name}</span>
+                <span className={`text-${themeColor}-600`}>CRM</span>
               </h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Connecté : {isAdmin ? 'Administrateur' : 'Courtier'}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+                  isAdmin ? `bg-${themeColor}-100 text-${themeColor}-800` : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {isAdmin ? '⭐ Admin' : '👤 Courtier'}
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400 hidden sm:inline">
+                  · Hypothécaire
+                </span>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-3">
           <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-2.5 text-slate-300" size={18} />
-            <input 
-              placeholder="Rechercher un client..." 
-              className={`pl-10 pr-4 py-2 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-${themeColor}-100 w-72 font-bold transition-all`} 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
+            <Search className="absolute left-3.5 top-2.5 text-slate-400" size={18} />
+            <input
+              placeholder="Rechercher un client…"
+              className={`pl-11 pr-4 py-2.5 bg-slate-100/70 hover:bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-${themeColor}-200 focus:bg-white w-72 font-semibold text-sm text-slate-700 placeholder:text-slate-400 transition-all border border-transparent focus:border-${themeColor}-200`}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           {isAdmin && (
-            <button 
-              onClick={() => setIsTeamModalOpen(true)}
-              className={`flex items-center gap-2 bg-white border border-${themeColor}-200 text-${themeColor}-700 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors hover:bg-${themeColor}-50`}
-            >
-              <Users size={18} /> Équipe
-            </button>
+            <>
+              <button
+                onClick={() => setIsTemplatesOpen(true)}
+                title="Personnaliser les emails automatiques"
+                className={`flex items-center gap-2 bg-white border border-slate-200 hover:border-${themeColor}-300 text-slate-700 hover:text-${themeColor}-700 px-3.5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow-md`}
+              >
+                <Mail size={17} /> <span className="hidden lg:inline">Templates</span>
+              </button>
+              <button
+                onClick={() => setIsTeamModalOpen(true)}
+                className={`flex items-center gap-2 bg-white border border-slate-200 hover:border-${themeColor}-300 text-slate-700 hover:text-${themeColor}-700 px-3.5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all hover:shadow-md`}
+              >
+                <Users size={17} /> <span className="hidden lg:inline">Équipe</span>
+              </button>
+            </>
           )}
 
-          <button 
+          <button
             onClick={() => setIsAddingLead(true)}
-            className={`flex items-center gap-2 bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors`}
+            className={`flex items-center gap-2 bg-gradient-to-br from-${themeColor}-500 to-${themeColor}-700 hover:from-${themeColor}-600 hover:to-${themeColor}-800 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
           >
-            <Plus size={18} /> Ajouter client
+            <Plus size={18} /> <span className="hidden sm:inline">Ajouter client</span>
           </button>
-          
-          <div className="h-8 w-px bg-slate-200 mx-2"></div>
-          
-          <button onClick={() => navigate('/dashboard/overview')} className="text-slate-400 hover:text-slate-600 transition-colors" title="Quitter le CRM">
-             <LogOut size={20} className="rotate-180" />
+
+          <div className="h-9 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+          <button onClick={() => navigate('/dashboard/overview')} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all" title="Quitter le CRM">
+             <LogOut size={18} className="rotate-180" />
           </button>
         </div>
       </header>
@@ -418,11 +449,22 @@ export default function BrokerCRM() {
       )}
 
       {isTeamModalOpen && (
-        <TeamManagementModal 
-          team={teamData} 
-          onClose={() => setIsTeamModalOpen(false)} 
-          themeColor={themeColor} 
-          currentUserUid={currentUser.uid} 
+        <TeamManagementModal
+          team={teamData}
+          onClose={() => setIsTeamModalOpen(false)}
+          themeColor={themeColor}
+          currentUserUid={currentUser.uid}
+        />
+      )}
+
+      {isTemplatesOpen && (
+        <EmailTemplatesEditor
+          adminUid={teamData?.adminUid || currentUser.uid}
+          teamId={teamData?.id}
+          teamCollection="teams"
+          teamName={teamData?.name}
+          themeColor={themeColor}
+          onClose={() => setIsTemplatesOpen(false)}
         />
       )}
     </div>
@@ -797,13 +839,18 @@ function DetailModal({ lead, team, onClose, onAssign, onGenerateReport }) {
     if (!window.confirm(`Envoyer le document "${file.name}" à ${lead.clientEmail} ?`)) return;
     try {
       const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+      const clientName = `${lead.clientDetails?.prenom || ''} ${lead.clientDetails?.nom || ''}`.trim() || (lead.clientEmail || '').split('@')[0];
       await axios.post(`${API_URL}/api/broker/send-file`, {
         leadId: lead.id,
         email: lead.clientEmail,
+        clientName,
         fileName: file.name,
         fileUrl: file.url,
         brokerName: broker.name,
-        brokerEmail: broker.email
+        brokerEmail: broker.email,
+        adminUid: team?.adminUid,
+        teamId: team?.id,
+        teamName: team?.name
       });
       alert("✅ Document envoyé avec succès !");
     } catch (err) {
