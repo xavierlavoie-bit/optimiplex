@@ -361,15 +361,27 @@ app.post('/api/stripe/webhook', async (req, res) => {
 
   try {
     switch (event.type) {
-      case 'customer.subscription.created':
-        await handleSubscriptionCreated(event.data.object);
+      case 'customer.subscription.created': {
+        const sub = event.data.object;
+        if (sub.metadata?.type === 'team_subscription') {
+          console.log(`📝 Team subscription créée (en attente de paiement): ${sub.id}`);
+        } else {
+          await handleSubscriptionCreated(sub);
+        }
         break;
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object);
+      }
+      case 'customer.subscription.updated': {
+        const sub = event.data.object;
+        const handled = await handleTeamSubscriptionUpdated(sub);
+        if (!handled) await handleSubscriptionUpdated(sub);
         break;
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object);
+      }
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object;
+        const handled = await handleTeamSubscriptionDeleted(sub);
+        if (!handled) await handleSubscriptionDeleted(sub);
         break;
+      }
       case 'checkout.session.completed':
         const checkoutSession = event.data.object;
         if (checkoutSession.metadata?.type === 'credits') {
@@ -382,30 +394,42 @@ app.post('/api/stripe/webhook', async (req, res) => {
           await handleCheckoutSessionCompleted(checkoutSession);
         }
         break;
-      case 'invoice.paid':
+      case 'invoice.paid': {
         const invoice = event.data.object;
+
+        // Route prioritaire : team subscription
+        const handledTeam = await handleTeamInvoicePaid(invoice);
+        if (handledTeam) break;
+
         if (invoice.subscription) {
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
           const userId = subscription.metadata?.firebaseUserId; // Utilise l'optionnel chaining ?.
-          
+
           // ✅ AJOUTE CETTE VÉRIFICATION
           if (!userId || typeof userId !== 'string') {
             console.error("❌ Erreur : invoice.paid reçu mais firebaseUserId est manquant dans les metadata");
-            return res.status(200).json({ received: true, warning: "Missing userId" }); 
+            return res.status(200).json({ received: true, warning: "Missing userId" });
           }
-          
+
           await db.collection('users').doc(userId).update({
             'quotaTracking.count': 0,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
         }
         break;
-      case 'invoice.payment_succeeded':
-        await handlePaymentSucceeded(event.data.object);
+      }
+      case 'invoice.payment_succeeded': {
+        const inv = event.data.object;
+        const handledTeam = await handleTeamInvoicePaid(inv);
+        if (!handledTeam) await handlePaymentSucceeded(inv);
         break;
-      case 'invoice.payment_failed':
-        await handlePaymentFailed(event.data.object);
+      }
+      case 'invoice.payment_failed': {
+        const inv = event.data.object;
+        const handledTeam = await handleTeamPaymentFailed(inv);
+        if (!handledTeam) await handlePaymentFailed(inv);
         break;
+      }
       default:
         console.log('📝 Webhook ignoré:', event.type);
     }
@@ -634,6 +658,492 @@ async function handlePaymentFailed(invoice) {
 async function handleCheckoutSessionCompleted(session) {
     console.log('✅ Checkout session completed:', session.id);
 }
+
+
+// ====================================================================
+// 👥 TEAMS - MIDDLEWARE ADMIN (Firebase Auth + email allowlist)
+// ====================================================================
+const requireAdmin = async (req, res, next) => {
+  try {
+    if (!process.env.ADMIN_EMAILS) {
+      return res.status(500).json({ error: 'ADMIN_EMAILS non configuré dans .env' });
+    }
+
+    const authHeader = req.header('Authorization') || '';
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
+      return res.status(401).json({ error: 'Token manquant (Authorization: Bearer <firebase_id_token>)' });
+    }
+
+    const idToken = match[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const email = (decoded.email || '').toLowerCase().trim();
+
+    const allowlist = process.env.ADMIN_EMAILS
+      .split(',')
+      .map(e => e.toLowerCase().trim())
+      .filter(Boolean);
+
+    if (!email || !allowlist.includes(email)) {
+      return res.status(403).json({ error: 'Accès admin refusé' });
+    }
+
+    req.adminEmail = email;
+    req.adminUid = decoded.uid;
+    next();
+  } catch (err) {
+    console.error('❌ requireAdmin:', err.message);
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+};
+
+
+// ====================================================================
+// 💌 TEAMS - ENVOI FACTURE HOSTED (admin choisit le nb de seats)
+// ====================================================================
+app.post('/api/admin/send-team-invoice', requireAdmin, async (req, res) => {
+  try {
+    const { clientEmail, clientName, companyName, seats, daysUntilDue } = req.body;
+
+    if (!clientEmail || !seats || parseInt(seats, 10) < 1) {
+      return res.status(400).json({ error: 'clientEmail et seats (>= 1) requis' });
+    }
+    if (!process.env.STRIPE_TEAM_SEAT_PRICE_ID || process.env.STRIPE_TEAM_SEAT_PRICE_ID === 'price_REPLACE_ME') {
+      return res.status(500).json({ error: 'STRIPE_TEAM_SEAT_PRICE_ID non configuré dans .env' });
+    }
+
+    const seatsInt = parseInt(seats, 10);
+
+    // 1. Réutilise le client Stripe existant si possible (par email)
+    let customer;
+    const existing = await stripe.customers.list({ email: clientEmail, limit: 1 });
+    if (existing.data.length > 0) {
+      customer = existing.data[0];
+    } else {
+      customer = await stripe.customers.create({
+        email: clientEmail,
+        name: clientName || companyName || clientEmail,
+        metadata: { type: 'team_owner', companyName: companyName || '' }
+      });
+    }
+
+    // 2. Pré-crée le doc team Firestore (statut pending)
+    const teamRef = db.collection('teams').doc();
+    const teamId = teamRef.id;
+
+    // 3. Crée la subscription en mode send_invoice → Stripe envoie la facture par email
+    const subscription = await stripe.subscriptions.create({
+      customer: customer.id,
+      items: [{ price: process.env.STRIPE_TEAM_SEAT_PRICE_ID, quantity: seatsInt }],
+      collection_method: 'send_invoice',
+      days_until_due: daysUntilDue || 14,
+      metadata: {
+        type: 'team_subscription',
+        teamId: teamId,
+        seats: String(seatsInt),
+        companyName: companyName || ''
+      }
+    });
+
+    // 4. Finalise et envoie la facture (Stripe le fait auto, mais on force pour être sûr)
+    let invoice = null;
+    if (subscription.latest_invoice) {
+      invoice = await stripe.invoices.retrieve(subscription.latest_invoice);
+      if (invoice.status === 'draft') {
+        invoice = await stripe.invoices.finalizeInvoice(invoice.id);
+      }
+      if (invoice.status === 'open') {
+        try {
+          invoice = await stripe.invoices.sendInvoice(invoice.id);
+        } catch (sendErr) {
+          console.warn('⚠️ sendInvoice a échoué (Stripe l\'envoie peut-être déjà auto):', sendErr.message);
+        }
+      }
+    }
+
+    // 5. Si l'utilisateur existe déjà sur la plateforme → on lie ownerId tout de suite
+    let ownerId = null;
+    const userSnap = await db.collection('users').where('email', '==', clientEmail).limit(1).get();
+    if (!userSnap.empty) {
+      ownerId = userSnap.docs[0].id;
+    }
+
+    // 6. Sauvegarde Firestore
+    await teamRef.set({
+      teamId,
+      ownerEmail: clientEmail.toLowerCase(),
+      ownerName: clientName || '',
+      companyName: companyName || '',
+      ownerId,
+      stripeCustomerId: customer.id,
+      stripeSubscriptionId: subscription.id,
+      seats: seatsInt,
+      subscriptionStatus: subscription.status,
+      crmAccess: false,
+      members: [],
+      pendingInviteEmails: [],
+      latestInvoiceId: invoice ? invoice.id : null,
+      latestInvoiceUrl: invoice ? invoice.hosted_invoice_url : null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    if (ownerId) {
+      await db.collection('users').doc(ownerId).update({
+        teamId,
+        teamRole: 'owner',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    res.json({
+      success: true,
+      teamId,
+      subscriptionId: subscription.id,
+      invoiceId: invoice ? invoice.id : null,
+      hostedInvoiceUrl: invoice ? invoice.hosted_invoice_url : null,
+      status: subscription.status
+    });
+  } catch (error) {
+    console.error('❌ send-team-invoice:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ====================================================================
+// 👥 TEAMS - WEBHOOK HANDLERS (return true si traité comme team)
+// ====================================================================
+async function handleTeamInvoicePaid(invoice) {
+  if (!invoice.subscription) return false;
+  const sub = await stripe.subscriptions.retrieve(invoice.subscription);
+  if (sub.metadata?.type !== 'team_subscription') return false;
+
+  const teamId = sub.metadata.teamId;
+  if (!teamId) {
+    console.warn('⚠️ team_subscription sans teamId dans metadata');
+    return true;
+  }
+
+  const teamRef = db.collection('teams').doc(teamId);
+  const teamDoc = await teamRef.get();
+  if (!teamDoc.exists) {
+    console.warn(`⚠️ Team ${teamId} introuvable dans Firestore`);
+    return true;
+  }
+
+  await teamRef.update({
+    crmAccess: true,
+    subscriptionStatus: 'active',
+    seats: sub.items.data[0]?.quantity || teamDoc.data().seats,
+    lastPaymentDate: new Date(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  // Propage l'accès CRM aux membres existants + owner
+  const team = (await teamRef.get()).data();
+  const allUserIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
+  await Promise.all(allUserIds.map(uid =>
+    db.collection('users').doc(uid).update({
+      crmAccess: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    })
+  ));
+
+  console.log(`✅ Team ${teamId} activée — CRM access ON pour ${allUserIds.length} user(s)`);
+  return true;
+}
+
+async function handleTeamSubscriptionUpdated(subscription) {
+  if (subscription.metadata?.type !== 'team_subscription') return false;
+  const teamId = subscription.metadata.teamId;
+  if (!teamId) return true;
+
+  const teamRef = db.collection('teams').doc(teamId);
+  const teamDoc = await teamRef.get();
+  if (!teamDoc.exists) return true;
+
+  const newSeats = subscription.items.data[0]?.quantity;
+  const updates = {
+    subscriptionStatus: subscription.status,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+  if (newSeats) updates.seats = newSeats;
+  if (subscription.cancel_at_period_end) {
+    updates.subscriptionStatus = 'canceling';
+    updates.cancelDate = new Date(subscription.current_period_end * 1000);
+  }
+  await teamRef.update(updates);
+  console.log(`🔄 Team ${teamId} subscription updated → ${updates.subscriptionStatus}`);
+  return true;
+}
+
+async function handleTeamSubscriptionDeleted(subscription) {
+  if (subscription.metadata?.type !== 'team_subscription') return false;
+  const teamId = subscription.metadata.teamId;
+  if (!teamId) return true;
+
+  const teamRef = db.collection('teams').doc(teamId);
+  const teamDoc = await teamRef.get();
+  if (!teamDoc.exists) return true;
+
+  await teamRef.update({
+    crmAccess: false,
+    subscriptionStatus: 'deleted',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  const team = teamDoc.data();
+  const allUserIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
+  await Promise.all(allUserIds.map(uid =>
+    db.collection('users').doc(uid).update({
+      crmAccess: false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    })
+  ));
+  console.log(`🛑 Team ${teamId} subscription supprimée — accès CRM révoqué`);
+  return true;
+}
+
+async function handleTeamPaymentFailed(invoice) {
+  if (!invoice.subscription) return false;
+  const sub = await stripe.subscriptions.retrieve(invoice.subscription);
+  if (sub.metadata?.type !== 'team_subscription') return false;
+  const teamId = sub.metadata.teamId;
+  if (!teamId) return true;
+  await db.collection('teams').doc(teamId).update({
+    subscriptionStatus: 'past_due',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  console.log(`⚠️ Team ${teamId} : paiement échoué`);
+  return true;
+}
+
+
+// ====================================================================
+// 👥 TEAMS - ENDPOINTS GESTION (utilisés par le CRM admin / team owner)
+// ====================================================================
+
+// Récupérer la team d'un utilisateur (owner ou membre)
+app.get('/api/teams/by-user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+    const teamId = userDoc.data().teamId;
+    if (!teamId) return res.json({ team: null });
+
+    const teamDoc = await db.collection('teams').doc(teamId).get();
+    if (!teamDoc.exists) return res.json({ team: null });
+
+    res.json({ team: { id: teamDoc.id, ...teamDoc.data() } });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Lister les membres d'une team
+app.get('/api/teams/:teamId/members', async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const teamDoc = await db.collection('teams').doc(teamId).get();
+    if (!teamDoc.exists) return res.status(404).json({ error: 'Team introuvable' });
+    const team = teamDoc.data();
+
+    const memberIds = team.members || [];
+    const memberDocs = await Promise.all(memberIds.map(id => db.collection('users').doc(id).get()));
+    const members = memberDocs
+      .filter(d => d.exists)
+      .map(d => ({ id: d.id, email: d.data().email, name: d.data().name || d.data().displayName || '' }));
+
+    let owner = null;
+    if (team.ownerId) {
+      const ownerDoc = await db.collection('users').doc(team.ownerId).get();
+      if (ownerDoc.exists) {
+        owner = { id: ownerDoc.id, email: ownerDoc.data().email, name: ownerDoc.data().name || ownerDoc.data().displayName || '' };
+      }
+    }
+
+    res.json({
+      teamId,
+      seats: team.seats,
+      seatsUsed: (team.ownerId ? 1 : 0) + memberIds.length,
+      crmAccess: team.crmAccess,
+      subscriptionStatus: team.subscriptionStatus,
+      owner,
+      members,
+      pendingInviteEmails: team.pendingInviteEmails || []
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ajouter un membre par email (owner-only)
+app.post('/api/teams/:teamId/add-member', async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { ownerId, memberEmail } = req.body;
+    if (!ownerId || !memberEmail) {
+      return res.status(400).json({ error: 'ownerId et memberEmail requis' });
+    }
+
+    const teamRef = db.collection('teams').doc(teamId);
+    const teamDoc = await teamRef.get();
+    if (!teamDoc.exists) return res.status(404).json({ error: 'Team introuvable' });
+    const team = teamDoc.data();
+
+    if (team.ownerId !== ownerId) {
+      return res.status(403).json({ error: 'Seul le propriétaire peut ajouter un membre' });
+    }
+    if (!team.crmAccess) {
+      return res.status(402).json({ error: 'Abonnement non actif — facture non payée' });
+    }
+
+    const seatsUsed = (team.ownerId ? 1 : 0) + (team.members?.length || 0);
+    if (seatsUsed >= team.seats) {
+      return res.status(400).json({ error: `Limite de ${team.seats} seats atteinte` });
+    }
+
+    const normalizedEmail = memberEmail.toLowerCase().trim();
+    const userSnap = await db.collection('users').where('email', '==', normalizedEmail).limit(1).get();
+
+    if (userSnap.empty) {
+      // Pas encore inscrit → invitation en attente
+      await teamRef.update({
+        pendingInviteEmails: admin.firestore.FieldValue.arrayUnion(normalizedEmail),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return res.json({
+        success: true,
+        status: 'pending',
+        message: 'Invitation enregistrée. L\'utilisateur recevra l\'accès dès son inscription.'
+      });
+    }
+
+    const memberUserId = userSnap.docs[0].id;
+    if (memberUserId === team.ownerId) {
+      return res.status(400).json({ error: 'Le propriétaire est déjà dans la team' });
+    }
+    if ((team.members || []).includes(memberUserId)) {
+      return res.status(400).json({ error: 'Cet utilisateur est déjà membre' });
+    }
+
+    await teamRef.update({
+      members: admin.firestore.FieldValue.arrayUnion(memberUserId),
+      pendingInviteEmails: admin.firestore.FieldValue.arrayRemove(normalizedEmail),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    await db.collection('users').doc(memberUserId).update({
+      teamId,
+      teamRole: 'member',
+      crmAccess: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true, status: 'added', memberUserId });
+  } catch (error) {
+    console.error('❌ add-member:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retirer un membre (owner-only) — par userId ou email (pour les pending)
+app.post('/api/teams/:teamId/remove-member', async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { ownerId, memberUserId, memberEmail } = req.body;
+
+    const teamRef = db.collection('teams').doc(teamId);
+    const teamDoc = await teamRef.get();
+    if (!teamDoc.exists) return res.status(404).json({ error: 'Team introuvable' });
+    const team = teamDoc.data();
+    if (team.ownerId !== ownerId) {
+      return res.status(403).json({ error: 'Seul le propriétaire peut retirer un membre' });
+    }
+
+    if (memberUserId) {
+      await teamRef.update({
+        members: admin.firestore.FieldValue.arrayRemove(memberUserId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection('users').doc(memberUserId).update({
+        teamId: admin.firestore.FieldValue.delete(),
+        teamRole: admin.firestore.FieldValue.delete(),
+        crmAccess: false,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else if (memberEmail) {
+      await teamRef.update({
+        pendingInviteEmails: admin.firestore.FieldValue.arrayRemove(memberEmail.toLowerCase().trim()),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      return res.status(400).json({ error: 'memberUserId ou memberEmail requis' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Hook : à appeler au login/signup pour lier un user à une team via pendingInviteEmails ou ownerEmail
+app.post('/api/teams/claim-pending', async (req, res) => {
+  try {
+    const { userId, email } = req.body;
+    if (!userId || !email) return res.status(400).json({ error: 'userId et email requis' });
+    const normalized = email.toLowerCase().trim();
+
+    // 1. Owner non-encore-lié ?
+    const ownerSnap = await db.collection('teams')
+      .where('ownerEmail', '==', normalized)
+      .where('ownerId', '==', null)
+      .limit(1).get();
+    if (!ownerSnap.empty) {
+      const teamDoc = ownerSnap.docs[0];
+      const team = teamDoc.data();
+      await teamDoc.ref.update({
+        ownerId: userId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection('users').doc(userId).update({
+        teamId: teamDoc.id,
+        teamRole: 'owner',
+        crmAccess: !!team.crmAccess,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return res.json({ claimed: 'owner', teamId: teamDoc.id });
+    }
+
+    // 2. Invitation en attente ?
+    const inviteSnap = await db.collection('teams')
+      .where('pendingInviteEmails', 'array-contains', normalized)
+      .limit(1).get();
+    if (!inviteSnap.empty) {
+      const teamDoc = inviteSnap.docs[0];
+      const team = teamDoc.data();
+      await teamDoc.ref.update({
+        members: admin.firestore.FieldValue.arrayUnion(userId),
+        pendingInviteEmails: admin.firestore.FieldValue.arrayRemove(normalized),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection('users').doc(userId).update({
+        teamId: teamDoc.id,
+        teamRole: 'member',
+        crmAccess: !!team.crmAccess,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return res.json({ claimed: 'member', teamId: teamDoc.id });
+    }
+
+    res.json({ claimed: null });
+  } catch (error) {
+    console.error('❌ claim-pending:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 // ====================================================================

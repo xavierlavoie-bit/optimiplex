@@ -83,6 +83,10 @@ const googleProvider = new GoogleAuthProvider();
 // --- CONFIGURATION STRIPE ---
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 
+// --- ADMIN ---
+const ADMIN_EMAIL = 'xavlavoie24@gmail.com';
+const isAdminUser = (email) => (email || '').toLowerCase().trim() === ADMIN_EMAIL;
+
 // ============================================
 // 1️⃣ HOOK POUR DÉTECTION MOBILE
 // ============================================
@@ -161,7 +165,7 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
 // ============================================
 // 3️⃣ SIDEBAR RESPONSIVE - DESKTOP + MOBILE
 // ============================================
-function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits, isUserBroker }) {
+function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits, isUserBroker, isAdmin }) {
   // Remplacer par ton hook useWindowSize existant
   const windowSize = { width: window.innerWidth }; 
   const isMobile = windowSize.width < 768;
@@ -247,9 +251,9 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
               </a>
 
               {/* Bouton CRM Immobilier */}
-              <a 
-                href="/crm-immo" 
-                target="_blank" 
+              <a
+                href="/crm-immo"
+                target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {if (isMobile) setSidebarOpen(false);}}
                 className={`w-full flex items-center rounded-xl transition-all duration-200 bg-transparent text-gray-700 hover:bg-gray-100 px-3 py-3 ${
@@ -267,6 +271,30 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
                 )}
               </a>
 
+            </div>
+          )}
+
+          {/* 👇 BOUTON ADMIN — Facturation (Desktop) — visible uniquement à l'admin */}
+          {isAdmin && (
+            <div className="pt-4 mt-4 border-t border-gray-100">
+              <button
+                onClick={() => handleTabChange('admin')}
+                title={!sidebarOpen ? 'Admin · Facturation' : ''}
+                className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                  activeTab === 'admin'
+                    ? 'bg-amber-50 border border-amber-200 text-amber-800 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-transparent'
+                }`}
+              >
+                {sidebarOpen ? (
+                  <>
+                    <span className="mr-3 text-lg">🧾</span>
+                    <span className="font-bold whitespace-nowrap text-sm">Admin · Facturation</span>
+                  </>
+                ) : (
+                  <span className="text-xl">🧾</span>
+                )}
+              </button>
             </div>
           )}
         </nav>
@@ -352,8 +380,8 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
               </a>
 
               {/* Bouton CRM Immobilier Mobile */}
-              <a 
-                href="/crm-immo" 
+              <a
+                href="/crm-immo"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {if (typeof setSidebarOpen === 'function') setSidebarOpen(false);}}
@@ -363,6 +391,23 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
                 CRM Immobilier
               </a>
 
+            </div>
+          )}
+
+          {/* 👇 BOUTON ADMIN Mobile — visible uniquement à l'admin */}
+          {isAdmin && (
+            <div className="pt-4 mt-4 border-t border-gray-100">
+              <button
+                onClick={() => handleTabChange('admin')}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left rounded-xl transition-all font-bold text-sm ${
+                  activeTab === 'admin'
+                    ? 'bg-amber-50 text-amber-800 shadow-sm border border-amber-100'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
+                }`}
+              >
+                <span className="text-lg">🧾</span>
+                Admin · Facturation
+              </button>
             </div>
           )}
         </div>
@@ -381,6 +426,192 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
   );
 }
 
+
+
+// ============================================
+// 🧾 ADMIN · ENVOI DE FACTURE (visible uniquement à ADMIN_EMAIL)
+// ============================================
+function AdminInvoicePage({ user }) {
+  const [form, setForm] = useState({
+    clientEmail: '',
+    clientName: '',
+    companyName: '',
+    seats: 1,
+    daysUntilDue: 14,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleChange = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setResult(null);
+    try {
+      if (!user) throw new Error('Non connecté');
+      const token = await user.getIdToken();
+      const seats = parseInt(form.seats, 10);
+      const daysUntilDue = parseInt(form.daysUntilDue, 10);
+      if (!form.clientEmail || !seats || seats < 1) {
+        throw new Error('Email client et nombre de seats (≥ 1) requis.');
+      }
+      const res = await axios.post(
+        `${API_BASE_URL}/api/admin/send-team-invoice`,
+        {
+          clientEmail: form.clientEmail.trim(),
+          clientName: form.clientName.trim(),
+          companyName: form.companyName.trim(),
+          seats,
+          daysUntilDue,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setResult(res.data);
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message || 'Erreur inconnue';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setForm({ clientEmail: '', clientName: '', companyName: '', seats: 1, daysUntilDue: 14 });
+    setResult(null);
+    setError(null);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-3xl">🧾</span>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Envoyer une soumission</h2>
+        </div>
+        <p className="text-gray-600 mb-8">
+          Crée un abonnement au CRM par seats et envoie la facture par courriel via Stripe (lien de paiement hébergé). Le client reçoit la facture et obtient l'accès au CRM dès paiement.
+        </p>
+
+        {result && (
+          <div className="mb-6 p-5 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <p className="font-bold text-emerald-800 mb-2">✅ Facture envoyée par courriel à {form.clientEmail || result.ownerEmail}</p>
+            <ul className="text-sm text-emerald-900 space-y-1">
+              <li><span className="font-semibold">Team ID :</span> {result.teamId}</li>
+              <li><span className="font-semibold">Subscription :</span> {result.subscriptionId}</li>
+              <li><span className="font-semibold">Statut :</span> {result.status}</li>
+            </ul>
+            {result.hostedInvoiceUrl && (
+              <a
+                href={result.hostedInvoiceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+              >
+                🔗 Voir la facture (hosted)
+              </a>
+            )}
+            <button
+              onClick={resetForm}
+              className="ml-3 mt-3 inline-flex items-center px-4 py-2 bg-white border border-emerald-300 text-emerald-700 font-bold rounded-lg hover:bg-emerald-50 transition-colors text-sm"
+            >
+              Nouvelle facture
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <p className="font-bold text-red-800">❌ {error}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">Courriel du client *</label>
+            <input
+              type="email"
+              required
+              value={form.clientEmail}
+              onChange={handleChange('clientEmail')}
+              placeholder="client@entreprise.com"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom du contact</label>
+              <input
+                type="text"
+                value={form.clientName}
+                onChange={handleChange('clientName')}
+                placeholder="Jean Tremblay"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom de l'entreprise</label>
+              <input
+                type="text"
+                value={form.companyName}
+                onChange={handleChange('companyName')}
+                placeholder="Hypothèques Inc."
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nombre de seats (users) *</label>
+              <input
+                type="number"
+                required
+                min="1"
+                value={form.seats}
+                onChange={handleChange('seats')}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">Le tarif par seat est fixé dans Stripe (variable .env STRIPE_TEAM_SEAT_PRICE_ID).</p>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Délai de paiement (jours)</label>
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={form.daysUntilDue}
+                onChange={handleChange('daysUntilDue')}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-black rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {submitting ? '⏳ Envoi…' : '📧 Envoyer la facture par courriel'}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <p className="text-xs text-gray-500">
+            <span className="font-bold">⚙️ Comment ça marche :</span> Stripe crée un abonnement « send_invoice » avec le nombre de seats choisi, finalise la facture et l'envoie automatiquement à l'adresse du client. Quand il paie, le webhook active la team (<code>crmAccess: true</code>) et le client peut alors ajouter ses membres dans le CRM.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 // ============================================
@@ -509,6 +740,7 @@ function DashboardLayout() {
       onLogout={handleLogout}
       credits={userProfile?.creditsBalance || 0} // ✅ Passer les crédits
       isUserBroker={isUserBroker}
+      isAdmin={isAdminUser(user?.email)}
     />
 
     <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300`}>
@@ -581,6 +813,7 @@ function DashboardLayout() {
         {activeTab === 'valuation' && <PropertyValuationTab user={user} userPlan={userPlan} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
         {activeTab === 'leaderboard' && <LeaderboardTab user={user} userProfile={userProfile} userPlan={userPlan} />}
         {activeTab === 'profile' && <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />}
+        {activeTab === 'admin' && isAdminUser(user?.email) && <AdminInvoicePage user={user} />}
       </div>
     </div>
 
