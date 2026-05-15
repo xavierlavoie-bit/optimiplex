@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
 import {
   ArrowRight, TrendingUp, Brain, Building2, BarChart3, MessageSquare,
-  CheckCircle2, ChevronRight, Globe, Shield, Mail, FileText, Users, Play,
+  CheckCircle2, Globe, Shield, Mail, FileText, Users, Play,
   Target, LineChart
 } from 'lucide-react';
 
@@ -65,47 +65,6 @@ function AnimatedNumber({ value, suffix = '', duration = 2 }) {
 }
 
 // =====================================================
-// 🌌 BACKGROUND : ORBES ANIMÉES + GRILLE
-// =====================================================
-
-function AmbientBackground() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* Grid */}
-      <div
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            'linear-gradient(to right, rgba(99,102,241,0.4) 1px, transparent 1px), linear-gradient(to bottom, rgba(99,102,241,0.4) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-          maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
-        }}
-      />
-      {/* Floating orbs */}
-      <motion.div
-        className="absolute -top-20 -left-20 w-[40rem] h-[40rem] rounded-full opacity-30 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #6366f1 0%, transparent 60%)' }}
-        animate={{ x: [0, 60, -30, 0], y: [0, -40, 30, 0], scale: [1, 1.1, 0.95, 1] }}
-        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute top-40 -right-32 w-[36rem] h-[36rem] rounded-full opacity-25 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #06b6d4 0%, transparent 60%)' }}
-        animate={{ x: [0, -50, 40, 0], y: [0, 60, -30, 0], scale: [1, 1.05, 0.9, 1] }}
-        transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute bottom-0 left-1/3 w-[30rem] h-[30rem] rounded-full opacity-20 blur-3xl"
-        style={{ background: 'radial-gradient(circle, #ec4899 0%, transparent 60%)' }}
-        animate={{ x: [0, 80, -20, 0], y: [0, -40, 50, 0] }}
-        transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-      />
-    </div>
-  );
-}
-
-// =====================================================
 // 🎯 NAV
 // =====================================================
 
@@ -131,19 +90,18 @@ function Nav() {
             <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-30 group-hover:opacity-50 transition-opacity rounded-xl"></div>
             <img src={LOGO_URL} alt="OptimiPlex" className="relative w-11 h-11 rounded-xl bg-white p-1 shadow-md" />
           </motion.div>
-          <span className="font-black text-slate-900 text-2xl tracking-tight hidden sm:inline">OptimiPlex</span>
+          <span className={`font-black text-2xl tracking-tight hidden sm:inline transition-colors ${scrolled ? 'text-slate-900' : 'text-white drop-shadow'}`}>OptimiPlex</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
           {[
             { href: '#produit', label: 'Produit' },
-            { href: '#crm', label: 'CRM' },
             { href: '#pricing', label: 'Tarification' },
           ].map((item) => (
             <a
               key={item.href}
               href={item.href}
-              className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors ${scrolled ? 'text-slate-600 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}
             >
               {item.label}
             </a>
@@ -153,13 +111,13 @@ function Nav() {
         <div className="flex items-center gap-2">
           <Link
             to="/login"
-            className="px-4 py-2 text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors hidden sm:inline-block"
+            className={`px-4 py-2 text-sm font-bold transition-colors hidden sm:inline-block ${scrolled ? 'text-slate-700 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}
           >
             Connexion
           </Link>
           <Link
             to="/register"
-            className="group inline-flex items-center gap-1.5 px-4 sm:px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-all hover:shadow-lg hover:shadow-slate-900/20"
+            className={`group inline-flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:shadow-lg ${scrolled ? 'bg-slate-900 hover:bg-slate-800 text-white hover:shadow-slate-900/20' : 'bg-white hover:bg-slate-100 text-slate-900 hover:shadow-white/20'}`}
           >
             Commencer
             <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
@@ -195,9 +153,27 @@ function Hero() {
 
   return (
     <section ref={heroRef} onMouseMove={handleMouseMove} className="relative pt-36 pb-20 sm:pt-44 sm:pb-32 overflow-hidden">
-      <motion.div style={{ x: dxBg, y: dyBg }}>
-        <AmbientBackground />
-      </motion.div>
+      {/* Video background */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[940px] overflow-hidden">
+        <motion.div style={{ x: dxBg, y: dyBg }} className="absolute inset-0 scale-110">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="absolute inset-0 w-full h-full object-cover"
+          >
+            <source src="/veo.mp4" type="video/mp4" />
+          </video>
+        </motion.div>
+        {/* Dark gradient overlay for legibility */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/85 via-slate-900/65 to-slate-900/40" />
+        {/* Subtle vignette */}
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 35%, rgba(2,6,23,0.55) 100%)' }} />
+        {/* Bottom fade to page background */}
+        <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent to-white" />
+      </div>
 
       <motion.div style={{ y, opacity }} className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 text-center">
         {/* Badge */}
@@ -205,13 +181,13 @@ function Hero() {
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-sm mb-8"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg shadow-black/10 mb-8"
         >
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
           </span>
-          <span className="text-xs font-black uppercase tracking-widest text-slate-700">
+          <span className="text-xs font-black uppercase tracking-widest text-white/90">
             PropTech IA · Conçu au Québec
           </span>
         </motion.div>
@@ -221,14 +197,14 @@ function Hero() {
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-slate-900 tracking-tighter leading-[0.95] mb-6"
+          className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-white tracking-tighter leading-[0.95] mb-6 drop-shadow-[0_4px_30px_rgba(0,0,0,0.4)]"
         >
           <motion.span variants={fadeUp} custom={0} className="block">
             L'intelligence
           </motion.span>
           <motion.span variants={fadeUp} custom={1} className="block">
             <span className="relative inline-block">
-              <span className="relative z-10 bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 bg-clip-text text-transparent">
+              <span className="relative z-10 bg-gradient-to-br from-indigo-300 via-blue-300 to-cyan-200 bg-clip-text text-transparent">
                 immobilière
               </span>
               <motion.svg
@@ -249,14 +225,14 @@ function Hero() {
                 />
                 <defs>
                   <linearGradient id="g1" x1="0" y1="0" x2="300" y2="0" gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stopColor="#6366f1" />
-                    <stop offset="1" stopColor="#06b6d4" />
+                    <stop offset="0" stopColor="#a5b4fc" />
+                    <stop offset="1" stopColor="#67e8f9" />
                   </linearGradient>
                 </defs>
               </motion.svg>
             </span>
           </motion.span>
-          <motion.span variants={fadeUp} custom={2} className="block text-slate-900">
+          <motion.span variants={fadeUp} custom={2} className="block text-white">
             de nouvelle génération.
           </motion.span>
         </motion.h1>
@@ -265,9 +241,9 @@ function Hero() {
         <motion.p
           variants={fadeUp} custom={3}
           initial="hidden" animate="show"
-          className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed font-medium"
+          className="text-lg sm:text-xl text-slate-200/90 max-w-2xl mx-auto mb-10 leading-relaxed font-medium drop-shadow"
         >
-          Évaluation, optimisation, CRM. Une plateforme propulsée par l'IA pour les courtiers et investisseurs québécois qui prennent de meilleures décisions, plus vite.
+          Évaluation propulsée par l'IA pour les courtiers et investisseurs québécois qui prennent de meilleures décisions, plus vite.
         </motion.p>
 
         {/* CTAs */}
@@ -278,17 +254,17 @@ function Hero() {
         >
           <Link
             to="/register"
-            className="group relative inline-flex items-center justify-center gap-2 px-7 py-4 bg-slate-900 text-white rounded-xl font-black text-base shadow-2xl shadow-slate-900/20 hover:shadow-slate-900/40 transition-all hover:-translate-y-0.5 overflow-hidden"
+            className="group relative inline-flex items-center justify-center gap-2 px-7 py-4 bg-white text-slate-900 rounded-xl font-black text-base shadow-2xl shadow-black/30 hover:shadow-black/50 transition-all hover:-translate-y-0.5 overflow-hidden"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
-            <span className="relative">Démarrer gratuitement</span>
-            <ArrowRight size={18} className="relative group-hover:translate-x-1 transition-transform" />
+            <span className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+            <span className="relative group-hover:text-white transition-colors">Démarrer gratuitement</span>
+            <ArrowRight size={18} className="relative group-hover:translate-x-1 group-hover:text-white transition-all" />
           </Link>
           <a
             href="#produit"
-            className="group inline-flex items-center justify-center gap-2 px-7 py-4 bg-white/70 backdrop-blur-md border border-slate-200 text-slate-800 rounded-xl font-black text-base hover:bg-white hover:shadow-md transition-all"
+            className="group inline-flex items-center justify-center gap-2 px-7 py-4 bg-white/10 backdrop-blur-md border border-white/25 text-white rounded-xl font-black text-base hover:bg-white/20 hover:border-white/40 transition-all"
           >
-            <Play size={16} className="text-indigo-600" />
+            <Play size={16} className="text-cyan-300" />
             Voir la plateforme
           </a>
         </motion.div>
@@ -305,10 +281,10 @@ function Hero() {
             { value: 24, suffix: 'h/24', label: 'Disponibilité' }
           ].map((s, i) => (
             <div key={i}>
-              <div className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              <div className="text-3xl sm:text-4xl font-black text-white tracking-tight drop-shadow">
                 <AnimatedNumber value={s.value} suffix={s.suffix} />
               </div>
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mt-1">{s.label}</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-white/70 mt-1">{s.label}</div>
             </div>
           ))}
         </motion.div>
@@ -527,7 +503,7 @@ function Features() {
               Une suite complète pour <span className="bg-gradient-to-br from-indigo-600 to-cyan-500 bg-clip-text text-transparent">votre marché</span>
             </h2>
             <p className="text-lg text-slate-600 leading-relaxed">
-              Évaluation IA, optimisation de revenus, CRM par équipe, automatisation client. Tous les outils pour scaler votre pratique.
+              Évaluation IA, analyse de marché, scan Web en direct, recommandations stratégiques. Tous les outils pour évaluer une propriété en quelques secondes.
             </p>
           </div>
         </Reveal>
@@ -625,96 +601,6 @@ function FeatureIcon({ Icon, color }) {
 }
 
 // =====================================================
-// 💼 CRM SECTION
-// =====================================================
-
-function CrmSection() {
-  return (
-    <section id="crm" className="relative py-24 sm:py-32 bg-gradient-to-b from-slate-50 via-white to-slate-50 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <Reveal>
-          <div className="text-center mb-16 max-w-3xl mx-auto">
-            <span className="inline-block text-xs font-black uppercase tracking-[0.25em] text-indigo-600 mb-4">
-              CRM par équipe
-            </span>
-            <h2 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5 leading-tight">
-              Pilotez votre équipe <span className="bg-gradient-to-br from-indigo-600 to-blue-600 bg-clip-text text-transparent">comme une pro</span>
-            </h2>
-            <p className="text-lg text-slate-600 leading-relaxed">
-              Pipeline Kanban, automatisation des courriels, templates personnalisables, portail client. Choisissez votre vertical : hypothécaire ou immobilier.
-            </p>
-          </div>
-        </Reveal>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {[
-            {
-              tag: 'Hypothécaire',
-              icon: '💼',
-              tagColor: 'indigo',
-              title: 'CRM Hypothécaire',
-              description: 'Pipeline pour courtiers hypothécaires : nouveaux leads, bilans clients, dossiers prêts pour la banque, financements.',
-              features: ['Portail client sécurisé', 'Calculs ABD/ATD automatiques', 'Rapports bancaires PDF', 'Stress test intégré'],
-            },
-            {
-              tag: 'Immobilier',
-              icon: '🏢',
-              tagColor: 'blue',
-              title: 'CRM Immobilier',
-              description: 'Pipeline pour courtiers immobiliers : prospects, évaluations, en marché, offres acceptées, ventes notariées.',
-              features: ['Évaluation propriété live', 'Suivi acheteurs/vendeurs', 'Templates email personnalisables', 'Historique des transactions'],
-            },
-          ].map((crm, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.7, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -4 }}
-              className="group relative rounded-3xl border border-slate-200 bg-white p-8 shadow-sm hover:shadow-2xl transition-all overflow-hidden"
-            >
-              <div className={`absolute -top-12 -right-12 w-48 h-48 rounded-full bg-${crm.tagColor}-100 opacity-50 group-hover:opacity-80 blur-2xl transition-opacity`}></div>
-
-              <div className="relative">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-${crm.tagColor}-500 to-${crm.tagColor}-700 flex items-center justify-center text-3xl shadow-md`}>
-                    {crm.icon}
-                  </div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest bg-${crm.tagColor}-100 text-${crm.tagColor}-700 px-2 py-1 rounded-md`}>
-                    {crm.tag}
-                  </span>
-                </div>
-
-                <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">{crm.title}</h3>
-                <p className="text-slate-600 leading-relaxed mb-6">{crm.description}</p>
-
-                <ul className="space-y-2.5 mb-6">
-                  {crm.features.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2 text-sm font-semibold text-slate-700">
-                      <CheckCircle2 size={16} className={`text-${crm.tagColor}-500 mt-0.5 shrink-0`} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <a
-                  href="#pricing"
-                  className={`group/btn inline-flex items-center gap-1.5 text-sm font-black text-${crm.tagColor}-600 hover:text-${crm.tagColor}-700 transition-colors`}
-                >
-                  Demander une soumission
-                  <ChevronRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
-                </a>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// =====================================================
 // 💰 PRICING
 // =====================================================
 
@@ -751,17 +637,6 @@ function Pricing() {
       highlighted: true,
       tag: 'Populaire',
     },
-    {
-      name: 'CRM Équipe',
-      price: 'Sur soumission',
-      period: '',
-      description: 'Pour courtiers et agences',
-      features: ['Pipeline Kanban complet', 'Tarif par seat', 'Templates personnalisables', 'Onboarding dédié'],
-      cta: 'Obtenir une soumission',
-      ctaTo: '/register',
-      highlighted: false,
-      premium: true,
-    }
   ];
 
   return (
@@ -782,7 +657,7 @@ function Pricing() {
           </div>
         </Reveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
           {plans.map((plan, i) => (
             <motion.div
               key={plan.name}
@@ -929,7 +804,6 @@ function Footer() {
             <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Produit</p>
             <ul className="space-y-2 text-sm font-semibold text-slate-600">
               <li><a href="#produit" className="hover:text-slate-900 transition">Fonctionnalités</a></li>
-              <li><a href="#crm" className="hover:text-slate-900 transition">CRM</a></li>
               <li><a href="#pricing" className="hover:text-slate-900 transition">Tarification</a></li>
             </ul>
           </div>
@@ -966,7 +840,6 @@ export default function HomePage() {
       <Hero />
       <SocialProof />
       <Features />
-      <CrmSection />
       <Pricing />
       <FinalCta />
       <Footer />

@@ -6,10 +6,6 @@
 import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
-import BrokerChat from './BrokerChat';
-import BrokerCRM, { isUserBroker } from './BrokerCRM';
-import RealEstateCRM from './RealEstateCRM'
-import ClientPortal from './ClientPortal';
 import HomePage from './HomePage';
 import AuthShell from './AuthShell';
 import { motion } from 'framer-motion';
@@ -85,10 +81,6 @@ const googleProvider = new GoogleAuthProvider();
 
 // --- CONFIGURATION STRIPE ---
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
-
-// --- ADMIN ---
-const ADMIN_EMAIL = 'xavlavoie24@gmail.com';
-const isAdminUser = (email) => (email || '').toLowerCase().trim() === ADMIN_EMAIL;
 
 // ============================================
 // 1️⃣ HOOK POUR DÉTECTION MOBILE
@@ -171,7 +163,7 @@ function MobileHeader({ sidebarOpen, setSidebarOpen, user, userPlan, planInfo, c
 // ============================================
 // 3️⃣ SIDEBAR RESPONSIVE - DESKTOP + MOBILE
 // ============================================
-function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits, isUserBroker, isAdmin }) {
+function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTab, user, userPlan, planInfo, onLogout, credits }) {
   // Remplacer par ton hook useWindowSize existant
   const windowSize = { width: window.innerWidth }; 
   const isMobile = windowSize.width < 768;
@@ -242,81 +234,6 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
             </button>
           ))}
 
-          {/* CRM Buttons */}
-          {user && isUserBroker && isUserBroker(user.email) && (
-            <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-1">
-              {sidebarOpen && (
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 mb-1">CRM</p>
-              )}
-
-              <a
-                href="/crm"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                className={`w-full flex items-center rounded-xl transition-all duration-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 px-3 py-2.5 ${
-                  !sidebarOpen ? 'justify-center' : ''
-                }`}
-                title={!sidebarOpen ? 'CRM Hypothécaire' : ''}
-              >
-                {sidebarOpen ? (
-                  <>
-                    <span className="mr-2.5 text-base">💼</span>
-                    <span className="font-bold whitespace-nowrap text-sm">CRM Hypothécaire</span>
-                  </>
-                ) : (
-                  <span className="text-lg">💼</span>
-                )}
-              </a>
-
-              <a
-                href="/crm-immo"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {if (isMobile) setSidebarOpen(false);}}
-                className={`w-full flex items-center rounded-xl transition-all duration-200 text-slate-600 hover:bg-blue-50 hover:text-blue-700 px-3 py-2.5 ${
-                  !sidebarOpen ? 'justify-center' : ''
-                }`}
-                title={!sidebarOpen ? 'CRM Immobilier' : ''}
-              >
-                {sidebarOpen ? (
-                  <>
-                    <span className="mr-2.5 text-base">🏢</span>
-                    <span className="font-bold whitespace-nowrap text-sm">CRM Immobilier</span>
-                  </>
-                ) : (
-                  <span className="text-lg">🏢</span>
-                )}
-              </a>
-            </div>
-          )}
-
-          {/* Admin */}
-          {isAdmin && (
-            <div className="pt-4 mt-4 border-t border-slate-100">
-              {sidebarOpen && (
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 mb-1">Admin</p>
-              )}
-              <button
-                onClick={() => handleTabChange('admin')}
-                title={!sidebarOpen ? 'Admin · Facturation' : ''}
-                className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                  activeTab === 'admin'
-                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 text-amber-800 shadow-sm'
-                    : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
-                }`}
-              >
-                {sidebarOpen ? (
-                  <>
-                    <span className="mr-2.5 text-base">🧾</span>
-                    <span className="font-bold whitespace-nowrap text-sm">Facturation</span>
-                  </>
-                ) : (
-                  <span className="text-lg">🧾</span>
-                )}
-              </button>
-            </div>
-          )}
         </nav>
 
         {/* Crédits Sidebar Desktop */}
@@ -391,53 +308,6 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
             </button>
           ))}
 
-          {/* 👇 AJOUTE CE BOUTON POUR LE MOBILE 👇 */}
-          {user && isUserBroker && isUserBroker(user.email) && (
-            <div className="pt-4 mt-4 border-t border-gray-100 flex flex-col gap-1">
-              
-              {/* Bouton CRM Hypothécaire Mobile */}
-              <a 
-                href="/crm" 
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {if (typeof setSidebarOpen === 'function') setSidebarOpen(false);}}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-transparent text-gray-700 hover:bg-gray-100 transition-all duration-200 text-left rounded-xl font-bold text-sm"
-              >
-                <span className="text-lg">💼</span>
-                CRM Hypothécaire
-              </a>
-
-              {/* Bouton CRM Immobilier Mobile */}
-              <a
-                href="/crm-immo"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {if (typeof setSidebarOpen === 'function') setSidebarOpen(false);}}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-transparent text-gray-700 hover:bg-gray-100 transition-all duration-200 text-left rounded-xl font-bold text-sm"
-              >
-                <span className="text-lg">🏢</span>
-                CRM Immobilier
-              </a>
-
-            </div>
-          )}
-
-          {/* 👇 BOUTON ADMIN Mobile — visible uniquement à l'admin */}
-          {isAdmin && (
-            <div className="pt-4 mt-4 border-t border-gray-100">
-              <button
-                onClick={() => handleTabChange('admin')}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 text-left rounded-xl transition-all font-bold text-sm ${
-                  activeTab === 'admin'
-                    ? 'bg-amber-50 text-amber-800 shadow-sm border border-amber-100'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
-                }`}
-              >
-                <span className="text-lg">🧾</span>
-                Admin · Facturation
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Logout Mobile */}
@@ -456,240 +326,6 @@ function ResponsiveSidebar({ sidebarOpen, setSidebarOpen, activeTab, setActiveTa
 
 
 
-// ============================================
-// 🧾 ADMIN · ENVOI DE FACTURE (visible uniquement à ADMIN_EMAIL)
-// ============================================
-function AdminInvoicePage({ user }) {
-  const [form, setForm] = useState({
-    clientEmail: '',
-    clientName: '',
-    companyName: '',
-    seats: 1,
-    daysUntilDue: 14,
-    crmType: 'broker',
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-
-  const handleChange = (field) => (e) => {
-    setForm((f) => ({ ...f, [field]: e.target.value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    setResult(null);
-    try {
-      if (!user) throw new Error('Non connecté');
-      const token = await user.getIdToken();
-      const seats = parseInt(form.seats, 10);
-      const daysUntilDue = parseInt(form.daysUntilDue, 10);
-      if (!form.clientEmail || !seats || seats < 1) {
-        throw new Error('Email client et nombre de seats (≥ 1) requis.');
-      }
-      if (!['broker', 'immo'].includes(form.crmType)) {
-        throw new Error('Type de CRM invalide.');
-      }
-      const res = await axios.post(
-        `${API_BASE_URL}/api/admin/send-team-invoice`,
-        {
-          clientEmail: form.clientEmail.trim(),
-          clientName: form.clientName.trim(),
-          companyName: form.companyName.trim(),
-          seats,
-          daysUntilDue,
-          crmType: form.crmType,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setResult(res.data);
-    } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Erreur inconnue';
-      setError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setForm({ clientEmail: '', clientName: '', companyName: '', seats: 1, daysUntilDue: 14, crmType: 'broker' });
-    setResult(null);
-    setError(null);
-  };
-
-  const setCrmType = (type) => setForm((f) => ({ ...f, crmType: type }));
-
-  return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-3xl">🧾</span>
-          <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Envoyer une soumission</h2>
-        </div>
-        <p className="text-gray-600 mb-8">
-          Crée un abonnement au CRM par seats et envoie la facture par courriel via Stripe (lien de paiement hébergé). Le client reçoit la facture et obtient l'accès au CRM dès paiement.
-        </p>
-
-        {result && (
-          <div className="mb-6 p-5 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <p className="font-bold text-emerald-800 mb-2">✅ Facture envoyée par courriel à {form.clientEmail || result.ownerEmail}</p>
-            <ul className="text-sm text-emerald-900 space-y-1">
-              <li><span className="font-semibold">Team ID :</span> {result.teamId}</li>
-              <li><span className="font-semibold">Subscription :</span> {result.subscriptionId}</li>
-              <li><span className="font-semibold">Statut :</span> {result.status}</li>
-            </ul>
-            {result.hostedInvoiceUrl && (
-              <a
-                href={result.hostedInvoiceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-colors text-sm"
-              >
-                🔗 Voir la facture (hosted)
-              </a>
-            )}
-            <button
-              onClick={resetForm}
-              className="ml-3 mt-3 inline-flex items-center px-4 py-2 bg-white border border-emerald-300 text-emerald-700 font-bold rounded-lg hover:bg-emerald-50 transition-colors text-sm"
-            >
-              Nouvelle facture
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-            <p className="font-bold text-red-800">❌ {error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Sélecteur de type de CRM */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Type de CRM *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setCrmType('broker')}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  form.crmType === 'broker'
-                    ? 'border-indigo-500 bg-indigo-50 shadow-sm'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-2xl">💼</span>
-                  <span className={`font-black ${form.crmType === 'broker' ? 'text-indigo-700' : 'text-gray-800'}`}>CRM Hypothécaire</span>
-                  {form.crmType === 'broker' && (
-                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs font-black">✓</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 leading-relaxed">Pipeline de courtiers hypothécaires, dossiers de financement, portail client.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCrmType('immo')}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  form.crmType === 'immo'
-                    ? 'border-blue-500 bg-blue-50 shadow-sm'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-2xl">🏢</span>
-                  <span className={`font-black ${form.crmType === 'immo' ? 'text-blue-700' : 'text-gray-800'}`}>CRM Immobilier</span>
-                  {form.crmType === 'immo' && (
-                    <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-black">✓</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 leading-relaxed">Pipeline immobilier (acheteurs/vendeurs), évaluations, transactions.</p>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Courriel du client *</label>
-            <input
-              type="email"
-              required
-              value={form.clientEmail}
-              onChange={handleChange('clientEmail')}
-              placeholder="client@entreprise.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom du contact</label>
-              <input
-                type="text"
-                value={form.clientName}
-                onChange={handleChange('clientName')}
-                placeholder="Jean Tremblay"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom de l'entreprise</label>
-              <input
-                type="text"
-                value={form.companyName}
-                onChange={handleChange('companyName')}
-                placeholder="Hypothèques Inc."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Nombre de seats (users) *</label>
-              <input
-                type="number"
-                required
-                min="1"
-                value={form.seats}
-                onChange={handleChange('seats')}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">Le tarif par seat est fixé dans Stripe (variable .env STRIPE_TEAM_SEAT_PRICE_ID).</p>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Délai de paiement (jours)</label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={form.daysUntilDue}
-                onChange={handleChange('daysUntilDue')}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-black rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {submitting ? '⏳ Envoi…' : '📧 Envoyer la facture par courriel'}
-            </button>
-          </div>
-        </form>
-
-        <div className="mt-8 pt-6 border-t border-gray-100">
-          <p className="text-xs text-gray-500">
-            <span className="font-bold">⚙️ Comment ça marche :</span> Stripe crée un abonnement « send_invoice » avec le nombre de seats choisi, finalise la facture et l'envoie automatiquement à l'adresse du client. Quand il paie, le webhook active la team (<code>crmAccess: true</code>) et le client peut alors ajouter ses membres dans le CRM.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 // ============================================
@@ -817,8 +453,6 @@ function DashboardLayout() {
       planInfo={planInfo}
       onLogout={handleLogout}
       credits={userProfile?.creditsBalance || 0} // ✅ Passer les crédits
-      isUserBroker={isUserBroker}
-      isAdmin={isAdminUser(user?.email)}
     />
 
     <div className={`${sidebarOpen ? 'md:ml-64' : 'md:ml-20'} transition-all duration-300 bg-slate-50/40 min-h-screen`}>
@@ -831,7 +465,6 @@ function DashboardLayout() {
                 : activeTab === 'optimization' ? 'Optimiseur'
                 : activeTab === 'valuation' ? 'Évaluation'
                 : activeTab === 'leaderboard' ? 'Classement'
-                : activeTab === 'admin' ? 'Admin · Facturation'
                 : 'Vue d\'ensemble'}
             </h1>
           </div>
@@ -850,7 +483,7 @@ function DashboardLayout() {
         </div>
       </header>
 
-      {activeTab !== 'profile' && activeTab !== 'admin' && (
+      {activeTab !== 'profile' && (
         <div className="px-4 sm:px-8 py-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -924,7 +557,6 @@ function DashboardLayout() {
         {activeTab === 'valuation' && <PropertyValuationTab user={user} userPlan={userPlan} setUserPlan={setUserPlan} showUpgradeModal={showUpgradeModal} setShowUpgradeModal={setShowUpgradeModal} />}
         {activeTab === 'leaderboard' && <LeaderboardTab user={user} userProfile={userProfile} userPlan={userPlan} />}
         {activeTab === 'profile' && <ProfileTab user={user} userProfile={userProfile} userPlan={userPlan} />}
-        {activeTab === 'admin' && isAdminUser(user?.email) && <AdminInvoicePage user={user} />}
       </div>
     </div>
 
@@ -953,18 +585,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
   const [subLoading, setSubLoading] = useState(null);
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [creditsError, setCreditsError] = useState(null);
-
-  // Nouveaux états pour le formulaire de contact (Plan Entreprise/CRM)
-  const [showContactForm, setShowContactForm] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [contactData, setContactData] = useState({
-    name: user?.displayName || '',
-    email: user?.email || '',
-    teamSize: '1-5',
-    phone: '',
-    description: ''
-  });
 
   if (!showUpgradeModal) return null;
 
@@ -1018,21 +638,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
       recommended: true,
       badge: '👑 Puissance Totale'
     },
-    { 
-      key: 'entreprise', 
-      name: 'CRM Multi-Agents', 
-      price: 'Contact', 
-      analyses: 'Évaluations & Chatbot ILLIMITÉS',
-      internet: 'Équipes de toutes tailles 🌐',
-      features: [
-        'CRM propulsé par l\'IA pour courtier',
-        'Spécialisé Immobilier OU Hypothécaire',
-        'Accès illimité aux évaluations & Chatbot',
-        'Conçu pour les équipes de n\'importe quelle taille'
-      ],
-      icon: <span className="text-3xl md:text-4xl">🏢</span>,
-      color: 'amber'
-    }
   ];
 
   const creditPlans = [
@@ -1077,7 +682,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
   // ✅ LOGIQUE DE VÉRIFICATION DES DOWNGRADES
   const isDowngrade = (planKey) => {
-    const weights = { 'essai': 0, 'pro': 1, 'growth': 2, 'entreprise': 3 };
+    const weights = { 'essai': 0, 'pro': 1, 'growth': 2 };
     return weights[planKey] < weights[userPlan];
   };
 
@@ -1121,31 +726,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
     }
   };
 
-  const handleContactSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    
-    try {
-      const API_URL = window.API_BASE_URL || process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
-      
-      // Envoi de la requête au backend pour générer un email
-      await axios.post(`${API_URL}/api/contact/quote`, {
-        userId: user?.uid,
-        productOfInterest: 'CRM Multi-Agents IA (Immobilier/Hypothécaire)',
-        ...contactData
-      });
-      
-      setIsSuccess(true);
-    } catch (error) {
-      console.log("Le backend n'est pas encore prêt. Simulation d'un succès pour le test UI.");
-      setTimeout(() => {
-        setIsSuccess(true);
-      }, 1500);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div 
       className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-[9999] p-2 md:p-8"
@@ -1157,11 +737,9 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
         <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 md:px-12 py-5 md:py-8 flex items-center justify-between z-20">
           <div className="max-w-[80%] md:max-w-none">
             <h2 className="text-xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight">Accélérez vos investissements 🚀</h2>
-            {!showContactForm && (
-              <p className="text-gray-500 mt-1 flex items-center gap-2 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
-                Statut actuel : <span className="bg-indigo-50 text-indigo-700 px-2 md:px-3 py-0.5 rounded-full border border-indigo-100">{userPlan}</span>
-              </p>
-            )}
+            <p className="text-gray-500 mt-1 flex items-center gap-2 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+              Statut actuel : <span className="bg-indigo-50 text-indigo-700 px-2 md:px-3 py-0.5 rounded-full border border-indigo-100">{userPlan}</span>
+            </p>
           </div>
           <button
             onClick={() => setShowUpgradeModal(false)}
@@ -1173,128 +751,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
         <div className="px-5 md:px-12 py-6 md:py-10">
           
-          {showContactForm ? (
-            /* =========================================================
-               VUE FORMULAIRE DE CONTACT (POUR LE PLAN ENTREPRISE/CRM)
-               ========================================================= */
-            <div className="animate-in slide-in-from-right-8 duration-300 max-w-4xl mx-auto py-4">
-              <button 
-                onClick={() => { setShowContactForm(false); setIsSuccess(false); }}
-                className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 font-bold text-sm mb-8 transition-colors"
-              >
-                <ArrowLeft size={18} /> Retour aux forfaits
-              </button>
-
-              {isSuccess ? (
-                <div className="flex flex-col items-center justify-center text-center py-16 px-4">
-                  <div className="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <CheckCircle2 size={48} />
-                  </div>
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">Demande envoyée !</h2>
-                  <p className="text-slate-500 max-w-md mx-auto leading-relaxed mb-8">
-                    Merci pour votre intérêt envers notre <span className="font-bold text-indigo-600">CRM Multi-Agents IA</span>. Notre équipe analysera vos besoins et vous contactera très rapidement avec une soumission sur mesure.
-                  </p>
-                  <button 
-                    onClick={() => setShowUpgradeModal(false)}
-                    className="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-2xl font-black transition-colors"
-                  >
-                    Fermer la fenêtre
-                  </button>
-                </div>
-              ) : (
-                <div className="max-w-2xl mx-auto">
-                  <div className="mb-10 text-center">
-                    <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest border border-amber-100 mb-4">
-                      🏢 CRM Immo & Hypothécaire
-                    </div>
-                    <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">Obtenir une soumission</h2>
-                    <p className="text-slate-500 font-medium">Pour équiper votre équipe d'une solution d'intelligence artificielle complète.</p>
-                  </div>
-
-                  <form onSubmit={handleContactSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Nom complet</label>
-                        <input 
-                          required 
-                          type="text" 
-                          value={contactData.name}
-                          onChange={e => setContactData({...contactData, name: e.target.value})}
-                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
-                          placeholder="Jean Tremblay" 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Adresse Courriel</label>
-                        <input 
-                          required 
-                          type="email" 
-                          value={contactData.email}
-                          onChange={e => setContactData({...contactData, email: e.target.value})}
-                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
-                          placeholder="jean@equipe.com" 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Numéro de téléphone</label>
-                        <input 
-                          type="tel" 
-                          value={contactData.phone}
-                          onChange={e => setContactData({...contactData, phone: e.target.value})}
-                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700" 
-                          placeholder="(555) 555-5555" 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Taille de l'équipe</label>
-                        <select 
-                          value={contactData.teamSize}
-                          onChange={e => setContactData({...contactData, teamSize: e.target.value})}
-                          className="w-full bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
-                        >
-                          <option value="1">Seul (1 courtier)</option>
-                          <option value="1-5">Petite équipe (2 à 5)</option>
-                          <option value="6-15">Équipe moyenne (6 à 15)</option>
-                          <option value="16-50">Grande équipe (16 à 50)</option>
-                          <option value="50+">Agence / Cabinet (50+)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Parlez-nous de vos besoins (Immo ou Hypo ?)</label>
-                      <textarea 
-                        value={contactData.description}
-                        onChange={e => setContactData({...contactData, description: e.target.value})}
-                        className="w-full h-32 bg-slate-50 border border-slate-200 p-4 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-400 focus:bg-white transition-all font-bold text-slate-700 resize-none" 
-                        placeholder="Nous sommes une équipe immobilière cherchant à qualifier plus rapidement nos acheteurs avec l'IA..." 
-                      />
-                    </div>
-
-                    <div className="pt-4">
-                      <button 
-                        type="submit" 
-                        disabled={isSubmitting}
-                        className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                      >
-                        {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <><Send size={20}/> Envoyer ma demande</>}
-                      </button>
-                      <p className="text-center text-xs font-bold text-slate-400 mt-4 flex items-center justify-center gap-2">
-                        <Mail size={14} /> La demande sera envoyée directement à info@optimiplex.com
-                      </p>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* =========================================================
-               VUE PRINCIPALE : TABS (PLANS / CREDITS)
-               ========================================================= */
-            <div className="animate-in fade-in duration-300">
+          <div className="animate-in fade-in duration-300">
               {/* TABS SELECTOR */}
               <div className="flex p-1.5 bg-slate-100 rounded-2xl md:rounded-[32px] w-full md:w-fit mb-8 md:mb-12 mx-auto border border-slate-200 overflow-hidden">
                 <button
@@ -1313,7 +770,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
 
               {/* PLANS TAB */}
               {activeTab === 'plans' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
                   {plans.map((p) => {
                     const isCurrent = userPlan === p.key;
                     const isLoading = subLoading === p.key;
@@ -1361,7 +818,7 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
                           {p.features.map((f, i) => (
                             <li key={i} className="flex items-start gap-2.5 leading-tight">
                               <span className={isCurrent ? 'text-indigo-500' : 'text-emerald-500'}>•</span>
-                              <span className={f.includes('WEB') || f.includes('ILLIMITÉES') || f.includes('CRM') ? 'text-gray-900' : ''}>{f}</span>
+                              <span className={f.includes('WEB') || f.includes('ILLIMITÉES') ? 'text-gray-900' : ''}>{f}</span>
                             </li>
                           ))}
                         </ul>
@@ -1376,11 +833,11 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
                           </div>
                         ) : (
                           <button
-                            onClick={() => p.key === 'entreprise' ? setShowContactForm(true) : handleSubscribe(p.key)}
+                            onClick={() => handleSubscribe(p.key)}
                             disabled={subLoading !== null}
-                            className={`w-full py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${p.key === 'essai' ? 'bg-gray-100 text-gray-400' : p.key === 'entreprise' ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                            className={`w-full py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl active:scale-95 ${p.key === 'essai' ? 'bg-gray-100 text-gray-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                           >
-                            {isLoading ? '...' : p.key === 'entreprise' ? 'Contacter' : 'Choisir'}
+                            {isLoading ? '...' : 'Choisir'}
                           </button>
                         )}
                       </div>
@@ -1462,7 +919,6 @@ function UpgradeModal({ user, userPlan, planInfo, setUserPlan, showUpgradeModal,
                 </div>
               </div>
             </div>
-          )}
 
         </div>
       </div>
@@ -3117,7 +2573,6 @@ function DashboardOverview({ user, userPlan, setActiveTab }) {
         {renderValuationHero()}
         {renderChatHeader()}
         {isAcheteur && opti && renderProspectionDeal()}
-          {/* */}<BrokerChat evaluationData={selectedAnalysis} user={user}/> 
         <div className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 shadow-sm">
           <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
              <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl text-2xl shadow-sm shrink-0">📈</span> Performance de l'Actif
@@ -3731,7 +3186,7 @@ function OptimizationTab({ userPlan, user, setUserPlan, showUpgradeModal, setSho
     credits: 0 
   });
 
-  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999 };
 
   // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
@@ -3991,7 +3446,7 @@ function ResidentialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999 };
 
   const [formData, setFormData] = useState({
     titre: '', ville: '', quartier: '', typeappart: '312', etat: 'renove', loyeractuel: 1400,
@@ -4576,7 +4031,7 @@ function CommercialOptimizer({ userPlan, user, setShowUpgradeModal }) {
     '✅ Finalisation du rapport...'
   ];
 
-  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999 };
 
   const [formData, setFormData] = useState({
     titre: '',
@@ -5168,7 +4623,7 @@ function PropertyValuationTab({
     credits: 0 
   });
 
-  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999, entreprise: 999 };
+  const PLAN_LIMITS = { essai: 1, pro: 30, growth: 999 };
 
   // CHARGER LE QUOTA ET LES CRÉDITS DEPUIS FIRESTORE
   useEffect(() => {
@@ -6312,8 +5767,7 @@ function ResidentialValuation({ user, quotaInfo, setQuotaInfo, isButtonDisabled 
   const renderChatHeader = () => (
     <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-6 md:p-8 rounded-2xl shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-white">
       
-      {/**/}<div>
-        BrokerChat
+      <div>
         <h2 className="text-2xl font-black flex items-center gap-2">
           🤖 Discuter de cette évaluation avec l'IA
         </h2>
@@ -8641,10 +8095,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/portal/:leadId" element={<ClientPortal />} />
-          <Route path="/dashboard/*" element={<DashboardLayout />} />   
-          <Route path="/crm" element={<BrokerCRM />} /> 
-          <Route path="/crm-immo" element={<RealEstateCRM />} />
+          <Route path="/dashboard/*" element={<DashboardLayout />} />
         </Routes>
       </BrowserRouter>
   );
