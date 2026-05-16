@@ -1,45 +1,140 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr-CA">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#4F46E5" />
-    
+    <meta name="color-scheme" content="light" />
+
     <meta name="google-site-verification" content="google-site-verification=gAXsUBiE4OeYiZ84vo7Vetg9HiRkUtOLyP0cMERe6vE" />
 
-    <title>OptimiPlex - Optimisation Immobilière par IA</title>
-    <meta 
-      name="description" 
-      content="OptimiPlex - Évaluations immobilières et optimisation de loyers par IA. Analysez vos propriétés et maximisez vos revenus locatifs au Québec." 
+    <!-- Primary SEO -->
+    <title>OptimiPlex — Évaluation immobilière par IA au Québec | Loyer optimal & comparables en temps réel</title>
+    <meta
+      name="description"
+      content="OptimiPlex : la plateforme d'évaluation immobilière propulsée par l'IA pour les courtiers et investisseurs québécois. Analyses Centris en direct, optimisation de loyers, recommandations financières en 30 secondes. Essai gratuit."
     />
-    <meta name="keywords" content="immobilier, évaluation, optimisation, loyers, IA, Québec, Canada, rentabilité locative" />
+    <meta
+      name="keywords"
+      content="évaluation immobilière, évaluation propriété Québec, optimisation loyer, analyse immobilière IA, prix location Montréal, comparables MLS, Centris, JLR, investissement immobilier Québec, courtier immobilier, valeur marchande, plex, immeuble à revenus, rentabilité locative, cash-flow, IA immobilier"
+    />
     <meta name="author" content="OptimiPlex" />
-    
-    <link rel="canonical" href="https://optimiplex.com/" />
+    <meta name="application-name" content="OptimiPlex" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="geo.region" content="CA-QC" />
+    <meta name="geo.placename" content="Québec" />
 
+    <link rel="canonical" href="https://optimiplex.com/" />
+    <link rel="alternate" hreflang="fr-ca" href="https://optimiplex.com/" />
+    <link rel="alternate" hreflang="x-default" href="https://optimiplex.com/" />
+
+    <!-- Icons -->
     <link rel="icon" type="image/png" href="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" />
-    
     <link rel="apple-touch-icon" href="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" />
-    
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
+    <!-- Open Graph / Facebook -->
     <meta property="og:site_name" content="OptimiPlex" />
-    <meta property="og:title" content="OptimiPlex - Optimisation Immobilière par IA" />
-    <meta property="og:description" content="Évaluations immobilières intelligentes et optimisation de loyers pour maximiser vos revenus." />
+    <meta property="og:title" content="OptimiPlex — Évaluation immobilière par IA au Québec" />
+    <meta property="og:description" content="Évaluations immobilières et optimisation de loyers propulsées par l'IA. Comparables Centris en temps réel, recommandations en 30 secondes. Conçu pour les pros québécois." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://optimiplex.com/" />
+    <meta property="og:locale" content="fr_CA" />
     <meta property="og:image" content="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" />
+    <meta property="og:image:alt" content="Logo OptimiPlex — plateforme d'évaluation immobilière par IA" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OptimiPlex — Évaluation immobilière par IA au Québec" />
+    <meta name="twitter:description" content="Évaluations et optimisation de loyers propulsées par l'IA pour investisseurs et courtiers québécois. Essai gratuit." />
+    <meta name="twitter:image" content="https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png" />
+    <meta name="twitter:image:alt" content="Logo OptimiPlex" />
+
+    <!-- JSON-LD : Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "OptimiPlex",
+      "url": "https://optimiplex.com/",
+      "logo": "https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png",
+      "description": "Plateforme d'évaluation immobilière propulsée par l'intelligence artificielle pour les investisseurs et courtiers québécois.",
+      "areaServed": {
+        "@type": "AdministrativeArea",
+        "name": "Québec, Canada"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "info@optimiplex.com",
+        "contactType": "Customer support",
+        "availableLanguage": ["French", "fr-CA"]
+      }
+    }
+    </script>
+
+    <!-- JSON-LD : SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "OptimiPlex",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "url": "https://optimiplex.com/",
+      "description": "Évaluation immobilière et optimisation de loyers par IA. Analyses de comparables en temps réel, scan Web Centris/JLR, recommandations financières en 30 secondes.",
+      "inLanguage": "fr-CA",
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Essai gratuit",
+          "price": "0",
+          "priceCurrency": "CAD"
+        },
+        {
+          "@type": "Offer",
+          "name": "Plan Pro",
+          "price": "29",
+          "priceCurrency": "CAD",
+          "description": "30 analyses par mois"
+        }
+      ],
+      "featureList": [
+        "Évaluation immobilière par IA",
+        "Scan Centris en direct",
+        "Optimisation de loyer",
+        "Chatbot stratège",
+        "Rapports PDF professionnels",
+        "Analyses commerciales et résidentielles"
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD : WebSite (sitelinks searchbox) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "OptimiPlex",
+      "url": "https://optimiplex.com/",
+      "inLanguage": "fr-CA"
+    }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://i.ibb.co" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    
+
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { 
-        width: 100%; height: 100%; 
-        background-color: #f9fafb; 
-        font-family: 'Inter', sans-serif; 
+      html, body {
+        width: 100%; height: 100%;
+        background-color: #f9fafb;
+        font-family: 'Inter', sans-serif;
       }
       html { scroll-behavior: smooth; }
       body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -48,9 +143,10 @@
   <body>
     <noscript>
       <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #f9fafb;">
-        <div style="text-align: center; padding: 20px;">
-          <h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin-bottom: 10px;">JavaScript requis</h1>
-          <p style="font-size: 16px; color: #6b7280;">Veuillez activer JavaScript pour utiliser OptimiPlex.</p>
+        <div style="text-align: center; padding: 20px; max-width: 600px;">
+          <h1 style="font-size: 28px; font-weight: 900; color: #1f2937; margin-bottom: 12px;">OptimiPlex — Évaluation immobilière par IA</h1>
+          <p style="font-size: 16px; color: #6b7280; margin-bottom: 16px;">JavaScript est requis pour utiliser cette plateforme d'évaluation et d'optimisation de revenus immobiliers au Québec.</p>
+          <p style="font-size: 14px; color: #9ca3af;">Veuillez activer JavaScript dans les paramètres de votre navigateur pour accéder à OptimiPlex.</p>
         </div>
       </div>
     </noscript>

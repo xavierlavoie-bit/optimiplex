@@ -1,25 +1,21 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "OptimiPlex",
+  "name": "OptimiPlex — Évaluation immobilière par IA",
+  "description": "Évaluation et optimisation immobilière propulsée par l'IA pour investisseurs et courtiers québécois.",
+  "lang": "fr-CA",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
+      "src": "https://i.ibb.co/tMbhC8Sy/Minimalist-Real-Estate-Logo-1.png",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "portrait",
+  "theme_color": "#4F46E5",
+  "background_color": "#ffffff",
+  "categories": ["business", "finance", "productivity"]
 }

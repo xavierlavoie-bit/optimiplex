@@ -123,15 +123,15 @@ function SidePanel() {
         dans votre poche.
       </h2>
       <p className="text-lg text-slate-600 leading-relaxed mb-8 max-w-md">
-        Évaluation, optimisation, CRM. Une plateforme propulsée par l'IA pour les pros québécois.
+        Évaluation propulsée par l'IA pour les pros québécois.
       </p>
 
       <ul className="space-y-3">
         {[
           { icon: '⚡', label: 'Évaluation IA en temps réel' },
           { icon: '📈', label: 'Optimisation de cash-flow automatisée' },
-          { icon: '💼', label: 'CRM Hypothécaire & Immobilier intégrés' },
-          { icon: '🔒', label: 'Données hébergées au Canada — Loi 25' },
+          { icon: '🌐', label: 'Scan Web en direct des comparables' },
+          { icon: '🔒', label: 'Chiffrement AES-256 · Conformité Loi 25' },
         ].map((b, i) => (
           <motion.li
             key={i}

@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useCallback  } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import { initializeApp } from 'firebase/app';
 import HomePage from './HomePage';
+import PrivacyPolicy from './PrivacyPolicy';
 import AuthShell from './AuthShell';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Menu, ChevronRight,Trash2, X, Check, Edit2,  MapPin, ArrowLeft, Send, Loader2, Mail, Target, DollarSign, Zap, Home, Plus, MessageSquare, Paperclip, Mic, Sparkles, TrendingUp, Building,
@@ -1142,7 +1143,8 @@ function ProfileTab({ user, userProfile, userPlan }) {
       <div className="inline-flex gap-1 mb-8 p-1.5 bg-slate-100 rounded-2xl">
         {[
           { id: 'info', label: 'Mon Profil', icon: '👤' },
-          { id: 'billing', label: 'Abonnement', icon: '💳' }
+          { id: 'billing', label: 'Abonnement', icon: '💳' },
+          { id: 'privacy', label: 'Confidentialité', icon: '🛡️' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -1479,6 +1481,184 @@ function ProfileTab({ user, userProfile, userPlan }) {
           )}
         </div>
       )}
+
+      {activeProfileTab === 'privacy' && (
+        <PrivacyTab user={user} userProfile={userProfile} />
+      )}
+    </div>
+  );
+}
+
+function PrivacyTab({ user, userProfile }) {
+  const navigate = useNavigate();
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const consent = userProfile?.consent || null;
+  const consentDate = consent?.acceptedAt?.toDate
+    ? consent.acceptedAt.toDate().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null;
+
+  const handleExport = async () => {
+    setExporting(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const token = await user.getIdToken();
+      const res = await axios.get(`${API_BASE_URL}/api/user/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `optimiplex-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setMessage({ type: 'success', text: 'Vos données ont été téléchargées en JSON.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.error || err.message });
+    }
+    setExporting(false);
+  };
+
+  const handleDelete = async () => {
+    if (confirmText !== 'SUPPRIMER') {
+      setMessage({ type: 'error', text: 'Tape SUPPRIMER en majuscules pour confirmer.' });
+      return;
+    }
+    setDeleting(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const token = await user.getIdToken();
+      await axios.delete(`${API_BASE_URL}/api/user/account`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await signOut(auth);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.error || err.message });
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      {/* Header */}
+      <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 to-cyan-50 border border-emerald-100">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center text-2xl shrink-0">🛡️</div>
+          <div>
+            <h3 className="text-xl font-black text-slate-900 mb-1">Vos droits en vertu de la Loi 25</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Vous pouvez accéder, exporter ou supprimer vos renseignements en tout temps. Consultez la <Link to="/confidentialite" target="_blank" className="text-indigo-600 font-bold hover:underline">politique de confidentialité</Link>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Message */}
+      {message.text && (
+        <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+          message.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}>
+          <span>{message.type === 'success' ? '✅' : '⚠️'}</span>
+          <span className="text-sm font-semibold">{message.text}</span>
+        </div>
+      )}
+
+      {/* Consentement */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Consentement</p>
+        {consent?.accepted ? (
+          <div>
+            <p className="font-bold text-slate-900 mb-1">✅ Consentement actif</p>
+            <p className="text-sm text-slate-600">
+              Vous avez accepté la politique {consent.version ? `v${consent.version}` : ''}{consentDate ? ` le ${consentDate}` : ''}.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">Aucune trace de consentement explicite. Pour les comptes existants, la prochaine connexion vous demandera un consentement.</p>
+        )}
+      </div>
+
+      {/* Droit d'accès / portabilité */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Droit d'accès et portabilité</p>
+        <h4 className="text-lg font-black text-slate-900 mb-2">Exporter mes données</h4>
+        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+          Téléchargez une copie complète de vos renseignements (profil, évaluations, analyses) dans un fichier JSON portable.
+        </p>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="inline-flex items-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl disabled:opacity-50 transition-all"
+        >
+          {exporting ? '⏳ Préparation…' : '📥 Télécharger mes données (JSON)'}
+        </button>
+      </div>
+
+      {/* Droit à l'effacement */}
+      <div className="bg-rose-50/40 rounded-3xl border-2 border-rose-200 p-6">
+        <p className="text-xs font-black uppercase tracking-widest text-rose-500 mb-2">Droit à l'effacement</p>
+        <h4 className="text-lg font-black text-slate-900 mb-2">Supprimer mon compte</h4>
+        <p className="text-sm text-slate-700 mb-4 leading-relaxed">
+          Supprime définitivement votre compte et toutes vos données (profil, évaluations, historique).
+          Cette action est <strong>irréversible</strong>. Les factures Stripe sont conservées 7 ans pour obligations comptables (Loi sur les impôts du Québec).
+        </p>
+
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-white border-2 border-rose-300 text-rose-700 hover:bg-rose-50 font-black rounded-xl transition-all"
+          >
+            🗑️ Supprimer mon compte
+          </button>
+        ) : (
+          <div className="space-y-3 p-4 bg-white rounded-2xl border border-rose-200">
+            <p className="text-sm font-bold text-slate-900">Pour confirmer, tape <code className="px-1.5 py-0.5 bg-slate-100 rounded text-rose-600">SUPPRIMER</code> ci-dessous :</p>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="SUPPRIMER"
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none font-mono"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting || confirmText !== 'SUPPRIMER'}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl disabled:opacity-50 transition-all"
+              >
+                {deleting ? '⏳ Suppression…' : 'Confirmer la suppression'}
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(false); setConfirmText(''); }}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-black rounded-xl transition-all"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Contact responsable */}
+      <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Une question ?</p>
+        <p className="text-sm text-slate-700 leading-relaxed">
+          Pour toute demande relative à vos renseignements personnels, contactez notre responsable de la protection :{' '}
+          <a href="mailto:info@optimiplex.com" className="text-indigo-600 font-bold hover:underline">info@optimiplex.com</a>.
+          Nous répondons dans un délai maximum de 30 jours.
+        </p>
+      </div>
     </div>
   );
 }
@@ -7912,25 +8092,29 @@ function LoginPage() {
 
 function RegisterPage() {
   const [formData, setFormData] = useState({ email: '', password: '', confirmPassword: '' });
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Toggle affichage du mot de passe
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
 
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
-
-  // ✅ Login Google Simplifié via Firebase
   const handleGoogleLogin = async () => {
+    if (!consent) {
+      setError("Tu dois accepter la politique de confidentialité pour créer un compte.");
+      return;
+    }
     try {
       await signInWithPopup(auth, googleProvider);
+      const db = getFirestore();
+      const u = getAuth().currentUser;
+      await setDoc(doc(db, 'users', u.uid), {
+        email: u.email,
+        consent: { accepted: true, version: '1.0', acceptedAt: serverTimestamp() }
+      }, { merge: true });
       console.log('✅ Google Register Réussi');
       navigate('/dashboard/overview', { replace: true });
     } catch (error) {
@@ -7943,12 +8127,14 @@ function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    // ✅ Validation des mots de passe
+    if (!consent) {
+      setError("Tu dois accepter la politique de confidentialité pour créer un compte.");
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError('Les mots de passe ne correspondent pas');
       return;
     }
-
     if (formData.password.length < 8) {
       setError('Le mot de passe doit contenir au moins 8 caractères');
       return;
@@ -7959,13 +8145,14 @@ function RegisterPage() {
       await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const db = getFirestore();
       const currentUser = getAuth().currentUser;
-      
+
       await setDoc(doc(db, 'users', currentUser.uid), {
         email: formData.email,
         plan: 'essai',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        consent: { accepted: true, version: '1.0', acceptedAt: serverTimestamp() }
       });
-      
+
       navigate('/dashboard/overview');
     } catch (err) {
       setError(err.message);
@@ -8046,6 +8233,19 @@ function RegisterPage() {
           </div>
         </div>
 
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-2 border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-200 cursor-pointer shrink-0"
+            required
+          />
+          <span className="text-xs text-slate-600 leading-relaxed">
+            J'accepte qu'OptimiPlex collecte et traite mes renseignements (courriel, évaluations, adresses analysées) dans le seul but de fournir le service. Je peux retirer mon consentement en tout temps en supprimant mon compte. Voir la <Link to="/confidentialite" target="_blank" className="text-indigo-600 hover:underline font-bold">politique de confidentialité</Link>.
+          </span>
+        </label>
+
         <button
           type="submit"
           disabled={loading}
@@ -8095,6 +8295,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/confidentialite" element={<PrivacyPolicy />} />
           <Route path="/dashboard/*" element={<DashboardLayout />} />
         </Routes>
       </BrowserRouter>

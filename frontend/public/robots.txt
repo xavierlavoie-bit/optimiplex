@@ -1,3 +1,9 @@
 # https://www.robotstxt.org/robotstxt.html
+
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://optimiplex.com/sitemap.xml

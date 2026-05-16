@@ -88,7 +88,7 @@ function Nav() {
         <Link to="/" className="flex items-center gap-3 group">
           <motion.div whileHover={{ rotate: -5, scale: 1.05 }} className="relative">
             <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-30 group-hover:opacity-50 transition-opacity rounded-xl"></div>
-            <img src={LOGO_URL} alt="OptimiPlex" className="relative w-11 h-11 rounded-xl bg-white p-1 shadow-md" />
+            <img src={LOGO_URL} alt="OptimiPlex — Évaluation immobilière par IA au Québec" className="relative w-11 h-11 rounded-xl bg-white p-1 shadow-md" />
           </motion.div>
           <span className={`font-black text-2xl tracking-tight hidden sm:inline transition-colors ${scrolled ? 'text-slate-900' : 'text-white drop-shadow'}`}>OptimiPlex</span>
         </Link>
@@ -566,9 +566,9 @@ function Features() {
 
           <BentoCard className="lg:col-span-2 bg-gradient-to-br from-emerald-50 to-cyan-50 border-emerald-200/70" delay={0.3}>
             <FeatureIcon Icon={Shield} color="emerald" />
-            <h3 className="text-xl font-black text-slate-900 mb-2">Données sécurisées · Hébergement Canada</h3>
+            <h3 className="text-xl font-black text-slate-900 mb-2">Données sécurisées · Chiffrement AES-256</h3>
             <p className="text-sm text-slate-600 leading-relaxed max-w-md">
-              Conformité Loi 25, chiffrement bout-en-bout, infrastructure Firebase Canada-Central. Vos données restent au Québec.
+              Infrastructure Google Firebase certifiée SOC 2 et ISO 27001, chiffrement bout-en-bout. Conformité Loi 25.
             </p>
           </BentoCard>
         </div>
@@ -793,7 +793,7 @@ function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-3 mb-4">
-              <img src={LOGO_URL} alt="OptimiPlex" className="w-10 h-10 rounded-lg bg-white p-1 shadow-sm" />
+              <img src={LOGO_URL} alt="OptimiPlex — Évaluation immobilière par IA au Québec" className="w-10 h-10 rounded-lg bg-white p-1 shadow-sm" />
               <span className="font-black text-slate-900 text-xl tracking-tight">OptimiPlex</span>
             </Link>
             <p className="text-sm text-slate-600 leading-relaxed max-w-sm">
@@ -810,15 +810,14 @@ function Footer() {
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Entreprise</p>
             <ul className="space-y-2 text-sm font-semibold text-slate-600">
-              <li><a href="mailto:contact@optimiplex.com" className="hover:text-slate-900 transition">Contact</a></li>
-              <li><a href="#" className="hover:text-slate-900 transition">Conditions</a></li>
-              <li><a href="#" className="hover:text-slate-900 transition">Confidentialité</a></li>
+              <li><a href="mailto:info@optimiplex.com" className="hover:text-slate-900 transition">Contact</a></li>
+              <li><Link to="/confidentialite" className="hover:text-slate-900 transition">Confidentialité</Link></li>
             </ul>
           </div>
         </div>
         <div className="pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            © 2026 OptimiPlex Intelligence Inc.
+            © 2026 OptimiPlex
           </p>
           <p className="text-xs font-semibold text-slate-400">
             Construit avec ❤ au Québec

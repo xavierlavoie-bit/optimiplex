@@ -2149,6 +2149,104 @@ function parseClaudeJSON(text) {
 
 
 // ====================================================================
+// 🛡️ LOI 25 — DROITS DES UTILISATEURS (accès, portabilité, effacement)
+// ====================================================================
+
+// Middleware : vérifie le token Firebase et expose req.uid
+const requireAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.header('Authorization') || '';
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!match) return res.status(401).json({ error: 'Token manquant' });
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    req.uid = decoded.uid;
+    req.email = decoded.email;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
+  }
+};
+
+// GET /api/user/export — droit d'accès + portabilité (retourne tout en JSON)
+app.get('/api/user/export', requireAuth, async (req, res) => {
+  try {
+    const uid = req.uid;
+    const userDoc = await db.collection('users').doc(uid).get();
+    const profile = userDoc.exists ? userDoc.data() : null;
+
+    const collectionsToExport = ['evaluations', 'evaluations_commerciales', 'analyses'];
+    const exportData = { profile, evaluations: {} };
+
+    for (const colName of collectionsToExport) {
+      // Collection racine filtrée par userId
+      const rootSnap = await db.collection(colName).where('userId', '==', uid).get().catch(() => null);
+      const rootDocs = rootSnap ? rootSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      // Sous-collection users/{uid}/{colName}
+      const subSnap = await db.collection('users').doc(uid).collection(colName).get().catch(() => null);
+      const subDocs = subSnap ? subSnap.docs.map(d => ({ id: d.id, ...d.data() })) : [];
+      exportData.evaluations[colName] = [...rootDocs, ...subDocs];
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="optimiplex-export-${uid}.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(exportData, null, 2));
+  } catch (error) {
+    console.error('❌ /api/user/export:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/user/account — droit à l'effacement (retrait du consentement)
+app.delete('/api/user/account', requireAuth, async (req, res) => {
+  const uid = req.uid;
+  try {
+    const collectionsToDelete = ['evaluations', 'evaluations_commerciales', 'analyses'];
+
+    for (const colName of collectionsToDelete) {
+      // Collection racine
+      const rootSnap = await db.collection(colName).where('userId', '==', uid).get().catch(() => null);
+      if (rootSnap && !rootSnap.empty) {
+        const batch = db.batch();
+        rootSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+      // Sous-collection users/{uid}/{colName}
+      const subSnap = await db.collection('users').doc(uid).collection(colName).get().catch(() => null);
+      if (subSnap && !subSnap.empty) {
+        const batch = db.batch();
+        subSnap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // Annule l'abonnement Stripe s'il existe
+    const userDoc = await db.collection('users').doc(uid).get();
+    const stripeCustomerId = userDoc.exists ? userDoc.data()?.stripeCustomerId : null;
+    if (stripeCustomerId) {
+      try {
+        const subs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'active', limit: 10 });
+        await Promise.all(subs.data.map(s => stripe.subscriptions.cancel(s.id).catch(() => null)));
+      } catch (e) {
+        console.warn('⚠️ Annulation Stripe partielle:', e.message);
+      }
+    }
+
+    // Supprime le doc user
+    await db.collection('users').doc(uid).delete();
+
+    // Supprime le compte Firebase Auth
+    await admin.auth().deleteUser(uid);
+
+    console.log(`🗑️ Compte ${uid} supprimé (Loi 25 — droit à l'effacement)`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ /api/user/account DELETE:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ====================================================================
 // 🚀 DÉMARRAGE
 // ====================================================================
 
