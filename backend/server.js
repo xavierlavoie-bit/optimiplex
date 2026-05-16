@@ -2251,14 +2251,13 @@ app.delete('/api/user/account', requireAuth, async (req, res) => {
 // ====================================================================
 
 const PORT = process.env.PORT || 5001;
-const path = require('path');
 
-app.use(express.static(path.join(__dirname, 'build')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+// Healthcheck (utile pour Render et monitoring)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'optimiplex-api', timestamp: new Date().toISOString() });
 });
 
+// 404 pour toute route non-API
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
